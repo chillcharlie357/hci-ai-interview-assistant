@@ -17,7 +17,7 @@ Do not expand MVP scope into video analysis, screen sharing, OCR, facial analysi
 - Core/backend logic: Python.
 - Frontend UI: TypeScript.
 - Spec documents: Markdown under `spec/`.
-- Current JS prototype files are historical scaffolding and should not guide new implementation choices.
+- Do not add root-level JavaScript prototypes; frontend code belongs under `frontend/`.
 
 ## Spec-Driven Development
 
