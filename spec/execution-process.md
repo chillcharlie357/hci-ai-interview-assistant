@@ -8,7 +8,7 @@
 2. `feat/spec-foundation`：spec 目录、目标和执行过程。
 3. `feat/question-engine`：简历/JD 解析与问题生成。
 4. `feat/interview-session`：数字人提问、回答记录和纪要生成。
-5. `feat/static-ui`：浏览器 MVP 页面与交互。
+5. `feat/frontend-ui`：TypeScript 前端 MVP 页面与交互。
 
 执行顺序：
 
@@ -77,6 +77,6 @@
 
 ## 验证方式
 
-- 使用 Node.js 内置测试运行器执行核心逻辑测试。
-- 使用无外部依赖的静态页面验证端到端演示。
-- 每个 feature 分支在合并前必须执行 `npm test`。
+- 使用 Python 测试框架验证核心面试逻辑。
+- 使用 TypeScript 前端测试验证关键 UI 数据流。
+- 每个 feature 分支在合并前必须执行对应测试命令。
