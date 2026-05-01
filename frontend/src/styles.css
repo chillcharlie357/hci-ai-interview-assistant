@@ -163,6 +163,13 @@ textarea {
   padding-left: 18px;
 }
 
+.error-text {
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0;
+}
+
 pre {
   background: #101827;
   border-radius: 8px;
