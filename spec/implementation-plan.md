@@ -67,3 +67,11 @@
 - 新增 `scripts/test.sh`，串行执行 Python unittest、frontend vitest 和 frontend build。
 - 新增 `Dockerfile.backend`、`frontend/Dockerfile`、`docker-compose.yml`。
 - Docker Compose 暴露 API `http://localhost:8000` 和前端 `http://localhost:5173`。
+
+## 阶段 10：招聘端 / 面试端分离
+
+- 新增 `/recruiter` 招聘端：上传简历、MinerU 解析、LLM 职位追问、生成问题、配置报告权限。
+- 新增 `/interview/{sessionId}` 面试端：LiveKit 视频会议、数字人 TTS 提问、Web Speech 语音转文字回答。
+- 新增 prep session API：`/api/prep-sessions/resume`、`/api/prep-sessions/{id}/followups`、`/api/prep-sessions/{id}/interview-session`。
+- 新增 LiveKit token API：`/api/sessions/{id}/livekit-token`。
+- 新增报告权限：默认 `recruiter_only`，可设置 `shared_with_candidate`。

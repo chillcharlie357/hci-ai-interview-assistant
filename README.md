@@ -4,14 +4,12 @@ AI-assisted interview MVP for structured question generation, digital interviewe
 
 ## Scope
 
-The MVP focuses on the smallest useful interview loop:
+The MVP now has two user-facing entry points:
 
-1. Enter candidate profile, resume summary, job description, and interview goals.
-2. Generate structured interview questions.
-3. Ask questions through a digital interviewer UI.
-4. Record candidate answers and basic metrics.
-5. Optionally observe browser-side camera quality/activity signals and in-memory keyframes.
-6. Generate a Markdown interview summary tied back to questions, answers, events, and observation signals.
+- Recruiter: `http://localhost:5173/recruiter`
+- Candidate interview room: `http://localhost:5173/interview/{sessionId}`
+
+The recruiter uploads a resume, answers LLM follow-up questions about the role, configures report visibility, then creates an interview link. The candidate joins a LiveKit video room, hears the digital interviewer prompt, answers by browser speech-to-text or manual text fallback, and submits answers into the existing report flow.
 
 The MVP intentionally does not implement screen sharing, OCR, high-precision facial recognition, sensitive-attribute inference, or automatic hire/no-hire decisions. Camera-derived metrics are observation signals for human review only.
 
@@ -41,6 +39,14 @@ cp .env.example .env
 ```
 
 Fill in `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and `OPENAI_MODEL` in `.env`. Do not commit `.env`.
+For resume extraction and video meetings, also configure:
+
+```bash
+MINERU_COMMAND=mineru-open-api
+LIVEKIT_URL=wss://...
+LIVEKIT_API_KEY=...
+LIVEKIT_API_SECRET=...
+```
 
 If the API key or model is missing, the app uses fallback logic and returns `llm_status: "fallback"`.
 
@@ -64,7 +70,12 @@ python3 -m backend.interview.api --host 127.0.0.1 --port 8000
 Useful API endpoints:
 
 - `POST /api/sessions`: create an interview session from candidate, resume, JD, and goal inputs.
+- `POST /api/prep-sessions/resume`: upload a PDF/DOCX/image resume for MinerU extraction.
+- `POST /api/prep-sessions/{id}/followups`: submit recruiter answers to LLM role follow-up questions.
+- `POST /api/prep-sessions/{id}/interview-session`: generate the candidate interview session.
 - `GET /api/sessions/{id}`: fetch an in-memory session.
+- `POST /api/sessions/{id}/livekit-token`: create a LiveKit participant token.
+- `GET /api/sessions/{id}/report?viewer=recruiter|candidate`: fetch report with visibility enforcement.
 - `POST /api/sessions/{id}/video-events`: record a browser-side camera observation event and optional in-memory keyframe.
 - `POST /api/sessions/{id}/answers`: record the current answer and return the updated session plus Markdown report.
 

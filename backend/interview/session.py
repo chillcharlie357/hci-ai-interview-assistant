@@ -71,6 +71,9 @@ class InterviewSession:
     llm_status: str = "fallback"
     video_events: list[VideoEvent] | None = None
     keyframes: list[KeyframeRecord] | None = None
+    report_visibility: str = "recruiter_only"
+    meeting_room: str = ""
+    enable_video_observation: bool = True
 
     @property
     def current_question(self) -> InterviewQuestion | None:
@@ -83,10 +86,13 @@ def create_interview_session(
     candidate_name: str = "候选人",
     role: str = "候选人",
     questions: list[InterviewQuestion] | None = None,
+    report_visibility: str = "recruiter_only",
+    enable_video_observation: bool = True,
 ) -> InterviewSession:
     question_list = questions or []
+    session_id = f"session_{int(time.time() * 1000)}"
     return InterviewSession(
-        id=f"session_{int(time.time() * 1000)}",
+        id=session_id,
         candidate_name=candidate_name,
         role=role,
         questions=question_list,
@@ -95,6 +101,9 @@ def create_interview_session(
         llm_status="fallback",
         video_events=[],
         keyframes=[],
+        report_visibility=report_visibility if report_visibility in {"recruiter_only", "shared_with_candidate"} else "recruiter_only",
+        meeting_room=f"interview-{session_id}",
+        enable_video_observation=enable_video_observation,
         events=[
             InterviewEvent(
                 type="session_started",
