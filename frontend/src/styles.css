@@ -33,6 +33,10 @@ button:disabled {
   opacity: 0.45;
 }
 
+.secondary-button {
+  background: #334155;
+}
+
 .app-shell {
   display: grid;
   gap: 16px;
@@ -96,6 +100,16 @@ textarea {
   padding: 10px 11px;
 }
 
+.check-row {
+  align-items: center;
+  display: flex;
+  gap: 9px;
+}
+
+.check-row input {
+  min-width: auto;
+}
+
 .avatar-row {
   align-items: center;
   border-bottom: 1px solid #d8e0ec;
@@ -122,6 +136,11 @@ textarea {
   display: flex;
   gap: 12px;
   margin-bottom: 14px;
+}
+
+.actions.compact {
+  flex-wrap: wrap;
+  margin: 0;
 }
 
 .question-list {
@@ -170,6 +189,89 @@ textarea {
   margin: 0;
 }
 
+.status-line,
+.muted {
+  color: #637086;
+  font-size: 13px;
+  margin: 8px 0 0;
+}
+
+.video-box {
+  border-top: 1px solid #d8e0ec;
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 16px;
+}
+
+.video-toolbar {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.camera-preview {
+  aspect-ratio: 4 / 3;
+  background: #101827;
+  border-radius: 8px;
+  inline-size: 100%;
+  object-fit: cover;
+}
+
+.metric-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.metric-item {
+  border: 1px solid #d8e0ec;
+  border-radius: 6px;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 9px;
+}
+
+.metric-item span {
+  color: #637086;
+  font-size: 12px;
+}
+
+.metric-item strong {
+  color: #172033;
+  font-size: 14px;
+}
+
+.keyframes {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  margin-bottom: 20px;
+}
+
+.keyframes figure {
+  border: 1px solid #d8e0ec;
+  border-radius: 6px;
+  margin: 0;
+  overflow: hidden;
+}
+
+.keyframes img {
+  aspect-ratio: 4 / 3;
+  background: #101827;
+  display: block;
+  inline-size: 100%;
+  object-fit: cover;
+}
+
+.keyframes figcaption {
+  color: #637086;
+  font-size: 12px;
+  padding: 7px;
+}
+
 pre {
   background: #101827;
   border-radius: 8px;
@@ -185,5 +287,16 @@ pre {
 @media (max-width: 1100px) {
   .app-shell {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .video-toolbar {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

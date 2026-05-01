@@ -9,6 +9,7 @@
 3. `feat/question-engine`：简历/JD 解析与问题生成。
 4. `feat/interview-session`：数字人提问、回答记录和纪要生成。
 5. `feat/frontend-ui`：TypeScript 前端 MVP 页面与交互。
+6. `feat/realtime-video-llm-run`：实时摄像头观察、OpenAI-compatible LLM、一键运行脚本和 Docker。
 
 执行顺序：
 
@@ -75,8 +76,54 @@
 - 实时事件流
 - 面试后纪要
 
+### 实时摄像头观察模块
+
+输入：
+
+- 浏览器摄像头视频流
+- Canvas 当前帧与上一帧像素
+
+输出：
+
+- face presence
+- brightness
+- blur / sharpness proxy
+- motion amount
+- head pose / gaze / blink / nod / hand / body activity proxy
+- video event
+- 内存关键帧 data URL
+
+执行边界：
+
+- 前端负责指标计算和关键帧生成。
+- 后端只接收结构化事件和 base64 JPEG，不做自动评分。
+- 关键帧默认只存在当前内存 session。
+
+### OpenAI-Compatible LLM 模块
+
+输入：
+
+- 简历摘要
+- 岗位 JD
+- 面试目标
+- 问题、回答、事件和 video events
+
+输出：
+
+- 结构化问题
+- Markdown 智能纪要
+- `llm_status`
+
+执行边界：
+
+- 环境变量为 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`。
+- 未配置、返回非法 JSON 或出现录用判断措辞时使用规则 fallback。
+- LLM 不作为全流程 Agent，只增强问题和纪要。
+
 ## 验证方式
 
 - 使用 Python 测试框架验证核心面试逻辑。
 - 使用 TypeScript 前端测试验证关键 UI 数据流。
+- 使用 `scripts/test.sh` 执行 Python unittest、frontend vitest 和 frontend build。
+- 使用 `docker compose config` 验证 Docker Compose 配置。
 - 每个 feature 分支在合并前必须执行对应测试命令。

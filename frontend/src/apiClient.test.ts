@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createSession, submitAnswer } from "./apiClient";
+import { createSession, submitAnswer, submitVideoEvent } from "./apiClient";
 import type { DraftInput } from "./interviewFlow";
 
 describe("apiClient", () => {
@@ -79,5 +79,49 @@ describe("apiClient", () => {
 
     expect(result.session.answers[0].questionId).toBe("q_001");
     expect(result.report).toBe("# 智能面试纪要");
+  });
+
+  it("submits a video event and maps video summary", async () => {
+    const fetcher = async () =>
+      new Response(
+        JSON.stringify({
+          id: "session_1",
+          candidate_name: "张三",
+          role: "AI 产品全栈工程师",
+          questions: [],
+          current_index: 0,
+          current_question: null,
+          answers: [],
+          events: [],
+          video_events: [
+            {
+              timestamp: 12.5,
+              event_type: "low_light",
+              confidence: 0.8,
+              metrics: { face_present: true, brightness: 0.12, blur: 0.3, motion: 0.1 },
+              keyframe_index: 0
+            }
+          ],
+          keyframes: [{ timestamp: 12.5, reason: "low_light", data_url: "data:image/jpeg;base64,abc" }],
+          video_summary: { event_count: 1, keyframe_count: 1, event_types: ["low_light"] },
+          llm_status: "fallback"
+        }),
+        { status: 200 }
+      );
+
+    const session = await submitVideoEvent(
+      "session_1",
+      {
+        timestamp: 12.5,
+        eventType: "low_light",
+        confidence: 0.8,
+        metrics: { facePresent: true, brightness: 0.12, blur: 0.3, motion: 0.1 },
+        keyframe: { reason: "low_light", dataUrl: "data:image/jpeg;base64,abc" }
+      },
+      { fetcher }
+    );
+
+    expect(session.videoSummary.eventCount).toBe(1);
+    expect(session.keyframes[0].reason).toBe("low_light");
   });
 });

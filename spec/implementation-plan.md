@@ -42,3 +42,27 @@
 - 执行完整测试。
 - 检查 Python 核心逻辑与 TypeScript UI 数据流。
 - 确认 PRD、目标、执行过程均位于 `spec/`。
+
+## 阶段 7：OpenAI-Compatible LLM
+
+- 新增 Python LLM client，使用 OpenAI Chat Completions 格式。
+- 支持环境变量 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`。
+- 创建 session 时可选择 `use_llm_questions: true`，未配置时返回 `llm_status: fallback` 并使用规则问题。
+- 提交回答生成纪要时可用 LLM 增强 Markdown；未配置、响应非法或出现录用判断措辞时回退规则纪要。
+- 覆盖 LLM mock、fallback、非法响应和 API 纪要增强测试。
+
+## 阶段 8：实时摄像头观察
+
+- 前端使用 `getUserMedia` 打开候选人摄像头预览。
+- TypeScript 侧基于 Canvas 指标计算亮度、清晰度 proxy、运动量，并保留 MediaPipe Tasks Vision 作为后续 landmark 分析依赖。
+- 前端生成 `VideoSignalFrame` / video event，包含 face presence、head pose proxy、gaze proxy、blink proxy、nod proxy、hand activity、body activity、brightness、blur、motion。
+- 明显变化或低质量片段生成 base64 JPEG 关键帧，随 video event 上传后端。
+- 后端仅在内存 session 保存 `video_events` 和 `keyframes`，不落盘。
+- 纪要加入“非语言观察”，只描述可复核观察信号，不输出能力结论或录用建议。
+
+## 阶段 9：一键运行
+
+- 新增 `scripts/dev.sh`，检查 Python 与 pnpm，启动 Python API 和 Vite 前端。
+- 新增 `scripts/test.sh`，串行执行 Python unittest、frontend vitest 和 frontend build。
+- 新增 `Dockerfile.backend`、`frontend/Dockerfile`、`docker-compose.yml`。
+- Docker Compose 暴露 API `http://localhost:8000` 和前端 `http://localhost:5173`。
