@@ -96,6 +96,20 @@ The frontend expects the backend API at `http://127.0.0.1:8000`.
 scripts/test.sh
 ```
 
+## Mock Resumes For Local QA
+
+Generate disposable mock resumes for recruiter-flow testing:
+
+```bash
+python3 scripts/generate_mock_resumes.py
+```
+
+The generated files are written to ignored `mock-resumes/`. To test resume upload without installing MinerU, start the app with the local mock extractor:
+
+```bash
+MINERU_COMMAND="$PWD/scripts/mock_mineru_open_api.py" scripts/dev.sh
+```
+
 ## Spec
 
 Read the spec documents before changing product scope:
