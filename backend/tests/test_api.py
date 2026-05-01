@@ -167,6 +167,36 @@ class ApiTest(unittest.TestCase):
         self.assertIn("report_markdown", fake_client.system_prompt)
         self.assertIn("我负责问题生成", fake_client.user_prompt)
 
+    @patch("backend.interview.api.analyze_answer_text")
+    def test_answer_metrics_use_llm_analysis_before_rule_fallback(self, analyze_mock):
+        class Analysis:
+            filler_word_count = 5
+            llm_status = "ok"
+            observations = ["LLM 判断存在 5 个填充表达"]
+
+        analyze_mock.return_value = Analysis()
+        created = self.request(
+            "POST",
+            "/api/sessions",
+            {
+                "candidate_name": "张三",
+                "resume": "候选人负责 AI 面试平台。",
+                "job_description": "岗位是 AI 产品全栈工程师。",
+                "interview_goal": "评估项目经验。",
+            },
+            expected_status=201,
+        )
+
+        updated = self.request(
+            "POST",
+            f"/api/sessions/{created['id']}/answers",
+            {"text": "我负责问题生成。", "duration_sec": 30},
+        )
+
+        self.assertEqual(updated["answers"][0]["filler_word_count"], 5)
+        self.assertEqual(updated["llm_status"], "ok")
+        analyze_mock.assert_called_once_with("我负责问题生成。")
+
     def test_returns_404_for_unknown_session(self):
         response = self.request(
             "POST",

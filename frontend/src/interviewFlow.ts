@@ -1,6 +1,7 @@
+import { getFillerWords } from "./config";
+
 const knownSkills = ["Python", "TypeScript", "JavaScript", "React", "Node.js", "LLM", "LiveKit", "ASR", "TTS", "WebRTC"];
 const goalDimensions = ["专业能力", "项目经验", "技术实现能力", "应变能力", "表达能力", "协作能力"];
-const fillerWords = ["嗯", "啊", "呃", "额", "那个", "就是"];
 
 export type DraftInput = {
   candidateName: string;
@@ -271,6 +272,7 @@ function extractProject(resume: string): string {
 }
 
 function countFillerWords(text: string): number {
+  const fillerWords = getFillerWords();
   return fillerWords.reduce((count, word) => count + (text.match(new RegExp(word, "g"))?.length ?? 0), 0);
 }
 

@@ -116,8 +116,9 @@
 
 执行边界：
 
-- 环境变量为 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`。
+- 本地敏感配置写入 `.env`，仓库只提交 `.env.example`；LLM 配置为 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`。
 - 未配置、返回非法 JSON 或出现录用判断措辞时使用规则 fallback。
+- 回答文本指标优先由 LLM 判断，fallback 才使用 `INTERVIEW_FILLER_WORDS`。
 - LLM 不作为全流程 Agent，只增强问题和纪要。
 
 ## 验证方式

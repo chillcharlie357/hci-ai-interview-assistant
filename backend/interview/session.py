@@ -5,10 +5,8 @@ from datetime import UTC, datetime
 import re
 import time
 
+from backend.interview.answer_analysis import analyze_answer_text
 from backend.interview.question_engine import InterviewQuestion
-
-
-FILLER_WORDS = ["嗯", "啊", "呃", "额", "那个", "就是"]
 
 
 @dataclass(frozen=True)
@@ -114,12 +112,18 @@ def build_avatar_prompt(session: InterviewSession) -> str:
     return f"{session.candidate_name}，你好。接下来是 {question.dimension} 相关问题。{question.prompt}"
 
 
-def record_answer(session: InterviewSession, text: str = "", duration_sec: int = 0) -> InterviewSession:
+def record_answer(
+    session: InterviewSession,
+    text: str = "",
+    duration_sec: int = 0,
+    filler_word_count: int | None = None,
+) -> InterviewSession:
     question = session.current_question
     if question is None:
         return session
 
     recorded_at = _now()
+    analysis = analyze_answer_text(text) if filler_word_count is None else None
     answer = AnswerRecord(
         question_id=question.id,
         dimension=question.dimension,
@@ -127,7 +131,7 @@ def record_answer(session: InterviewSession, text: str = "", duration_sec: int =
         text=text.strip(),
         duration_sec=duration_sec,
         word_count=_count_words(text),
-        filler_word_count=_count_filler_words(text),
+        filler_word_count=analysis.filler_word_count if analysis else filler_word_count,
         recorded_at=recorded_at,
     )
     event = InterviewEvent(
@@ -281,10 +285,6 @@ def format_metric(value: float | None) -> str:
 def _filter_metric_fields(metrics: dict[str, object]) -> dict[str, object]:
     valid_fields = VideoMetrics.__dataclass_fields__.keys()
     return {key: value for key, value in metrics.items() if key in valid_fields}
-
-
-def _count_filler_words(text: str) -> int:
-    return sum(text.count(word) for word in FILLER_WORDS)
 
 
 def _count_words(text: str) -> int:

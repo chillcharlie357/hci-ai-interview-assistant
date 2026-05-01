@@ -9,6 +9,7 @@ import type {
   VideoSignalEvent,
   VideoSummary
 } from "./interviewFlow";
+import { getApiBaseUrl } from "./config";
 
 type Fetcher = typeof fetch;
 
@@ -154,7 +155,7 @@ export async function submitVideoEvent(
 }
 
 async function request<T>(path: string, payload: unknown, expectedStatus: number, options: ClientOptions): Promise<T> {
-  const baseUrl = options.baseUrl ?? "http://127.0.0.1:8000";
+  const baseUrl = options.baseUrl ?? getApiBaseUrl();
   const fetcher = options.fetcher ?? fetch;
   const response = await fetcher(`${baseUrl}${path}`, {
     method: "POST",

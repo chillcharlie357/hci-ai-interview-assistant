@@ -34,15 +34,15 @@ The script starts:
 - API: `http://127.0.0.1:8000`
 - Frontend: `http://localhost:5173`
 
-Optional OpenAI-compatible LLM environment:
+Optional OpenAI-compatible LLM configuration lives in `.env`:
 
 ```bash
-export OPENAI_API_KEY="..."
-export OPENAI_BASE_URL="https://api.openai.com/v1"
-export OPENAI_MODEL="gpt-4.1-mini"
+cp .env.example .env
 ```
 
-If the API key or model is missing, the app uses rule-based fallback and returns `llm_status: "fallback"`.
+Fill in `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and `OPENAI_MODEL` in `.env`. Do not commit `.env`.
+
+If the API key or model is missing, the app uses fallback logic and returns `llm_status: "fallback"`.
 
 ## Docker Compose
 

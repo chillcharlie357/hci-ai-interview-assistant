@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from backend.interview.question_engine import InterviewQuestion
 from backend.interview.session import (
@@ -47,11 +48,12 @@ class InterviewSessionTest(unittest.TestCase):
             questions=QUESTIONS,
         )
 
-        updated = record_answer(
-            session,
-            text="嗯，我主要负责问题生成和纪要模块，啊，也处理过追问策略。",
-            duration_sec=76,
-        )
+        with patch.dict("os.environ", {"INTERVIEW_DISABLE_DOTENV": "1", "INTERVIEW_FILLER_WORDS": "嗯,啊"}, clear=True):
+            updated = record_answer(
+                session,
+                text="嗯，我主要负责问题生成和纪要模块，啊，也处理过追问策略。",
+                duration_sec=76,
+            )
 
         self.assertEqual(len(updated.answers), 1)
         self.assertEqual(updated.answers[0].question_id, "q_001")

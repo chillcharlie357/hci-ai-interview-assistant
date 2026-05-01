@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   createDraft,
@@ -24,6 +24,7 @@ describe("interviewFlow", () => {
   });
 
   it("records an answer and generates an auditable report", () => {
+    vi.stubEnv("VITE_INTERVIEW_FILLER_WORDS", "嗯,啊");
     const session = createSessionFromDraft(createDraft());
     const updated = recordAnswer(session, {
       text: "嗯，我主要负责问题生成和纪要模块，啊，也处理过追问策略。",
@@ -38,5 +39,6 @@ describe("interviewFlow", () => {
     expect(report).toContain("# 智能面试纪要");
     expect(report).toContain("问题生成和纪要模块");
     expect(report).toContain("待人工确认");
+    vi.unstubAllEnvs();
   });
 });

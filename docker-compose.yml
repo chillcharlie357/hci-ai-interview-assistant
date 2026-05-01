@@ -14,6 +14,9 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:8000}
+      VITE_INTERVIEW_FILLER_WORDS: ${VITE_INTERVIEW_FILLER_WORDS:-嗯,啊,呃,额,那个,就是}
     depends_on:
       - backend
     ports:

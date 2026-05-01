@@ -46,9 +46,10 @@
 ## 阶段 7：OpenAI-Compatible LLM
 
 - 新增 Python LLM client，使用 OpenAI Chat Completions 格式。
-- 支持环境变量 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`。
+- 支持通过本地 `.env` 配置 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`，仓库只提交 `.env.example`。
 - 创建 session 时可选择 `use_llm_questions: true`，未配置时返回 `llm_status: fallback` 并使用规则问题。
 - 提交回答生成纪要时可用 LLM 增强 Markdown；未配置、响应非法或出现录用判断措辞时回退规则纪要。
+- 记录回答时优先使用 LLM 判断填充词数量和文本观察；LLM 不可用时才使用 `INTERVIEW_FILLER_WORDS` fallback。
 - 覆盖 LLM mock、fallback、非法响应和 API 纪要增强测试。
 
 ## 阶段 8：实时摄像头观察

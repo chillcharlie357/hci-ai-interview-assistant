@@ -18,6 +18,7 @@ Current MVP scope includes lightweight browser-side camera metrics and in-memory
 - Core/backend logic: Python.
 - Frontend UI: TypeScript.
 - Spec documents: Markdown under `spec/`.
+- Local secrets and model endpoints: `.env`; commit only `.env.example`.
 - Do not add root-level JavaScript prototypes; frontend code belongs under `frontend/`.
 
 ## Spec-Driven Development
@@ -46,6 +47,7 @@ Current MVP scope includes lightweight browser-side camera metrics and in-memory
 - Keep conclusions tied to evidence: question text, candidate answer, answer metrics, and event logs.
 - Do not output hire/no-hire decisions.
 - Treat answer duration, word count, and filler words as observation signals, not capability judgments.
+- Prefer LLM-based answer text analysis when configured; fallback rules must be configurable and must not contain secrets.
 - Treat camera-derived signals such as face presence, brightness, blur, gaze proxy, blink proxy, nod proxy, hand activity, body activity, and motion as observation signals only.
 - Keyframes are kept in the active in-memory session by default. Do not write keyframes to disk or long-term storage unless the spec is updated and user consent is explicit.
 - Reports must describe non-language signals with cautious wording such as "observed", "detected", "needs review", or "quality issue"; they must not infer personality, emotion, health, protected traits, or hiring outcome.

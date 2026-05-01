@@ -8,6 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import urlparse
 
+from backend.interview.answer_analysis import analyze_answer_text
 from backend.interview.llm_client import LlmClient
 from backend.interview.question_engine import InterviewQuestion, generate_interview_questions
 from backend.interview.session import (
@@ -65,11 +66,15 @@ class SessionStore:
         session = self.sessions.get(session_id)
         if session is None:
             return None
+        answer_analysis = analyze_answer_text(str(payload.get("text", "")))
         updated = record_answer(
             session,
             text=str(payload.get("text", "")),
             duration_sec=int(payload.get("duration_sec", 0)),
+            filler_word_count=answer_analysis.filler_word_count,
         )
+        if answer_analysis.llm_status == "ok":
+            updated = replace(updated, llm_status="ok")
         self.sessions[session_id] = updated
         return updated
 

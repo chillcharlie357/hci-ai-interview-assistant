@@ -2,16 +2,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
-import os
 from typing import Any
 from urllib.request import Request, urlopen
+
+from backend.interview.config import DEFAULT_OPENAI_BASE_URL, get_env
 
 
 @dataclass(frozen=True)
 class LlmConfig:
     api_key: str
     model: str
-    base_url: str = "https://api.openai.com/v1"
+    base_url: str = DEFAULT_OPENAI_BASE_URL
 
     @property
     def configured(self) -> bool:
@@ -32,9 +33,9 @@ class LlmClient:
     def from_env(cls) -> "LlmClient":
         return cls(
             LlmConfig(
-                api_key=os.environ.get("OPENAI_API_KEY", ""),
-                model=os.environ.get("OPENAI_MODEL", ""),
-                base_url=os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/"),
+                api_key=get_env("OPENAI_API_KEY"),
+                model=get_env("OPENAI_MODEL"),
+                base_url=get_env("OPENAI_BASE_URL", DEFAULT_OPENAI_BASE_URL).rstrip("/"),
             )
         )
 
