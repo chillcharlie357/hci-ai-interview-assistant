@@ -13,3 +13,4 @@ coverage/
 !.env.example
 mock-resumes/
 .playwright-mcp/
+presentations/project-intro/
