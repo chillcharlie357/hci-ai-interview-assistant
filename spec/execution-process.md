@@ -2,7 +2,7 @@
 
 ## 分支策略
 
-目标要求使用 `gt` 管理不同 feature 分支，但当前环境没有安装 `gt` 命令。因此本次执行采用普通 `git` 分支模拟 stacked feature 工作流：
+本项目使用普通 `git` 命令管理不同 feature 分支：
 
 1. `main`：稳定主分支。
 2. `feat/spec-foundation`：spec 目录、目标和执行过程。
@@ -10,7 +10,14 @@
 4. `feat/interview-session`：数字人提问、回答记录和纪要生成。
 5. `feat/static-ui`：浏览器 MVP 页面与交互。
 
-每个 feature 分支完成后运行测试，通过后合并回 `main`。
+执行顺序：
+
+1. 从 `main` 创建 feature 分支。
+2. 在 feature 分支内按 TDD 完成实现。
+3. 运行测试。
+4. 测试通过后提交 feature 分支。
+5. 切回 `main`。
+6. 使用 `git merge --no-ff <feature-branch>` 合并回 `main`。
 
 ## Spec 驱动开发流程
 
