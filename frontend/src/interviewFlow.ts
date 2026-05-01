@@ -7,6 +7,7 @@ export type DraftInput = {
   resume: string;
   jobDescription: string;
   interviewGoal: string;
+  useLlmQuestions?: boolean;
 };
 
 export type InterviewQuestion = {
@@ -35,6 +36,39 @@ export type InterviewEvent = {
   questionId?: string;
 };
 
+export type VideoMetrics = {
+  facePresent?: boolean | null;
+  brightness?: number | null;
+  blur?: number | null;
+  motion?: number | null;
+  gazeProxy?: number | null;
+  headPoseProxy?: number | null;
+  blinkProxy?: number | null;
+  nodProxy?: number | null;
+  handActivity?: number | null;
+  bodyActivity?: number | null;
+};
+
+export type VideoSignalEvent = {
+  timestamp: number;
+  eventType: string;
+  confidence: number;
+  metrics: VideoMetrics;
+  keyframeIndex?: number | null;
+};
+
+export type KeyframeRecord = {
+  timestamp: number;
+  reason: string;
+  dataUrl: string;
+};
+
+export type VideoSummary = {
+  eventCount: number;
+  keyframeCount: number;
+  eventTypes: string[];
+};
+
 export type InterviewSession = {
   id: string;
   candidateName: string;
@@ -44,6 +78,10 @@ export type InterviewSession = {
   currentQuestion: InterviewQuestion | null;
   answers: AnswerRecord[];
   events: InterviewEvent[];
+  llmStatus: string;
+  videoEvents: VideoSignalEvent[];
+  keyframes: KeyframeRecord[];
+  videoSummary: VideoSummary;
 };
 
 export function createDraft(): DraftInput {
@@ -51,7 +89,8 @@ export function createDraft(): DraftInput {
     candidateName: "候选人",
     resume: "候选人负责 AI 面试平台，包含问题生成、数字人提问、回答记录和纪要生成。",
     jobDescription: "岗位是 AI 产品全栈工程师，需要 Python、TypeScript、LLM 应用和产品工程化经验。",
-    interviewGoal: "评估专业能力、项目经验、技术实现能力、应变能力。"
+    interviewGoal: "评估专业能力、项目经验、技术实现能力、应变能力。",
+    useLlmQuestions: false
   };
 }
 
@@ -66,6 +105,14 @@ export function createSessionFromDraft(draft: DraftInput): InterviewSession {
     currentIndex: 0,
     currentQuestion: questions[0] ?? null,
     answers: [],
+    llmStatus: "fallback",
+    videoEvents: [],
+    keyframes: [],
+    videoSummary: {
+      eventCount: 0,
+      keyframeCount: 0,
+      eventTypes: []
+    },
     events: [
       {
         type: "session_started",
@@ -153,7 +200,8 @@ export function generateMarkdownReport(session: InterviewSession): string {
 
   lines.push("", "## 3. 实时事件");
   session.events.forEach((event) => lines.push(`- ${event.timestamp} ${event.message}`));
-  lines.push("", "## 4. 待人工确认", ...buildReviewItems(session.answers, unanswered));
+  lines.push("", "## 4. 非语言观察", ...buildVideoObservations(session));
+  lines.push("", "## 5. 待人工确认", ...buildReviewItems(session.answers, unanswered));
   return lines.join("\n");
 }
 
@@ -239,4 +287,19 @@ function buildReviewItems(answers: AnswerRecord[], unanswered: InterviewQuestion
   ]);
   unanswered.forEach((question) => items.push(`- 问题「${question.prompt}」尚未回答，建议确认是否跳过。`));
   return items.length > 0 ? items : ["- 当前无明显异常，仍建议面试官复核关键结论。"];
+}
+
+function buildVideoObservations(session: InterviewSession): string[] {
+  if (session.videoEvents.length === 0) {
+    return ["- 未记录实时摄像头非语言观察。"];
+  }
+  const latest = session.videoEvents.slice(-5).map((event) => {
+    const brightness = typeof event.metrics.brightness === "number" ? event.metrics.brightness.toFixed(2) : "未知";
+    const motion = typeof event.metrics.motion === "number" ? event.metrics.motion.toFixed(2) : "未知";
+    return `- ${event.timestamp.toFixed(1)}s：${event.eventType}，置信度 ${event.confidence.toFixed(2)}，亮度 ${brightness}，运动量 ${motion}。`;
+  });
+  return [
+    `- 共记录 ${session.videoEvents.length} 条观察、${session.keyframes.length} 张关键帧。以下内容仅作为观察信号，不代表能力结论。`,
+    ...latest
+  ];
 }

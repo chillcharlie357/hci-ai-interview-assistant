@@ -8,9 +8,10 @@ This project is an AI-assisted interview MVP. The first product slice is a minim
 - Generate structured interview questions.
 - Let a digital interviewer ask questions one by one.
 - Record candidate answers and basic answer metrics.
+- Record browser-side realtime camera observation signals for the candidate when explicitly enabled.
 - Generate an auditable interview summary.
 
-Do not expand MVP scope into video analysis, screen sharing, OCR, facial analysis, gaze analysis, or automatic hiring decisions unless the spec is updated first.
+Current MVP scope includes lightweight browser-side camera metrics and in-memory keyframes. Do not expand into screen sharing, OCR, high-precision facial recognition, sensitive-attribute inference, or automatic hiring decisions unless the spec is updated first.
 
 ## Tech Stack
 
@@ -23,7 +24,7 @@ Do not expand MVP scope into video analysis, screen sharing, OCR, facial analysi
 
 - Read `spec/prd.md`, `spec/goals.md`, `spec/implementation-plan.md`, and `spec/problem-related-work-solution.md` before implementing features.
 - If product scope changes, update `spec/` first.
-- Keep implementation aligned with the MVP: question generation, digital interviewer prompt flow, answer recording, and report generation.
+- Keep implementation aligned with the MVP: question generation, digital interviewer prompt flow, answer recording, realtime observation signals, and report generation.
 
 ## Git Workflow
 
@@ -45,6 +46,9 @@ Do not expand MVP scope into video analysis, screen sharing, OCR, facial analysi
 - Keep conclusions tied to evidence: question text, candidate answer, answer metrics, and event logs.
 - Do not output hire/no-hire decisions.
 - Treat answer duration, word count, and filler words as observation signals, not capability judgments.
+- Treat camera-derived signals such as face presence, brightness, blur, gaze proxy, blink proxy, nod proxy, hand activity, body activity, and motion as observation signals only.
+- Keyframes are kept in the active in-memory session by default. Do not write keyframes to disk or long-term storage unless the spec is updated and user consent is explicit.
+- Reports must describe non-language signals with cautious wording such as "observed", "detected", "needs review", or "quality issue"; they must not infer personality, emotion, health, protected traits, or hiring outcome.
 - Preserve human review paths for short, missing, or uncertain answers.
 - Avoid collecting or inferring sensitive attributes.
 

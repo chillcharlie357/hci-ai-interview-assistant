@@ -32,6 +32,36 @@ class AnswerRecord:
 
 
 @dataclass(frozen=True)
+class VideoMetrics:
+    face_present: bool | None = None
+    brightness: float | None = None
+    blur: float | None = None
+    motion: float | None = None
+    gaze_proxy: float | None = None
+    head_pose_proxy: float | None = None
+    blink_proxy: float | None = None
+    nod_proxy: float | None = None
+    hand_activity: float | None = None
+    body_activity: float | None = None
+
+
+@dataclass(frozen=True)
+class KeyframeRecord:
+    timestamp: float
+    reason: str
+    data_url: str
+
+
+@dataclass(frozen=True)
+class VideoEvent:
+    timestamp: float
+    event_type: str
+    confidence: float
+    metrics: VideoMetrics
+    keyframe_index: int | None = None
+
+
+@dataclass(frozen=True)
 class InterviewSession:
     id: str
     candidate_name: str
@@ -40,6 +70,9 @@ class InterviewSession:
     current_index: int
     answers: list[AnswerRecord]
     events: list[InterviewEvent]
+    llm_status: str = "fallback"
+    video_events: list[VideoEvent] | None = None
+    keyframes: list[KeyframeRecord] | None = None
 
     @property
     def current_question(self) -> InterviewQuestion | None:
@@ -61,6 +94,9 @@ def create_interview_session(
         questions=question_list,
         current_index=0,
         answers=[],
+        llm_status="fallback",
+        video_events=[],
+        keyframes=[],
         events=[
             InterviewEvent(
                 type="session_started",
@@ -109,6 +145,45 @@ def record_answer(session: InterviewSession, text: str = "", duration_sec: int =
     )
 
 
+def record_video_event(
+    session: InterviewSession,
+    timestamp: float,
+    event_type: str,
+    confidence: float,
+    metrics: dict[str, object] | VideoMetrics,
+    keyframe: dict[str, str] | None = None,
+) -> InterviewSession:
+    video_metrics = metrics if isinstance(metrics, VideoMetrics) else VideoMetrics(**_filter_metric_fields(metrics))
+    keyframes = list(session.keyframes or [])
+    keyframe_index: int | None = None
+    if keyframe and keyframe.get("data_url"):
+        keyframe_index = len(keyframes)
+        keyframes.append(
+            KeyframeRecord(
+                timestamp=timestamp,
+                reason=str(keyframe.get("reason") or event_type),
+                data_url=str(keyframe["data_url"]),
+            )
+        )
+
+    video_events = [
+        *(session.video_events or []),
+        VideoEvent(
+            timestamp=timestamp,
+            event_type=event_type,
+            confidence=confidence,
+            metrics=video_metrics,
+            keyframe_index=keyframe_index,
+        ),
+    ]
+    event = InterviewEvent(
+        type="video_event_recorded",
+        timestamp=_now(),
+        message=f"已记录非语言观察：{event_type}，置信度 {confidence:.2f}。",
+    )
+    return replace(session, video_events=video_events, keyframes=keyframes, events=[*session.events, event])
+
+
 def generate_markdown_report(session: InterviewSession) -> str:
     answered_question_ids = {answer.question_id for answer in session.answers}
     unanswered_questions = [question for question in session.questions if question.id not in answered_question_ids]
@@ -144,9 +219,23 @@ def generate_markdown_report(session: InterviewSession) -> str:
     lines.extend(["", "## 3. 实时事件"])
     lines.extend(f"- {event.timestamp} {event.message}" for event in session.events)
 
-    lines.extend(["", "## 4. 待人工确认"])
+    lines.extend(["", "## 4. 非语言观察"])
+    lines.extend(_build_video_observations(session.video_events or [], session.keyframes or []))
+
+    lines.extend(["", "## 5. 待人工确认"])
     lines.extend(_build_review_items(session.answers, unanswered_questions))
     return "\n".join(lines)
+
+
+def summarize_video(session: InterviewSession) -> dict[str, object]:
+    video_events = session.video_events or []
+    keyframes = session.keyframes or []
+    event_types = sorted({event.event_type for event in video_events})
+    return {
+        "event_count": len(video_events),
+        "keyframe_count": len(keyframes),
+        "event_types": event_types,
+    }
 
 
 def _find_question(questions: list[InterviewQuestion], question_id: str) -> InterviewQuestion | None:
@@ -169,6 +258,29 @@ def _build_review_items(
     for question in unanswered_questions:
         items.append(f"- 问题「{question.prompt}」尚未回答，建议确认是否跳过。")
     return items or ["- 当前无明显异常，仍建议面试官复核关键结论。"]
+
+
+def _build_video_observations(video_events: list[VideoEvent], keyframes: list[KeyframeRecord]) -> list[str]:
+    if not video_events:
+        return ["- 未记录实时摄像头非语言观察。"]
+
+    observations = [
+        f"- 共记录 {len(video_events)} 条非语言观察、{len(keyframes)} 张关键帧。以下内容仅作为观察信号，不代表能力结论。"
+    ]
+    for event in video_events[-5:]:
+        observations.append(
+            f"- {event.timestamp:.1f}s：{event.event_type}（置信度 {event.confidence:.2f}，亮度 {format_metric(event.metrics.brightness)}，运动量 {format_metric(event.metrics.motion)}）。"
+        )
+    return observations
+
+
+def format_metric(value: float | None) -> str:
+    return "未知" if value is None else f"{value:.2f}"
+
+
+def _filter_metric_fields(metrics: dict[str, object]) -> dict[str, object]:
+    valid_fields = VideoMetrics.__dataclass_fields__.keys()
+    return {key: value for key, value in metrics.items() if key in valid_fields}
 
 
 def _count_filler_words(text: str) -> int:

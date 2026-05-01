@@ -1,4 +1,14 @@
-import type { AnswerRecord, DraftInput, InterviewEvent, InterviewQuestion, InterviewSession } from "./interviewFlow";
+import type {
+  AnswerRecord,
+  DraftInput,
+  InterviewEvent,
+  InterviewQuestion,
+  InterviewSession,
+  KeyframeRecord,
+  VideoMetrics,
+  VideoSignalEvent,
+  VideoSummary
+} from "./interviewFlow";
 
 type Fetcher = typeof fetch;
 
@@ -33,6 +43,39 @@ type ApiEvent = {
   question_id?: string | null;
 };
 
+type ApiVideoMetrics = {
+  face_present?: boolean | null;
+  brightness?: number | null;
+  blur?: number | null;
+  motion?: number | null;
+  gaze_proxy?: number | null;
+  head_pose_proxy?: number | null;
+  blink_proxy?: number | null;
+  nod_proxy?: number | null;
+  hand_activity?: number | null;
+  body_activity?: number | null;
+};
+
+type ApiVideoEvent = {
+  timestamp: number;
+  event_type: string;
+  confidence: number;
+  metrics: ApiVideoMetrics;
+  keyframe_index?: number | null;
+};
+
+type ApiKeyframe = {
+  timestamp: number;
+  reason: string;
+  data_url: string;
+};
+
+type ApiVideoSummary = {
+  event_count: number;
+  keyframe_count: number;
+  event_types: string[];
+};
+
 type ApiSession = {
   id: string;
   candidate_name: string;
@@ -42,6 +85,10 @@ type ApiSession = {
   current_question: ApiQuestion | null;
   answers: ApiAnswer[];
   events: ApiEvent[];
+  llm_status?: string;
+  video_events?: ApiVideoEvent[];
+  keyframes?: ApiKeyframe[];
+  video_summary?: ApiVideoSummary;
 };
 
 type ApiSessionWithReport = ApiSession & {
@@ -53,7 +100,8 @@ export async function createSession(draft: DraftInput, options: ClientOptions = 
     candidate_name: draft.candidateName,
     resume: draft.resume,
     job_description: draft.jobDescription,
-    interview_goal: draft.interviewGoal
+    interview_goal: draft.interviewGoal,
+    use_llm_questions: Boolean(draft.useLlmQuestions)
   };
   const response = await request<ApiSession>("/api/sessions", payload, 201, options);
   return mapSession(response);
@@ -77,6 +125,32 @@ export async function submitAnswer(
     session: mapSession(response),
     report: response.report
   };
+}
+
+export async function submitVideoEvent(
+  sessionId: string,
+  event: {
+    timestamp: number;
+    eventType: string;
+    confidence: number;
+    metrics: VideoMetrics;
+    keyframe?: { reason: string; dataUrl: string };
+  },
+  options: ClientOptions = {}
+): Promise<InterviewSession> {
+  const response = await request<ApiSession>(
+    `/api/sessions/${sessionId}/video-events`,
+    {
+      timestamp: event.timestamp,
+      event_type: event.eventType,
+      confidence: event.confidence,
+      metrics: toApiVideoMetrics(event.metrics),
+      keyframe: event.keyframe ? { reason: event.keyframe.reason, data_url: event.keyframe.dataUrl } : undefined
+    },
+    200,
+    options
+  );
+  return mapSession(response);
 }
 
 async function request<T>(path: string, payload: unknown, expectedStatus: number, options: ClientOptions): Promise<T> {
@@ -105,7 +179,11 @@ function mapSession(session: ApiSession): InterviewSession {
     currentIndex: session.current_index,
     currentQuestion: session.current_question ? mapQuestion(session.current_question) : null,
     answers: session.answers.map(mapAnswer),
-    events: session.events.map(mapEvent)
+    events: session.events.map(mapEvent),
+    llmStatus: session.llm_status ?? "fallback",
+    videoEvents: (session.video_events ?? []).map(mapVideoEvent),
+    keyframes: (session.keyframes ?? []).map(mapKeyframe),
+    videoSummary: mapVideoSummary(session.video_summary)
   };
 }
 
@@ -138,5 +216,61 @@ function mapEvent(event: ApiEvent): InterviewEvent {
     timestamp: event.timestamp,
     message: event.message,
     questionId: event.question_id ?? undefined
+  };
+}
+
+function mapVideoEvent(event: ApiVideoEvent): VideoSignalEvent {
+  return {
+    timestamp: event.timestamp,
+    eventType: event.event_type,
+    confidence: event.confidence,
+    metrics: mapVideoMetrics(event.metrics),
+    keyframeIndex: event.keyframe_index ?? null
+  };
+}
+
+function mapKeyframe(keyframe: ApiKeyframe): KeyframeRecord {
+  return {
+    timestamp: keyframe.timestamp,
+    reason: keyframe.reason,
+    dataUrl: keyframe.data_url
+  };
+}
+
+function mapVideoSummary(summary?: ApiVideoSummary): VideoSummary {
+  return {
+    eventCount: summary?.event_count ?? 0,
+    keyframeCount: summary?.keyframe_count ?? 0,
+    eventTypes: summary?.event_types ?? []
+  };
+}
+
+function mapVideoMetrics(metrics: ApiVideoMetrics): VideoMetrics {
+  return {
+    facePresent: metrics.face_present,
+    brightness: metrics.brightness,
+    blur: metrics.blur,
+    motion: metrics.motion,
+    gazeProxy: metrics.gaze_proxy,
+    headPoseProxy: metrics.head_pose_proxy,
+    blinkProxy: metrics.blink_proxy,
+    nodProxy: metrics.nod_proxy,
+    handActivity: metrics.hand_activity,
+    bodyActivity: metrics.body_activity
+  };
+}
+
+function toApiVideoMetrics(metrics: VideoMetrics): ApiVideoMetrics {
+  return {
+    face_present: metrics.facePresent,
+    brightness: metrics.brightness,
+    blur: metrics.blur,
+    motion: metrics.motion,
+    gaze_proxy: metrics.gazeProxy,
+    head_pose_proxy: metrics.headPoseProxy,
+    blink_proxy: metrics.blinkProxy,
+    nod_proxy: metrics.nodProxy,
+    hand_activity: metrics.handActivity,
+    body_activity: metrics.bodyActivity
   };
 }
