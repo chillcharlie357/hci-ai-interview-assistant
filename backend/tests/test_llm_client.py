@@ -27,7 +27,7 @@ class LlmClientTest(unittest.TestCase):
         self.assertEqual(result.status, "fallback")
         self.assertIsNone(result.data)
 
-    @patch.dict(os.environ, {"OPENAI_API_KEY": "test-key", "OPENAI_MODEL": "test-model"}, clear=True)
+    @patch.dict(os.environ, {"INTERVIEW_DISABLE_DOTENV": "1", "OPENAI_API_KEY": "test-key", "OPENAI_MODEL": "test-model"}, clear=True)
     @patch("backend.interview.llm_client.urlopen")
     def test_calls_openai_compatible_chat_completions(self, urlopen_mock):
         urlopen_mock.return_value = FakeResponse(
@@ -50,7 +50,7 @@ class LlmClientTest(unittest.TestCase):
         self.assertEqual(request.full_url, "https://api.openai.com/v1/chat/completions")
         self.assertEqual(request.headers["Authorization"], "Bearer test-key")
 
-    @patch.dict(os.environ, {"OPENAI_API_KEY": "test-key", "OPENAI_MODEL": "test-model"}, clear=True)
+    @patch.dict(os.environ, {"INTERVIEW_DISABLE_DOTENV": "1", "OPENAI_API_KEY": "test-key", "OPENAI_MODEL": "test-model"}, clear=True)
     @patch("backend.interview.llm_client.urlopen")
     def test_invalid_model_response_falls_back(self, urlopen_mock):
         urlopen_mock.return_value = FakeResponse({"choices": [{"message": {"content": "not json"}}]})

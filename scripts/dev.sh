@@ -4,9 +4,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 API_PORT="${API_PORT:-8000}"
 FRONTEND_PORT="${FRONTEND_PORT:-5173}"
+export UV_CACHE_DIR="${UV_CACHE_DIR:-$ROOT_DIR/.uv-cache}"
+export UV_DEFAULT_INDEX="${UV_DEFAULT_INDEX:-https://pypi.tuna.tsinghua.edu.cn/simple}"
 
-command -v python3 >/dev/null 2>&1 || {
-  echo "python3 is required." >&2
+command -v uv >/dev/null 2>&1 || {
+  echo "uv is required. Install it from https://docs.astral.sh/uv/ before starting the backend." >&2
   exit 1
 }
 
@@ -54,7 +56,7 @@ if [[ ! -d "$ROOT_DIR/frontend/node_modules" ]]; then
   (cd "$ROOT_DIR/frontend" && pnpm install)
 fi
 
-(cd "$ROOT_DIR" && python3 -m backend.interview.api --host 127.0.0.1 --port "$API_PORT") &
+(cd "$ROOT_DIR" && uv run python -m backend.interview.api --host 127.0.0.1 --port "$API_PORT") &
 API_PID=$!
 
 (cd "$ROOT_DIR/frontend" && pnpm exec vite --host 0.0.0.0 --port "$FRONTEND_PORT") &

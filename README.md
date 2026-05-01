@@ -15,7 +15,7 @@ The MVP intentionally does not implement screen sharing, OCR, high-precision fac
 
 ## Tech Stack
 
-- Backend/core logic: Python standard library.
+- Backend/core logic: Python standard library managed by `uv`.
 - Frontend UI: TypeScript + React + Vite.
 - Browser video analysis: `getUserMedia`, Canvas metrics, optional MediaPipe Tasks Vision dependency.
 - LLM: OpenAI-compatible Chat Completions format.
@@ -42,6 +42,7 @@ Fill in `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and `OPENAI_MODEL` in `.env`. Do no
 For resume extraction and video meetings, also configure:
 
 ```bash
+UV_DEFAULT_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 MINERU_COMMAND=mineru-open-api
 LIVEKIT_URL=wss://...
 LIVEKIT_API_KEY=...
@@ -64,7 +65,7 @@ Exposed ports:
 ## Run Backend API Manually
 
 ```bash
-python3 -m backend.interview.api --host 127.0.0.1 --port 8000
+uv run python -m backend.interview.api --host 127.0.0.1 --port 8000
 ```
 
 Useful API endpoints:
