@@ -11,6 +11,25 @@ export type DraftInput = {
   useLlmQuestions?: boolean;
 };
 
+export type ReportVisibility = "recruiter_only" | "shared_with_candidate";
+
+export type ReadySummary = {
+  role: string;
+  jobDescription: string;
+  interviewGoal: string;
+  focusAreas: string[];
+};
+
+export type PrepSession = {
+  id: string;
+  candidateName: string;
+  resumeMarkdownPreview: string;
+  followupQuestions: string[];
+  ready: boolean;
+  readySummary: ReadySummary | null;
+  llmStatus: string;
+};
+
 export type InterviewQuestion = {
   id: string;
   dimension: string;
@@ -83,6 +102,9 @@ export type InterviewSession = {
   videoEvents: VideoSignalEvent[];
   keyframes: KeyframeRecord[];
   videoSummary: VideoSummary;
+  reportVisibility: ReportVisibility;
+  meetingRoom: string;
+  enableVideoObservation: boolean;
 };
 
 export function createDraft(): DraftInput {
@@ -114,6 +136,9 @@ export function createSessionFromDraft(draft: DraftInput): InterviewSession {
       keyframeCount: 0,
       eventTypes: []
     },
+    reportVisibility: "recruiter_only",
+    meetingRoom: "",
+    enableVideoObservation: true,
     events: [
       {
         type: "session_started",

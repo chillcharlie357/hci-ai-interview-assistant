@@ -1,350 +1,400 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { LiveKitRoom, VideoConference } from "@livekit/components-react";
+import "@livekit/components-styles";
 
-import { createSession, submitAnswer, submitVideoEvent } from "./apiClient";
+import {
+  createInterviewSessionFromPrep,
+  fetchReport,
+  getSession,
+  requestLiveKitToken,
+  submitAnswer,
+  submitPrepFollowup,
+  submitResume
+} from "./apiClient";
 import {
   buildAvatarPrompt,
-  createDraft,
   generateMarkdownReport,
-  type DraftInput,
-  type InterviewSession
+  type InterviewSession,
+  type PrepSession,
+  type ReportVisibility
 } from "./interviewFlow";
-import { buildVideoMetrics, classifyVideoEvent, type VideoMetrics as AnalyzerVideoMetrics } from "./videoAnalyzer";
+import { createSpeechTranscriber } from "./speechRecognition";
 import "./styles.css";
 
 function App() {
-  const [draft, setDraft] = useState<DraftInput>(createDraft());
+  const path = window.location.pathname;
+  const match = path.match(/^\/interview\/([^/]+)/);
+  if (match) {
+    return <CandidateInterviewPage sessionId={decodeURIComponent(match[1])} />;
+  }
+  return <RecruiterPage />;
+}
+
+function RecruiterPage() {
+  const [candidateName, setCandidateName] = useState("候选人");
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [prep, setPrep] = useState<PrepSession | null>(null);
+  const [followupAnswer, setFollowupAnswer] = useState("");
+  const [session, setSession] = useState<InterviewSession | null>(null);
+  const [reportVisibility, setReportVisibility] = useState<ReportVisibility>("recruiter_only");
+  const [useLlmQuestions, setUseLlmQuestions] = useState(true);
+  const [enableVideoObservation, setEnableVideoObservation] = useState(true);
+  const [report, setReport] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function uploadResume() {
+    if (!resumeFile) {
+      setError("请先选择简历文件。");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setReport("");
+    try {
+      const dataBase64 = await fileToBase64(resumeFile);
+      setPrep(
+        await submitResume({
+          candidateName,
+          fileName: resumeFile.name,
+          contentType: resumeFile.type || "application/octet-stream",
+          dataBase64
+        })
+      );
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "简历上传失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitFollowup() {
+    if (!prep || !followupAnswer.trim()) {
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      setPrep(await submitPrepFollowup(prep.id, followupAnswer));
+      setFollowupAnswer("");
+    } catch (followupError) {
+      setError(followupError instanceof Error ? followupError.message : "提交职位信息失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createInterview() {
+    if (!prep) {
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const created = await createInterviewSessionFromPrep(prep.id, {
+        reportVisibility,
+        useLlmQuestions,
+        enableVideoObservation
+      });
+      setSession(created);
+      setReport("");
+    } catch (createError) {
+      setError(createError instanceof Error ? createError.message : "创建面试失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function loadRecruiterReport() {
+    if (!session) {
+      return;
+    }
+    setError("");
+    try {
+      const result = await fetchReport(session.id, "recruiter");
+      setReport(result.report);
+    } catch (reportError) {
+      setError(reportError instanceof Error ? reportError.message : "获取报告失败");
+    }
+  }
+
+  const interviewUrl = session ? `${window.location.origin}/interview/${session.id}` : "";
+
+  return (
+    <main className="workspace-shell">
+      <header className="topbar">
+        <div>
+          <p className="eyebrow">招聘端</p>
+          <h1>AI 辅助面试配置</h1>
+        </div>
+        {session ? <a className="link-button" href={interviewUrl}>打开面试端</a> : null}
+      </header>
+
+      <section className="workflow-grid">
+        <div className="panel">
+          <p className="eyebrow">1. 上传简历</p>
+          <label>
+            候选人
+            <input value={candidateName} onChange={(event) => setCandidateName(event.target.value)} />
+          </label>
+          <label>
+            简历文件
+            <input
+              type="file"
+              accept=".pdf,.docx,.png,.jpg,.jpeg,.webp"
+              onChange={(event) => setResumeFile(event.target.files?.[0] ?? null)}
+            />
+          </label>
+          <button type="button" onClick={uploadResume} disabled={busy}>
+            上传并解析
+          </button>
+          {prep ? <pre className="preview-box">{prep.resumeMarkdownPreview}</pre> : null}
+        </div>
+
+        <div className="panel">
+          <p className="eyebrow">2. 补齐职位要求</p>
+          {(prep?.followupQuestions ?? []).map((question, index) => (
+            <p className="question-prompt" key={`${question}-${index}`}>{question}</p>
+          ))}
+          {prep?.readySummary ? (
+            <div className="summary-box">
+              <strong>{prep.readySummary.role}</strong>
+              <p>{prep.readySummary.jobDescription}</p>
+              <p>{prep.readySummary.interviewGoal}</p>
+            </div>
+          ) : null}
+          <label>
+            招聘方回答
+            <textarea
+              value={followupAnswer}
+              rows={6}
+              placeholder="补充岗位职责、必须能力、希望重点追问的经历..."
+              onChange={(event) => setFollowupAnswer(event.target.value)}
+            />
+          </label>
+          <button type="button" onClick={submitFollowup} disabled={!prep || busy}>
+            提交职位信息
+          </button>
+          {prep ? <p className="status-line">LLM 状态：{prep.llmStatus}</p> : null}
+        </div>
+
+        <div className="panel">
+          <p className="eyebrow">3. 面试配置</p>
+          <label>
+            报告可见性
+            <select value={reportVisibility} onChange={(event) => setReportVisibility(event.target.value as ReportVisibility)}>
+              <option value="recruiter_only">仅招聘端可见</option>
+              <option value="shared_with_candidate">招聘端和候选人都可见</option>
+            </select>
+          </label>
+          <label className="check-row">
+            <input type="checkbox" checked={useLlmQuestions} onChange={(event) => setUseLlmQuestions(event.target.checked)} />
+            使用 LLM 生成面试问题
+          </label>
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={enableVideoObservation}
+              onChange={(event) => setEnableVideoObservation(event.target.checked)}
+            />
+            允许面试端摄像头观察信号
+          </label>
+          <button type="button" onClick={createInterview} disabled={!prep || busy}>
+            生成问题和面试链接
+          </button>
+          {session ? (
+            <div className="summary-box">
+              <strong>{session.role}</strong>
+              <p>Room：{session.meetingRoom}</p>
+              <p>报告权限：{session.reportVisibility === "recruiter_only" ? "仅招聘端" : "双方可见"}</p>
+              <input readOnly value={interviewUrl} />
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      {session ? (
+        <section className="panel">
+          <div className="section-header">
+            <div>
+              <p className="eyebrow">面试题与报告</p>
+              <h2>{session.questions.length} 道问题</h2>
+            </div>
+            <button type="button" onClick={loadRecruiterReport}>查看招聘端报告</button>
+          </div>
+          <ol className="question-list">
+            {session.questions.map((question, index) => (
+              <li key={question.id}>
+                <span>{index + 1}</span>
+                <strong>{question.dimension}</strong>
+                <p>{question.prompt}</p>
+              </li>
+            ))}
+          </ol>
+          {report ? <pre>{report}</pre> : null}
+        </section>
+      ) : null}
+
+      {error ? <p className="error-text">{error}</p> : null}
+    </main>
+  );
+}
+
+function CandidateInterviewPage({ sessionId }: { sessionId: string }) {
   const [session, setSession] = useState<InterviewSession | null>(null);
   const [answerText, setAnswerText] = useState("");
   const [durationSec, setDurationSec] = useState(90);
-  const [apiReport, setApiReport] = useState("");
+  const [report, setReport] = useState("");
+  const [liveKit, setLiveKit] = useState<{ url: string; token: string; room: string } | null>(null);
+  const [meetingError, setMeetingError] = useState("");
+  const [speechStatus, setSpeechStatus] = useState("未开始");
   const [error, setError] = useState("");
-  const [cameraStatus, setCameraStatus] = useState("未开启");
-  const [currentMetrics, setCurrentMetrics] = useState<AnalyzerVideoMetrics | null>(null);
-  const [lastVideoEvent, setLastVideoEvent] = useState("暂无");
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const sessionRef = useRef<InterviewSession | null>(null);
-  const intervalRef = useRef<number | null>(null);
-  const previousPixelsRef = useRef<Uint8ClampedArray | null>(null);
-  const analysisStartRef = useRef<number>(0);
-  const analyzingRef = useRef(false);
-  const report = useMemo(() => apiReport || (session ? generateMarkdownReport(session) : ""), [apiReport, session]);
-
-  const avatarPrompt = session ? buildAvatarPrompt(session) : "填写材料后开始生成面试问题。";
+  const transcriberRef = useRef<ReturnType<typeof createSpeechTranscriber> | null>(null);
 
   useEffect(() => {
-    sessionRef.current = session;
-  }, [session]);
+    void loadSession();
+  }, [sessionId]);
 
-  useEffect(() => {
-    return () => {
-      if (intervalRef.current) {
-        window.clearInterval(intervalRef.current);
-      }
-      streamRef.current?.getTracks().forEach((track) => track.stop());
-    };
-  }, []);
-
-  function updateDraft(field: keyof DraftInput, value: string) {
-    setDraft((current) => ({ ...current, [field]: value }));
-  }
-
-  function updateDraftFlag(field: keyof Pick<DraftInput, "useLlmQuestions">, value: boolean) {
-    setDraft((current) => ({ ...current, [field]: value }));
-  }
-
-  async function startInterview() {
+  async function loadSession() {
     setError("");
-    setApiReport("");
     try {
-      setSession(await createSession(draft));
-    } catch (apiError) {
-      setError(apiError instanceof Error ? apiError.message : "创建面试失败");
-    }
-    setAnswerText("");
-  }
-
-  async function startCamera() {
-    setError("");
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setError("当前浏览器不支持摄像头授权。");
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      previousPixelsRef.current = null;
-      analysisStartRef.current = performance.now();
-      setCameraStatus("分析中");
-      if (intervalRef.current) {
-        window.clearInterval(intervalRef.current);
-      }
-      intervalRef.current = window.setInterval(() => {
-        void analyzeFrame();
-      }, 1500);
-    } catch (cameraError) {
-      setCameraStatus("授权失败");
-      setError(cameraError instanceof Error ? cameraError.message : "摄像头启动失败");
-    }
-  }
-
-  function stopCamera() {
-    if (intervalRef.current) {
-      window.clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-    setCameraStatus("已停止");
-  }
-
-  async function analyzeFrame() {
-    if (analyzingRef.current || !videoRef.current || !canvasRef.current || videoRef.current.readyState < 2) {
-      return;
-    }
-
-    analyzingRef.current = true;
-    const canvas = canvasRef.current;
-    const context = canvas.getContext("2d", { willReadFrequently: true });
-    if (!context) {
-      analyzingRef.current = false;
-      return;
-    }
-    canvas.width = 160;
-    canvas.height = 120;
-    context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-    const pixels = new Uint8ClampedArray(imageData.data);
-    const metrics = buildVideoMetrics(pixels, previousPixelsRef.current);
-    const classification = classifyVideoEvent(metrics);
-    const timestamp = Math.max(0, (performance.now() - analysisStartRef.current) / 1000);
-
-    previousPixelsRef.current = pixels;
-    setCurrentMetrics(metrics);
-    setLastVideoEvent(`${timestamp.toFixed(1)}s ${classification.eventType}`);
-
-    if (classification.eventType !== "steady" && sessionRef.current) {
+      const loaded = await getSession(sessionId);
+      setSession(loaded);
       try {
-        const keyframe = classification.shouldCaptureKeyframe
-          ? {
-              reason: classification.keyframeReason ?? classification.eventType,
-              dataUrl: canvas.toDataURL("image/jpeg", 0.72)
-            }
-          : undefined;
-        const updated = await submitVideoEvent(sessionRef.current.id, {
-          timestamp,
-          eventType: classification.eventType,
-          confidence: classification.confidence,
-          metrics,
-          keyframe
-        });
-        setSession(updated);
-        setApiReport("");
-      } catch (apiError) {
-        setError(apiError instanceof Error ? apiError.message : "上传视频观察失败");
+        setLiveKit(await requestLiveKitToken(sessionId, { participantName: loaded.candidateName, participantRole: "candidate" }));
+        setMeetingError("");
+      } catch (tokenError) {
+        setMeetingError(tokenError instanceof Error ? tokenError.message : "会议服务未配置");
       }
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "加载面试失败");
     }
-    analyzingRef.current = false;
+  }
+
+  function speakQuestion() {
+    if (!session?.currentQuestion || !("speechSynthesis" in window)) {
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(buildAvatarPrompt(session));
+    utterance.lang = "zh-CN";
+    utterance.rate = 0.95;
+    window.speechSynthesis.speak(utterance);
+  }
+
+  function startSpeech() {
+    const transcriber = createSpeechTranscriber(
+      window,
+      (text) => setAnswerText((current) => (current ? `${current}${text}` : text)),
+      (message) => {
+        setSpeechStatus("识别失败");
+        setError(message);
+      }
+    );
+    transcriberRef.current = transcriber;
+    transcriber.start();
+    setSpeechStatus(transcriber.supported ? "识别中" : "不支持");
+  }
+
+  function stopSpeech() {
+    transcriberRef.current?.stop();
+    setSpeechStatus("已停止");
   }
 
   async function submitCurrentAnswer() {
-    if (!session) {
+    if (!session?.currentQuestion) {
       return;
     }
     setError("");
     try {
       const result = await submitAnswer(session.id, { text: answerText, durationSec });
       setSession(result.session);
-      setApiReport(result.report);
       setAnswerText("");
-    } catch (apiError) {
-      setError(apiError instanceof Error ? apiError.message : "记录回答失败");
+      try {
+        const visibleReport = await fetchReport(session.id, "candidate");
+        setReport(visibleReport.report);
+      } catch {
+        setReport("招聘端尚未开放候选人查看面试分析报告。");
+      }
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "提交回答失败");
     }
   }
 
-  function speakQuestion() {
-    if (!("speechSynthesis" in window)) {
-      return;
-    }
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(avatarPrompt);
-    utterance.lang = "zh-CN";
-    utterance.rate = 0.95;
-    window.speechSynthesis.speak(utterance);
-  }
+  const currentPrompt = session ? buildAvatarPrompt(session) : "正在加载面试...";
+  const localReport = useMemo(() => (session ? generateMarkdownReport(session) : ""), [session]);
 
   return (
-    <main className="app-shell">
-      <section className="panel setup-panel">
-        <p className="eyebrow">Python + TypeScript MVP</p>
-        <h1>HCI AI 辅助面试</h1>
-        <label>
-          候选人
-          <input value={draft.candidateName} onChange={(event) => updateDraft("candidateName", event.target.value)} />
-        </label>
-        <label>
-          简历摘要
-          <textarea value={draft.resume} rows={6} onChange={(event) => updateDraft("resume", event.target.value)} />
-        </label>
-        <label>
-          岗位 JD
-          <textarea
-            value={draft.jobDescription}
-            rows={6}
-            onChange={(event) => updateDraft("jobDescription", event.target.value)}
-          />
-        </label>
-        <label>
-          面试目标
-          <textarea
-            value={draft.interviewGoal}
-            rows={4}
-            onChange={(event) => updateDraft("interviewGoal", event.target.value)}
-          />
-        </label>
-        <label className="check-row">
-          <input
-            type="checkbox"
-            checked={Boolean(draft.useLlmQuestions)}
-            onChange={(event) => updateDraftFlag("useLlmQuestions", event.target.checked)}
-          />
-          使用 OpenAI-compatible LLM 生成问题
-        </label>
-        <button type="button" onClick={startInterview}>
-          生成问题并开始
-        </button>
-        {session ? <p className="status-line">LLM 状态：{session.llmStatus}</p> : null}
-        {error ? <p className="error-text">{error}</p> : null}
-      </section>
+    <main className="workspace-shell">
+      <header className="topbar">
+        <div>
+          <p className="eyebrow">面试端</p>
+          <h1>{session?.candidateName ?? "候选人"} · 视频面试</h1>
+        </div>
+        <a className="link-button" href="/recruiter">返回招聘端</a>
+      </header>
 
-      <section className="panel interview-panel">
-        <div className="avatar-row">
-          <div className="avatar-face" aria-hidden="true">
-            AI
-          </div>
-          <div>
-            <p className="eyebrow">数字人面试官</p>
-            <h2>{avatarPrompt}</h2>
-          </div>
+      <section className="meeting-layout">
+        <div className="panel meeting-panel">
+          {liveKit ? (
+            <LiveKitRoom token={liveKit.token} serverUrl={liveKit.url} connect audio video>
+              <VideoConference />
+            </LiveKitRoom>
+          ) : (
+            <div className="meeting-placeholder">
+              <strong>会议服务未配置</strong>
+              <p>{meetingError || "请在 .env 中配置 LiveKit 后再进入真实视频会议。"}</p>
+            </div>
+          )}
         </div>
-        <div className="actions">
-          <button type="button" onClick={speakQuestion} disabled={!session}>
-            朗读当前问题
-          </button>
-          <span>{session ? `${Math.min(session.currentIndex + 1, session.questions.length)}/${session.questions.length}` : "未开始"}</span>
-        </div>
-        <ol className="question-list">
-          {(session?.questions ?? []).map((question, index) => (
-            <li key={question.id} className={session?.currentQuestion?.id === question.id ? "active" : ""}>
-              <span>{index + 1}</span>
-              <strong>{question.dimension}</strong>
-              <p>{question.prompt}</p>
-            </li>
-          ))}
-        </ol>
-        <div className="answer-box">
+
+        <div className="panel">
+          <p className="eyebrow">数字人提问</p>
+          <h2>{currentPrompt}</h2>
+          <div className="actions">
+            <button type="button" onClick={speakQuestion} disabled={!session?.currentQuestion}>朗读问题</button>
+            <span>{session ? `${Math.min(session.currentIndex + 1, session.questions.length)}/${session.questions.length}` : "加载中"}</span>
+          </div>
           <label>
-            候选人回答
-            <textarea
-              value={answerText}
-              rows={7}
-              placeholder="输入或粘贴候选人的回答..."
-              onChange={(event) => setAnswerText(event.target.value)}
-            />
+            语音转文字结果
+            <textarea value={answerText} rows={8} onChange={(event) => setAnswerText(event.target.value)} />
           </label>
+          <div className="actions">
+            <button type="button" onClick={startSpeech}>开始语音识别</button>
+            <button type="button" className="secondary-button" onClick={stopSpeech}>停止</button>
+            <span>{speechStatus}</span>
+          </div>
           <label>
             回答用时（秒）
-            <input
-              type="number"
-              min={0}
-              value={durationSec}
-              onChange={(event) => setDurationSec(Number(event.target.value))}
-            />
+            <input type="number" min={0} value={durationSec} onChange={(event) => setDurationSec(Number(event.target.value))} />
           </label>
           <button type="button" onClick={submitCurrentAnswer} disabled={!session?.currentQuestion}>
-            记录回答并进入下一题
+            提交回答并进入下一题
           </button>
-        </div>
-        <div className="video-box">
-          <div className="video-toolbar">
-            <div>
-              <p className="eyebrow">实时摄像头观察</p>
-              <strong>{cameraStatus}</strong>
-            </div>
-            <div className="actions compact">
-              <button type="button" onClick={startCamera}>
-                开启摄像头
-              </button>
-              <button type="button" className="secondary-button" onClick={stopCamera}>
-                停止
-              </button>
-            </div>
-          </div>
-          <video ref={videoRef} className="camera-preview" muted playsInline />
-          <canvas ref={canvasRef} hidden />
-          <div className="metric-grid">
-            <Metric label="脸部可见" value={currentMetrics?.facePresent ? "是" : "待检测"} />
-            <Metric label="亮度" value={formatMetric(currentMetrics?.brightness)} />
-            <Metric label="清晰度" value={formatMetric(currentMetrics?.blur)} />
-            <Metric label="运动量" value={formatMetric(currentMetrics?.motion)} />
-            <Metric label="视线稳定" value={formatMetric(currentMetrics?.gazeProxy)} />
-            <Metric label="头动" value={formatMetric(currentMetrics?.headPoseProxy)} />
-            <Metric label="眨眼" value={formatMetric(currentMetrics?.blinkProxy)} />
-            <Metric label="手势活跃" value={formatMetric(currentMetrics?.handActivity)} />
-          </div>
-          <p className="status-line">最近事件：{lastVideoEvent}</p>
         </div>
       </section>
 
-      <section className="panel output-panel">
-        <div>
-          <p className="eyebrow">事件日志</p>
-          <ul className="events">
-            {(session?.events ?? []).map((event, index) => (
-              <li key={`${event.timestamp}-${index}`}>{event.message}</li>
-            ))}
-          </ul>
-        </div>
-        <div>
-          <p className="eyebrow">关键帧</p>
-          <div className="keyframes">
-            {(session?.keyframes ?? []).length === 0 ? <p className="muted">暂无关键帧。</p> : null}
-            {(session?.keyframes ?? []).map((keyframe, index) => (
-              <figure key={`${keyframe.timestamp}-${index}`}>
-                <img src={keyframe.dataUrl} alt={`${keyframe.reason} at ${keyframe.timestamp.toFixed(1)}s`} />
-                <figcaption>
-                  {keyframe.timestamp.toFixed(1)}s · {keyframe.reason}
-                </figcaption>
-              </figure>
-            ))}
-          </div>
-        </div>
-        <div>
-          <p className="eyebrow">智能纪要</p>
-          <pre>{session && session.answers.length > 0 ? report : "完成至少一道回答后，可生成面试纪要。"}</pre>
-        </div>
+      <section className="panel">
+        <p className="eyebrow">候选人可见报告</p>
+        <pre>{report || (session?.reportVisibility === "shared_with_candidate" ? localReport : "报告默认仅招聘端可见。")}</pre>
       </section>
+
+      {error ? <p className="error-text">{error}</p> : null}
     </main>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="metric-item">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function formatMetric(value?: number | null): string {
-  return typeof value === "number" ? value.toFixed(2) : "待检测";
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("读取文件失败"));
+    reader.onload = () => {
+      const value = String(reader.result ?? "");
+      resolve(value.includes(",") ? value.split(",")[1] : value);
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 createRoot(document.getElementById("root") as HTMLElement).render(<App />);

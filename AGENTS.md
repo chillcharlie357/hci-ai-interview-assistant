@@ -10,6 +10,7 @@ This project is an AI-assisted interview MVP. The first product slice is a minim
 - Record candidate answers and basic answer metrics.
 - Record browser-side realtime camera observation signals for the candidate when explicitly enabled.
 - Generate an auditable interview summary.
+- Split user flows into recruiter configuration and candidate interview room when the feature requires different permissions or visibility.
 
 Current MVP scope includes lightweight browser-side camera metrics and in-memory keyframes. Do not expand into screen sharing, OCR, high-precision facial recognition, sensitive-attribute inference, or automatic hiring decisions unless the spec is updated first.
 
@@ -19,6 +20,8 @@ Current MVP scope includes lightweight browser-side camera metrics and in-memory
 - Frontend UI: TypeScript.
 - Spec documents: Markdown under `spec/`.
 - Local secrets and model endpoints: `.env`; commit only `.env.example`.
+- Resume extraction uses MinerU CLI. Treat uploaded source files as temporary only.
+- Candidate interview room uses LiveKit when configured; keep text fallback for unavailable browser/meeting capabilities.
 - Do not add root-level JavaScript prototypes; frontend code belongs under `frontend/`.
 
 ## Spec-Driven Development

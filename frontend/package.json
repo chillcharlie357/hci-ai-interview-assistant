@@ -9,8 +9,11 @@
     "dev": "vite --host 0.0.0.0"
   },
   "dependencies": {
+    "@livekit/components-react": "^2.9.20",
+    "@livekit/components-styles": "^1.2.0",
     "@mediapipe/tasks-vision": "^0.10.35",
     "@vitejs/plugin-react": "latest",
+    "livekit-client": "^2.18.8",
     "react": "latest",
     "react-dom": "latest",
     "typescript": "latest",

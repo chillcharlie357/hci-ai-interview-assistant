@@ -7,6 +7,11 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
       OPENAI_MODEL: ${OPENAI_MODEL:-}
+      MINERU_COMMAND: ${MINERU_COMMAND:-mineru-open-api}
+      MINERU_TIMEOUT_SEC: ${MINERU_TIMEOUT_SEC:-120}
+      LIVEKIT_URL: ${LIVEKIT_URL:-}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
     ports:
       - "8000:8000"
 

@@ -6,10 +6,13 @@ import json
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from backend.interview.answer_analysis import analyze_answer_text
+from backend.interview.document_extractor import DocumentExtractionError, extract_resume_markdown
+from backend.interview.livekit_token import LiveKitConfigError, create_livekit_token
 from backend.interview.llm_client import LlmClient
+from backend.interview.prep_session import PrepSession, advance_followup, create_prep_session, serialize_prep_session
 from backend.interview.question_engine import InterviewQuestion, generate_interview_questions
 from backend.interview.session import (
     InterviewSession,
@@ -24,6 +27,7 @@ from backend.interview.session import (
 class SessionStore:
     def __init__(self) -> None:
         self.sessions: dict[str, InterviewSession] = {}
+        self.prep_sessions: dict[str, PrepSession] = {}
 
     def create(self, payload: dict[str, Any]) -> InterviewSession:
         llm_status = "fallback"
@@ -54,6 +58,71 @@ class SessionStore:
             candidate_name=str(payload.get("candidate_name", "候选人")),
             role=question_set.role,
             questions=question_set.questions,
+        )
+        session = replace(session, llm_status=llm_status)
+        self.sessions[session.id] = session
+        return session
+
+    def create_prep(self, payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        try:
+            extracted = extract_resume_markdown(
+                file_name=str(payload.get("file_name", "")),
+                data_base64=str(payload.get("data_base64", "")),
+            )
+        except DocumentExtractionError as error:
+            return HTTPStatus.BAD_REQUEST, {"error": error.code, "message": error.message}
+
+        prep = create_prep_session(
+            candidate_name=str(payload.get("candidate_name", "候选人")),
+            resume_markdown=extracted.markdown,
+        )
+        self.prep_sessions[prep.id] = prep
+        return HTTPStatus.CREATED, serialize_prep_session(prep)
+
+    def record_followup(self, prep_session_id: str, payload: dict[str, Any]) -> PrepSession | None:
+        prep = self.prep_sessions.get(prep_session_id)
+        if prep is None:
+            return None
+        updated = advance_followup(prep, str(payload.get("answer", "")))
+        self.prep_sessions[prep_session_id] = updated
+        return updated
+
+    def create_from_prep(self, prep_session_id: str, payload: dict[str, Any]) -> InterviewSession | None:
+        prep = self.prep_sessions.get(prep_session_id)
+        if prep is None:
+            return None
+        summary = prep.ready_summary
+        job_description = summary.job_description if summary else " ".join(turn.answer for turn in prep.turns)
+        interview_goal = summary.interview_goal if summary else "评估项目经验、技术实现能力和表达能力。"
+        question_set = generate_interview_questions(
+            resume=prep.resume_markdown,
+            job_description=job_description,
+            interview_goal=interview_goal,
+        )
+        llm_status = prep.llm_status
+        if payload.get("use_llm_questions"):
+            llm_result = LlmClient.from_env().complete_json(
+                "你是技术面试官，请输出 JSON，包含 questions 数组；每个问题包含 dimension, prompt, follow_ups, evidence_hints。",
+                json.dumps(
+                    {
+                        "resume": prep.resume_markdown,
+                        "job_description": job_description,
+                        "interview_goal": interview_goal,
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+            llm_status = llm_result.status
+            if llm_result.status == "ok" and llm_result.data:
+                llm_questions = _questions_from_llm(llm_result.data)
+                if llm_questions:
+                    question_set = replace(question_set, questions=llm_questions)
+        session = create_interview_session(
+            candidate_name=prep.candidate_name,
+            role=summary.role if summary else question_set.role,
+            questions=question_set.questions,
+            report_visibility=str(payload.get("report_visibility", "recruiter_only")),
+            enable_video_observation=bool(payload.get("enable_video_observation", True)),
         )
         session = replace(session, llm_status=llm_status)
         self.sessions[session.id] = session
@@ -100,7 +169,9 @@ def handle_api_request(
     path: str,
     payload: dict[str, Any] | None = None,
 ) -> tuple[int, dict[str, Any]]:
-    path_parts = [part for part in urlparse(path).path.split("/") if part]
+    parsed_url = urlparse(path)
+    path_parts = [part for part in parsed_url.path.split("/") if part]
+    query = parse_qs(parsed_url.query)
     body = payload or {}
 
     if method == "GET" and len(path_parts) == 3 and path_parts[:2] == ["api", "sessions"]:
@@ -109,8 +180,48 @@ def handle_api_request(
             return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
         return HTTPStatus.OK, serialize_session(session)
 
+    if (
+        method == "GET"
+        and len(path_parts) == 4
+        and path_parts[:2] == ["api", "sessions"]
+        and path_parts[3] == "report"
+    ):
+        session = store.get(path_parts[2])
+        if session is None:
+            return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
+        viewer = query.get("viewer", ["recruiter"])[0]
+        if viewer == "candidate" and session.report_visibility != "shared_with_candidate":
+            return HTTPStatus.FORBIDDEN, {"error": "report_not_shared"}
+        report, report_llm_status = generate_report(session)
+        return HTTPStatus.OK, {"report": report, "llm_status": report_llm_status if report_llm_status == "ok" else session.llm_status}
+
     if method == "POST" and path_parts == ["api", "sessions"]:
         session = store.create(body)
+        return HTTPStatus.CREATED, serialize_session(session)
+
+    if method == "POST" and path_parts == ["api", "prep-sessions", "resume"]:
+        return store.create_prep(body)
+
+    if (
+        method == "POST"
+        and len(path_parts) == 4
+        and path_parts[:2] == ["api", "prep-sessions"]
+        and path_parts[3] == "followups"
+    ):
+        prep = store.record_followup(path_parts[2], body)
+        if prep is None:
+            return HTTPStatus.NOT_FOUND, {"error": "prep_session_not_found"}
+        return HTTPStatus.OK, serialize_prep_session(prep)
+
+    if (
+        method == "POST"
+        and len(path_parts) == 4
+        and path_parts[:2] == ["api", "prep-sessions"]
+        and path_parts[3] == "interview-session"
+    ):
+        session = store.create_from_prep(path_parts[2], body)
+        if session is None:
+            return HTTPStatus.NOT_FOUND, {"error": "prep_session_not_found"}
         return HTTPStatus.CREATED, serialize_session(session)
 
     if (
@@ -127,6 +238,25 @@ def handle_api_request(
         response["report"] = report
         response["llm_status"] = report_llm_status if report_llm_status == "ok" else response.get("llm_status", "fallback")
         return HTTPStatus.OK, response
+
+    if (
+        method == "POST"
+        and len(path_parts) == 4
+        and path_parts[:2] == ["api", "sessions"]
+        and path_parts[3] == "livekit-token"
+    ):
+        session = store.get(path_parts[2])
+        if session is None:
+            return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
+        try:
+            token = create_livekit_token(
+                room=session.meeting_room,
+                participant_name=str(body.get("participant_name", session.candidate_name)),
+                participant_role=str(body.get("participant_role", "candidate")),
+            )
+        except LiveKitConfigError as error:
+            return HTTPStatus.SERVICE_UNAVAILABLE, {"error": "livekit_not_configured", "message": str(error)}
+        return HTTPStatus.OK, token
 
     if (
         method == "POST"

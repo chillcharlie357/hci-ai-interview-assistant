@@ -14,6 +14,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -92,12 +93,118 @@ label {
 }
 
 input,
+select,
 textarea {
   border: 1px solid #d8e0ec;
   border-radius: 6px;
   color: #172033;
   min-width: 0;
   padding: 10px 11px;
+}
+
+.workspace-shell {
+  display: grid;
+  gap: 16px;
+  min-height: 100vh;
+  padding: 16px;
+}
+
+.topbar {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #d8e0ec;
+  border-radius: 8px;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 18px 20px;
+}
+
+.topbar h1 {
+  margin-bottom: 0;
+}
+
+.workflow-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(260px, 1fr));
+}
+
+.section-header {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.preview-box {
+  background: #f8fafc;
+  color: #172033;
+  margin-top: 12px;
+  max-height: 240px;
+}
+
+.summary-box {
+  background: #f8fafc;
+  border: 1px solid #d8e0ec;
+  border-radius: 6px;
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 12px;
+}
+
+.summary-box p {
+  color: #637086;
+  margin: 0;
+}
+
+.question-prompt {
+  border-left: 3px solid #0f766e;
+  color: #172033;
+  padding-left: 10px;
+}
+
+.link-button {
+  background: #0f766e;
+  border-radius: 6px;
+  color: #fff;
+  font-weight: 800;
+  padding: 11px 14px;
+  text-decoration: none;
+}
+
+.meeting-layout {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(420px, 1.35fr) minmax(320px, 0.8fr);
+}
+
+.meeting-panel {
+  min-height: 520px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.meeting-panel .lk-room-container {
+  min-height: 520px;
+}
+
+.meeting-placeholder {
+  align-content: center;
+  background: #101827;
+  color: #eef5ff;
+  display: grid;
+  min-height: 520px;
+  padding: 24px;
+  text-align: center;
+}
+
+.meeting-placeholder p {
+  color: #cbd5e1;
+  margin: 10px auto 0;
+  max-width: 520px;
 }
 
 .check-row {
@@ -286,6 +393,11 @@ pre {
 
 @media (max-width: 1100px) {
   .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .workflow-grid,
+  .meeting-layout {
     grid-template-columns: 1fr;
   }
 }

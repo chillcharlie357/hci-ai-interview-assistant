@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { createSession, submitAnswer, submitVideoEvent } from "./apiClient";
+import {
+  createInterviewSessionFromPrep,
+  createSession,
+  fetchReport,
+  getSession,
+  requestLiveKitToken,
+  submitAnswer,
+  submitPrepFollowup,
+  submitResume,
+  submitVideoEvent
+} from "./apiClient";
 import type { DraftInput } from "./interviewFlow";
 
 describe("apiClient", () => {
@@ -123,5 +133,127 @@ describe("apiClient", () => {
 
     expect(session.videoSummary.eventCount).toBe(1);
     expect(session.keyframes[0].reason).toBe("low_light");
+  });
+
+  it("uploads a resume and maps prep session followups", async () => {
+    const fetcher = async () =>
+      new Response(
+        JSON.stringify({
+          prep_session_id: "prep_1",
+          candidate_name: "张三",
+          resume_markdown_preview: "# 简历",
+          followup_questions: ["请补充岗位要求。"],
+          ready: false,
+          ready_summary: null,
+          llm_status: "fallback"
+        }),
+        { status: 201 }
+      );
+
+    const prep = await submitResume(
+      {
+        candidateName: "张三",
+        fileName: "resume.pdf",
+        contentType: "application/pdf",
+        dataBase64: "abc"
+      },
+      { fetcher }
+    );
+
+    expect(prep.id).toBe("prep_1");
+    expect(prep.followupQuestions[0]).toBe("请补充岗位要求。");
+  });
+
+  it("submits recruiter followup answers and creates an interview session", async () => {
+    const fetcher = async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/followups")) {
+        return new Response(
+          JSON.stringify({
+            prep_session_id: "prep_1",
+            candidate_name: "张三",
+            resume_markdown_preview: "# 简历",
+            followup_questions: [],
+            ready: true,
+            ready_summary: {
+              role: "AI 产品全栈工程师",
+              job_description: "负责 AI 面试平台。",
+              interview_goal: "评估 LLM 应用。",
+              focus_areas: ["工程落地"]
+            },
+            llm_status: "ok"
+          }),
+          { status: 200 }
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          id: "session_1",
+          candidate_name: "张三",
+          role: "AI 产品全栈工程师",
+          questions: [],
+          current_index: 0,
+          current_question: null,
+          answers: [],
+          events: [],
+          report_visibility: "shared_with_candidate",
+          meeting_room: "interview-session_1",
+          enable_video_observation: true
+        }),
+        { status: 201 }
+      );
+    };
+
+    const prep = await submitPrepFollowup("prep_1", "岗位看 LLM 应用", { fetcher });
+    const session = await createInterviewSessionFromPrep(
+      "prep_1",
+      { reportVisibility: "shared_with_candidate", useLlmQuestions: true, enableVideoObservation: true },
+      { fetcher }
+    );
+
+    expect(prep.readySummary?.role).toBe("AI 产品全栈工程师");
+    expect(session.reportVisibility).toBe("shared_with_candidate");
+    expect(session.meetingRoom).toBe("interview-session_1");
+  });
+
+  it("requests LiveKit tokens and report visibility", async () => {
+    const fetcher = async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("livekit-token")) {
+        return new Response(JSON.stringify({ url: "wss://livekit.test", token: "jwt", room: "interview-session_1" }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ report: "# 智能面试纪要", llm_status: "fallback" }), { status: 200 });
+    };
+
+    const token = await requestLiveKitToken("session_1", { participantName: "张三", participantRole: "candidate" }, { fetcher });
+    const report = await fetchReport("session_1", "candidate", { fetcher });
+
+    expect(token.url).toBe("wss://livekit.test");
+    expect(report.report).toContain("智能面试纪要");
+  });
+
+  it("fetches a session by id", async () => {
+    const fetcher = async () =>
+      new Response(
+        JSON.stringify({
+          id: "session_1",
+          candidate_name: "张三",
+          role: "AI 产品全栈工程师",
+          questions: [],
+          current_index: 0,
+          current_question: null,
+          answers: [],
+          events: [],
+          report_visibility: "recruiter_only",
+          meeting_room: "interview-session_1",
+          enable_video_observation: false
+        }),
+        { status: 200 }
+      );
+
+    const session = await getSession("session_1", { fetcher });
+
+    expect(session.id).toBe("session_1");
+    expect(session.enableVideoObservation).toBe(false);
   });
 });
