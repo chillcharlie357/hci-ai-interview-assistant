@@ -1,12 +1,11 @@
 import React, { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 
+import { createSession, submitAnswer } from "./apiClient";
 import {
   buildAvatarPrompt,
   createDraft,
-  createSessionFromDraft,
   generateMarkdownReport,
-  recordAnswer,
   type DraftInput,
   type InterviewSession
 } from "./interviewFlow";
@@ -17,7 +16,9 @@ function App() {
   const [session, setSession] = useState<InterviewSession | null>(null);
   const [answerText, setAnswerText] = useState("");
   const [durationSec, setDurationSec] = useState(90);
-  const report = useMemo(() => (session ? generateMarkdownReport(session) : ""), [session]);
+  const [apiReport, setApiReport] = useState("");
+  const [error, setError] = useState("");
+  const report = useMemo(() => apiReport || (session ? generateMarkdownReport(session) : ""), [apiReport, session]);
 
   const avatarPrompt = session ? buildAvatarPrompt(session) : "填写材料后开始生成面试问题。";
 
@@ -25,17 +26,30 @@ function App() {
     setDraft((current) => ({ ...current, [field]: value }));
   }
 
-  function startInterview() {
-    setSession(createSessionFromDraft(draft));
+  async function startInterview() {
+    setError("");
+    setApiReport("");
+    try {
+      setSession(await createSession(draft));
+    } catch (apiError) {
+      setError(apiError instanceof Error ? apiError.message : "创建面试失败");
+    }
     setAnswerText("");
   }
 
-  function submitAnswer() {
+  async function submitCurrentAnswer() {
     if (!session) {
       return;
     }
-    setSession(recordAnswer(session, { text: answerText, durationSec }));
-    setAnswerText("");
+    setError("");
+    try {
+      const result = await submitAnswer(session.id, { text: answerText, durationSec });
+      setSession(result.session);
+      setApiReport(result.report);
+      setAnswerText("");
+    } catch (apiError) {
+      setError(apiError instanceof Error ? apiError.message : "记录回答失败");
+    }
   }
 
   function speakQuestion() {
@@ -81,6 +95,7 @@ function App() {
         <button type="button" onClick={startInterview}>
           生成问题并开始
         </button>
+        {error ? <p className="error-text">{error}</p> : null}
       </section>
 
       <section className="panel interview-panel">
@@ -127,7 +142,7 @@ function App() {
               onChange={(event) => setDurationSec(Number(event.target.value))}
             />
           </label>
-          <button type="button" onClick={submitAnswer} disabled={!session?.currentQuestion}>
+          <button type="button" onClick={submitCurrentAnswer} disabled={!session?.currentQuestion}>
             记录回答并进入下一题
           </button>
         </div>

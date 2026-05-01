@@ -23,14 +23,21 @@
 - 实现填充词、字数、回答用时统计。
 - 实现 Markdown 纪要生成。
 
-## 阶段 4：TypeScript Frontend UI
+## 阶段 4：Python API
+
+- 创建 `backend/interview/api.py`。
+- 创建 `backend/tests/test_api.py`。
+- 实现创建 session、读取 session、记录回答三个 API。
+- 使用标准库 HTTP server 暴露本地 MVP API。
+
+## 阶段 5：TypeScript Frontend UI
 
 - 创建 `index.html`。
 - 创建 `frontend/src/app.ts`。
 - 创建 `styles.css`。
-- 串联问题生成、数字人提问、回答记录和纪要生成。
+- 串联 Python API、数字人提问、回答记录和纪要生成。
 
-## 阶段 5：验收
+## 阶段 6：验收
 
 - 执行完整测试。
 - 检查 Python 核心逻辑与 TypeScript UI 数据流。

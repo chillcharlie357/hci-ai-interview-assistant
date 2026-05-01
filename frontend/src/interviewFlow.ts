@@ -36,6 +36,7 @@ export type InterviewEvent = {
 };
 
 export type InterviewSession = {
+  id: string;
   candidateName: string;
   role: string;
   questions: InterviewQuestion[];
@@ -58,6 +59,7 @@ export function createSessionFromDraft(draft: DraftInput): InterviewSession {
   const role = extractRole(draft.jobDescription) || "候选人";
   const questions = generateQuestions(draft, role);
   return {
+    id: `local_${Date.now()}`,
     candidateName: draft.candidateName || "候选人",
     role,
     questions,
