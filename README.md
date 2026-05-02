@@ -96,6 +96,14 @@ The frontend expects the backend API at `http://127.0.0.1:8000`.
 scripts/test.sh
 ```
 
+Run the full browser E2E flow with mocked camera, microphone, TTS, STT, and MinerU:
+
+```bash
+scripts/e2e.sh
+```
+
+This starts the API and frontend with `INTERVIEW_DISABLE_DOTENV=1`, so it does not read local LLM or LiveKit secrets from `.env`. The test covers recruiter resume upload, role follow-up, generated question preview, candidate subtitle interview, Markdown report download, and report visibility enforcement. Screenshots and downloaded reports are written to `/private/tmp` by default.
+
 ## Mock Resumes For Local QA
 
 Generate disposable mock resumes for recruiter-flow testing:

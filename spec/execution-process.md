@@ -126,5 +126,13 @@
 - 使用 Python 测试框架验证核心面试逻辑。
 - 使用 TypeScript 前端测试验证关键 UI 数据流。
 - 使用 `scripts/test.sh` 执行 Python unittest、frontend vitest 和 frontend build。
+- 使用 `scripts/e2e.sh` 执行完整浏览器端到端验收，覆盖 mock 摄像头、mock 麦克风、mock TTS/STT、mock MinerU、招聘端题目展示、候选人字幕面试、报告下载和报告权限。
 - 使用 `docker compose config` 验证 Docker Compose 配置。
 - 每个 feature 分支在合并前必须执行对应测试命令。
+
+## Mock E2E 边界
+
+- `scripts/e2e.sh` 默认设置 `INTERVIEW_DISABLE_DOTENV=1`，不会读取 `.env` 中的 LLM、LiveKit 或其他敏感配置。
+- `MINERU_COMMAND` 默认使用 `scripts/mock_mineru_open_api.py`，不调用外部 MinerU 服务。
+- 浏览器端通过 Playwright 注入 `getUserMedia`、`SpeechSynthesisUtterance`、`SpeechRecognition` / `webkitSpeechRecognition` mock。
+- 下载报告和截图默认写入 `/private/tmp`，不进入 git。
