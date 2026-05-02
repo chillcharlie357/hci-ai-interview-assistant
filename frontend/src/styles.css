@@ -188,17 +188,38 @@ textarea {
 }
 
 .meeting-panel .lk-room-container {
+  background: #f8fafc;
+  color: #172033;
   min-height: 520px;
 }
 
 .candidate-livekit-room {
-  background: #101827;
+  --lk-bg: #f8fafc;
+  --lk-bg2: #eef3f8;
+  --lk-bg3: #e2e8f0;
+  --lk-bg4: #cbd5e1;
+  --lk-bg5: #b7c3d2;
+  --lk-fg: #172033;
+  --lk-fg2: #334155;
+  --lk-fg3: #475569;
+  --lk-fg4: #64748b;
+  --lk-fg5: #64748b;
+  --lk-border-color: #d8e0ec;
+  --lk-control-fg: #172033;
+  --lk-control-bg: #ffffff;
+  --lk-control-hover-bg: #eef3f8;
+  --lk-control-active-bg: #dff5f2;
+  --lk-control-active-hover-bg: #c6ece6;
+  background: #f8fafc;
+  color: #172033;
+  color-scheme: light;
   display: grid;
   grid-template-rows: 1fr auto;
   min-height: 520px;
 }
 
 .candidate-video-grid {
+  background: linear-gradient(180deg, #f8fafc 0%, #eef3f8 100%);
   min-height: 456px;
 }
 
@@ -206,14 +227,47 @@ textarea {
   min-height: 456px;
 }
 
+.candidate-video-grid .lk-participant-tile {
+  background: #eef3f8;
+  border: 1px solid #d8e0ec;
+  color: #172033;
+}
+
+.candidate-video-grid .lk-participant-placeholder,
+.candidate-video-grid .lk-participant-media-video {
+  background-color: #eef3f8;
+}
+
+.candidate-video-grid .lk-participant-placeholder svg {
+  color: #7c8aa0;
+  opacity: 0.72;
+}
+
+.candidate-video-grid .lk-participant-metadata-item {
+  background: rgb(255 255 255 / 88%);
+  border: 1px solid #d8e0ec;
+  color: #172033;
+}
+
 .candidate-livekit-room .lk-control-bar {
-  border-top: 1px solid rgb(255 255 255 / 12%);
+  background: #ffffff;
+  border-top: 1px solid #d8e0ec;
+}
+
+.candidate-livekit-room .lk-button,
+.candidate-livekit-room .lk-start-audio-button,
+.candidate-livekit-room .lk-disconnect-button {
+  box-shadow: 0 1px 2px rgb(15 23 42 / 8%);
+}
+
+.candidate-livekit-room .lk-disconnect-button {
+  background: #fff7f7;
 }
 
 .meeting-placeholder {
   align-content: center;
-  background: #101827;
-  color: #eef5ff;
+  background: #f8fafc;
+  color: #172033;
   display: grid;
   min-height: 520px;
   padding: 24px;
@@ -221,7 +275,7 @@ textarea {
 }
 
 .meeting-placeholder p {
-  color: #cbd5e1;
+  color: #637086;
   margin: 10px auto 0;
   max-width: 520px;
 }
