@@ -12,7 +12,9 @@ coverage/
 .env.*
 !.env.example
 mock-resumes/
+.playwright-cli/
 .playwright-mcp/
+output/playwright/
 presentations/*.pptx
 presentations/*.key
 presentations/project-intro/

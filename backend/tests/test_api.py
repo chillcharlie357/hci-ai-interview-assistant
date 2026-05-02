@@ -8,6 +8,12 @@ from backend.interview.llm_client import LlmResult
 
 class ApiTest(unittest.TestCase):
     def setUp(self):
+        self.env_patcher = patch.dict(
+            "os.environ",
+            {"OPENAI_API_KEY": "", "OPENAI_MODEL": "", "OPENAI_BASE_URL": ""},
+        )
+        self.env_patcher.start()
+        self.addCleanup(self.env_patcher.stop)
         self.store = SessionStore()
 
     def test_creates_session_and_records_answer(self):

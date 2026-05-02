@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { LiveKitRoom, VideoConference } from "@livekit/components-react";
+import { ControlBar, GridLayout, LiveKitRoom, ParticipantTile, RoomAudioRenderer, useTracks } from "@livekit/components-react";
 import "@livekit/components-styles";
+import { Track } from "livekit-client";
 
 import {
   createInterviewSessionFromPrep,
@@ -339,7 +340,7 @@ function CandidateInterviewPage({ sessionId }: { sessionId: string }) {
         <div className="panel meeting-panel">
           {liveKit ? (
             <LiveKitRoom token={liveKit.token} serverUrl={liveKit.url} connect audio video>
-              <VideoConference />
+              <CandidateLiveKitConference />
             </LiveKitRoom>
           ) : (
             <div className="meeting-placeholder">
@@ -382,6 +383,33 @@ function CandidateInterviewPage({ sessionId }: { sessionId: string }) {
 
       {error ? <p className="error-text">{error}</p> : null}
     </main>
+  );
+}
+
+function CandidateLiveKitConference() {
+  const cameraTracks = useTracks([{ source: Track.Source.Camera, withPlaceholder: true }], {
+    onlySubscribed: false
+  });
+
+  return (
+    <div className="candidate-livekit-room">
+      <div className="candidate-video-grid">
+        <GridLayout tracks={cameraTracks}>
+          <ParticipantTile />
+        </GridLayout>
+      </div>
+      <ControlBar
+        controls={{
+          microphone: true,
+          camera: true,
+          screenShare: false,
+          chat: false,
+          settings: false,
+          leave: true
+        }}
+      />
+      <RoomAudioRenderer />
+    </div>
   );
 }
 

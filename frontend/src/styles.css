@@ -191,6 +191,25 @@ textarea {
   min-height: 520px;
 }
 
+.candidate-livekit-room {
+  background: #101827;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-height: 520px;
+}
+
+.candidate-video-grid {
+  min-height: 456px;
+}
+
+.candidate-video-grid .lk-grid-layout {
+  min-height: 456px;
+}
+
+.candidate-livekit-room .lk-control-bar {
+  border-top: 1px solid rgb(255 255 255 / 12%);
+}
+
 .meeting-placeholder {
   align-content: center;
   background: #101827;
