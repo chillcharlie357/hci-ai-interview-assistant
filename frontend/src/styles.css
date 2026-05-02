@@ -498,6 +498,80 @@ textarea {
   margin: 0;
 }
 
+.subtitle-panel {
+  align-content: start;
+  display: grid;
+}
+
+.status-pill {
+  background: #eef3f8;
+  border: 1px solid #d8e0ec;
+  border-radius: 999px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.caption-stream {
+  align-content: start;
+  background: #f8fafc;
+  border: 1px solid #d8e0ec;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  max-height: 360px;
+  min-height: 260px;
+  overflow: auto;
+  padding: 12px;
+}
+
+.caption-row {
+  display: grid;
+  gap: 5px;
+  max-width: 92%;
+}
+
+.caption-row strong {
+  color: #637086;
+  font-size: 12px;
+}
+
+.caption-row p {
+  border-radius: 8px;
+  line-height: 1.55;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.caption-row.ai {
+  justify-self: start;
+}
+
+.caption-row.ai p {
+  background: #fff;
+  border: 1px solid #d8e0ec;
+  color: #172033;
+}
+
+.caption-row.candidate {
+  justify-self: end;
+}
+
+.caption-row.candidate strong {
+  text-align: right;
+}
+
+.caption-row.candidate p {
+  background: #dff5f2;
+  color: #0f3f3a;
+}
+
+.caption-input {
+  margin-top: 12px;
+}
+
 @keyframes avatarPulse {
   0%,
   100% {

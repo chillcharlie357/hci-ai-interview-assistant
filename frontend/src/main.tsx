@@ -21,6 +21,7 @@ import {
   type ReportVisibility
 } from "./interviewFlow";
 import {
+  buildConversationCaptions,
   describeDigitalInterviewerState,
   shouldAutoSpeakQuestion,
   type DigitalInterviewerState
@@ -256,6 +257,7 @@ function CandidateInterviewPage({ sessionId }: { sessionId: string }) {
   const [meetingError, setMeetingError] = useState("");
   const [speechStatus, setSpeechStatus] = useState("未开始");
   const [interviewerState, setInterviewerState] = useState<DigitalInterviewerState>("preparing");
+  const [answerStartedAt, setAnswerStartedAt] = useState<number | null>(null);
   const [error, setError] = useState("");
   const transcriberRef = useRef<ReturnType<typeof createSpeechTranscriber> | null>(null);
   const lastAutoSpokenQuestionIdRef = useRef<string | null>(null);
@@ -313,40 +315,51 @@ function CandidateInterviewPage({ sessionId }: { sessionId: string }) {
     utterance.lang = "zh-CN";
     utterance.rate = 0.95;
     utterance.onstart = () => setInterviewerState("speaking");
-    utterance.onend = () => setInterviewerState("listening");
+    utterance.onend = () => {
+      setInterviewerState("listening");
+      startCandidateAnswer();
+    };
     utterance.onerror = () => setInterviewerState(mode === "auto" ? "unsupported" : "listening");
     setInterviewerState("speaking");
     window.speechSynthesis.speak(utterance);
   }
 
-  function startSpeech() {
+  function startCandidateAnswer() {
+    if (!session?.currentQuestion || answerStartedAt !== null) {
+      return;
+    }
     const transcriber = createSpeechTranscriber(
       window,
       (text) => setAnswerText((current) => (current ? `${current}${text}` : text)),
       (message) => {
-        setSpeechStatus("识别失败");
-        setError(message);
+        setSpeechStatus(formatSpeechStatus(message));
       }
     );
     transcriberRef.current = transcriber;
     transcriber.start();
     setSpeechStatus(transcriber.supported ? "识别中" : "不支持");
+    setAnswerStartedAt(Date.now());
   }
 
-  function stopSpeech() {
+  function stopCandidateSpeech() {
     transcriberRef.current?.stop();
     setSpeechStatus("已停止");
   }
 
-  async function submitCurrentAnswer() {
+  async function finishCandidateAnswer() {
     if (!session?.currentQuestion) {
       return;
     }
+    stopCandidateSpeech();
     setError("");
     try {
-      const result = await submitAnswer(session.id, { text: answerText, durationSec });
+      const measuredDuration = answerStartedAt ? Math.max(1, Math.round((Date.now() - answerStartedAt) / 1000)) : durationSec;
+      const result = await submitAnswer(session.id, { text: answerText, durationSec: measuredDuration });
       setSession(result.session);
       setAnswerText("");
+      setAnswerStartedAt(null);
+      setDurationSec(90);
+      setSpeechStatus("未开始");
       try {
         const visibleReport = await fetchReport(session.id, "candidate");
         setReport(visibleReport.report);
@@ -358,8 +371,9 @@ function CandidateInterviewPage({ sessionId }: { sessionId: string }) {
     }
   }
 
-  const currentPrompt = session ? buildAvatarPrompt(session) : "正在加载面试...";
   const localReport = useMemo(() => (session ? generateMarkdownReport(session) : ""), [session]);
+  const captions = useMemo(() => (session ? buildConversationCaptions(session, answerText) : []), [session, answerText]);
+  const isAnswering = answerStartedAt !== null;
 
   return (
     <main className="workspace-shell">
@@ -395,29 +409,43 @@ function CandidateInterviewPage({ sessionId }: { sessionId: string }) {
           </div>
         </div>
 
-        <div className="panel">
-          <p className="eyebrow">数字人提问</p>
-          <h2>{currentPrompt}</h2>
-          <div className="actions">
-            <button type="button" onClick={() => speakQuestion("replay")} disabled={!session?.currentQuestion}>重播问题</button>
-            <span>{session ? `${Math.min(session.currentIndex + 1, session.questions.length)}/${session.questions.length}` : "加载中"}</span>
+        <div className="panel subtitle-panel">
+          <div className="section-header">
+            <div>
+              <p className="eyebrow">实时字幕</p>
+              <h2>{session ? `${Math.min(session.currentIndex + 1, session.questions.length)}/${session.questions.length}` : "加载中"}</h2>
+            </div>
+            <span className="status-pill">{isAnswering ? "候选人回答中" : interviewerState === "speaking" ? "数字人提问中" : "等待回答"}</span>
           </div>
-          <label>
-            语音转文字结果
-            <textarea value={answerText} rows={8} onChange={(event) => setAnswerText(event.target.value)} />
+          <div className="caption-stream" aria-live="polite">
+            {captions.map((caption) => (
+              <div className={`caption-row ${caption.speaker}`} key={caption.id}>
+                <strong>{caption.label}</strong>
+                <p>{caption.text}</p>
+              </div>
+            ))}
+          </div>
+          <label className="caption-input">
+            候选人字幕
+            <textarea
+              value={answerText}
+              rows={5}
+              placeholder={isAnswering ? "语音识别会实时写入这里，也可以手动修正..." : "等待数字人提问结束后开始回答..."}
+              onChange={(event) => setAnswerText(event.target.value)}
+            />
           </label>
           <div className="actions">
-            <button type="button" onClick={startSpeech}>开始语音识别</button>
-            <button type="button" className="secondary-button" onClick={stopSpeech}>停止</button>
+            {!isAnswering ? (
+              <button type="button" onClick={startCandidateAnswer} disabled={!session?.currentQuestion || interviewerState === "speaking"}>
+                开始回答
+              </button>
+            ) : (
+              <button type="button" onClick={finishCandidateAnswer} disabled={!session?.currentQuestion}>
+                结束回答
+              </button>
+            )}
             <span>{speechStatus}</span>
           </div>
-          <label>
-            回答用时（秒）
-            <input type="number" min={0} value={durationSec} onChange={(event) => setDurationSec(Number(event.target.value))} />
-          </label>
-          <button type="button" onClick={submitCurrentAnswer} disabled={!session?.currentQuestion}>
-            提交回答并进入下一题
-          </button>
         </div>
       </section>
 
@@ -429,6 +457,19 @@ function CandidateInterviewPage({ sessionId }: { sessionId: string }) {
       {error ? <p className="error-text">{error}</p> : null}
     </main>
   );
+}
+
+function formatSpeechStatus(message: string) {
+  if (message === "no-speech") {
+    return "未检测到语音，可手动修正";
+  }
+  if (message === "not-allowed") {
+    return "麦克风未授权，可手动输入";
+  }
+  if (message === "network") {
+    return "语音服务不可用，可手动输入";
+  }
+  return message || "识别失败，可手动修正";
 }
 
 function DigitalInterviewerTile({

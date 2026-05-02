@@ -1,9 +1,18 @@
+import type { InterviewSession } from "./interviewFlow";
+
 export type DigitalInterviewerState = "preparing" | "speaking" | "listening" | "finished" | "unsupported";
 
 export type DigitalInterviewerDescription = {
   label: string;
   detail: string;
   isAnimated: boolean;
+};
+
+export type ConversationCaption = {
+  id: string;
+  speaker: "ai" | "candidate";
+  label: string;
+  text: string;
 };
 
 export function shouldAutoSpeakQuestion(
@@ -32,4 +41,41 @@ export function describeDigitalInterviewerState(
     case "unsupported":
       return { label: "语音不可用", detail: `当前浏览器不支持自动语音，请阅读问题文本，进度 ${progress}`, isAnimated: false };
   }
+}
+
+export function buildConversationCaptions(session: InterviewSession, draftAnswer: string): ConversationCaption[] {
+  const captions: ConversationCaption[] = [];
+  session.answers.forEach((answer) => {
+    captions.push({
+      id: `${answer.questionId}-ai`,
+      speaker: "ai",
+      label: "AI 面试官",
+      text: answer.prompt
+    });
+    captions.push({
+      id: `${answer.questionId}-candidate`,
+      speaker: "candidate",
+      label: session.candidateName,
+      text: answer.text || "未记录回答"
+    });
+  });
+
+  if (session.currentQuestion) {
+    captions.push({
+      id: `${session.currentQuestion.id}-ai-current`,
+      speaker: "ai",
+      label: "AI 面试官",
+      text: session.currentQuestion.prompt
+    });
+    if (draftAnswer.trim()) {
+      captions.push({
+        id: `${session.currentQuestion.id}-candidate-draft`,
+        speaker: "candidate",
+        label: session.candidateName,
+        text: draftAnswer.trim()
+      });
+    }
+  }
+
+  return captions;
 }

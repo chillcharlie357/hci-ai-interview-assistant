@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildConversationCaptions,
   describeDigitalInterviewerState,
   shouldAutoSpeakQuestion,
   type DigitalInterviewerState
 } from "./digitalInterviewer";
+import { createSessionFromDraft, createDraft, recordAnswer } from "./interviewFlow";
 
 describe("digitalInterviewer", () => {
   it("auto speaks each current question exactly once", () => {
@@ -40,5 +42,17 @@ describe("digitalInterviewer", () => {
       "已结束",
       "语音不可用"
     ]);
+  });
+
+  it("builds meeting captions from answered and current questions", () => {
+    const session = createSessionFromDraft(createDraft());
+    const answered = recordAnswer(session, { text: "我负责数字人提问体验。", durationSec: 42 });
+    const captions = buildConversationCaptions(answered, "正在回答第二题。");
+
+    expect(captions.map((caption) => caption.speaker)).toEqual(["ai", "candidate", "ai", "candidate"]);
+    expect(captions[0].text).toContain(session.questions[0].prompt);
+    expect(captions[1].text).toContain("数字人提问体验");
+    expect(captions[2].text).toContain(answered.currentQuestion?.prompt);
+    expect(captions[3].text).toBe("正在回答第二题。");
   });
 });
