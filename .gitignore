@@ -15,6 +15,8 @@ mock-resumes/
 .playwright-cli/
 .playwright-mcp/
 output/playwright/
+frontend/test-results/
+frontend/playwright-report/
 presentations/*.pptx
 presentations/*.key
 presentations/project-intro/
