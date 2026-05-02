@@ -32,11 +32,15 @@ Current MVP scope includes lightweight browser-side camera metrics and in-memory
 
 ## Git Workflow
 
+- Do not develop directly on `main`.
+- Before changing files, start from `main` and create a focused feature branch.
 - Use normal `git` feature branches from `main`.
 - One feature per branch where practical.
-- Run relevant tests before merging.
+- Complete implementation and verification on the feature branch first.
+- Run relevant tests on the feature branch before merging.
 - Merge completed branches back to `main` with `--no-ff`.
 - Keep `main` pushable and clean.
+- After merging to `main`, push `main` only when the merge has been verified.
 
 ## Testing Rules
 
