@@ -527,6 +527,54 @@ function CandidateLiveKitConference({
   );
   const [hiddenVideoEl, setHiddenVideoEl] = useState<HTMLVideoElement | null>(null);
 
+  // ——— 本地摄像头预览（独立于 LiveKit 轨道） ———
+  const [previewVideoEl, setPreviewVideoEl] = useState<HTMLVideoElement | null>(null);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+
+  // 直接用 getUserMedia 获取本地摄像头流并绑定到预览 video 元素
+  useEffect(() => {
+    if (!previewVideoEl) return;
+    let stream: MediaStream | null = null;
+    let cancelled = false;
+
+    navigator.mediaDevices
+      .getUserMedia({ video: true, audio: false })
+      .then((s) => {
+        if (cancelled) {
+          s.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        stream = s;
+        previewVideoEl.srcObject = s;
+        previewVideoEl.muted = true;
+        previewVideoEl.playsInline = true;
+        previewVideoEl.autoplay = true;
+        void previewVideoEl.play().catch(() => {
+          /* autoplay 可能被阻止，但画面仍会渲染 */
+        });
+        setCameraReady(true);
+        setCameraError(null);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setCameraError(err instanceof Error ? err.message : String(err));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
+      }
+      if (previewVideoEl) {
+        previewVideoEl.srcObject = null;
+      }
+      setCameraReady(false);
+    };
+  }, [previewVideoEl]);
+
+  // LiveKit 轨道绑定到隐藏 video（仅供抽帧分析）
   useEffect(() => {
     if (!hiddenVideoEl) {
       return;
@@ -536,12 +584,11 @@ function CandidateLiveKitConference({
       return;
     }
     track.attach(hiddenVideoEl);
-    // 属性强制保证 drawImage 能从 video 正常读取
     hiddenVideoEl.muted = true;
     hiddenVideoEl.playsInline = true;
     hiddenVideoEl.autoplay = true;
     void hiddenVideoEl.play().catch(() => {
-      /* 自动播放在未交互时可能被阻止，忽略即可，下一次 tick 会重试 drawImage */
+      /* 自动播放在未交互时可能被阻止，忽略即可 */
     });
     return () => {
       try {
@@ -561,9 +608,37 @@ function CandidateLiveKitConference({
   return (
     <div className="candidate-livekit-room">
       <div className="candidate-video-grid">
-        <GridLayout tracks={cameraTracks}>
-          <ParticipantTile />
-        </GridLayout>
+        {/* 本地摄像头预览：直接使用 getUserMedia，不依赖 LiveKit 轨道 */}
+        <div className="local-camera-preview">
+          <video
+            ref={setPreviewVideoEl}
+            className="local-camera-video"
+            muted
+            playsInline
+            autoPlay
+          />
+          {!cameraReady && !cameraError && (
+            <div className="local-camera-loading">正在打开摄像头…</div>
+          )}
+          {cameraError && (
+            <div className="local-camera-error">摄像头不可用：{cameraError}</div>
+          )}
+          <span className="local-camera-label">我</span>
+        </div>
+        {/* LiveKit GridLayout 用于远程参与者（面试官等），本地预览已单独处理 */}
+        {cameraTracks.filter((t) => !t.participant?.isLocal).length > 0 && (
+          <GridLayout tracks={cameraTracks.filter((t) => !t.participant?.isLocal)}>
+            <ParticipantTile />
+          </GridLayout>
+        )}
+        {/* 抽帧用隐藏 video，不展示给用户 */}
+        <video
+          ref={setHiddenVideoEl}
+          style={{ display: "none" }}
+          muted
+          playsInline
+          autoPlay
+        />
       </div>
       {enableVideoObservation ? (
         <div className="observation-badge" aria-live="polite">
@@ -577,14 +652,6 @@ function CandidateLiveKitConference({
           </span>
         </div>
       ) : null}
-      {/* 抽帧用隐藏 <video>，不展示给用户；画面本身已在上方 ParticipantTile 显示 */}
-      <video
-        ref={setHiddenVideoEl}
-        style={{ display: "none" }}
-        muted
-        playsInline
-        autoPlay
-      />
       <ControlBar
         controls={{
           microphone: true,

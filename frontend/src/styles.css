@@ -379,6 +379,55 @@ textarea {
   color: #172033;
 }
 
+.local-camera-preview {
+  position: relative;
+  background: #101827;
+  border-radius: 8px;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+  max-height: 432px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.local-camera-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.local-camera-loading {
+  position: absolute;
+  color: #94a3b8;
+  font-size: 14px;
+  text-align: center;
+  padding: 8px 16px;
+}
+
+.local-camera-error {
+  position: absolute;
+  color: #f87171;
+  font-size: 13px;
+  text-align: center;
+  padding: 8px 16px;
+  max-width: 90%;
+}
+
+.local-camera-label {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgb(0 0 0 / 55%);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
 .candidate-livekit-room .lk-control-bar {
   background: #ffffff;
   border-top: 1px solid #d8e0ec;
