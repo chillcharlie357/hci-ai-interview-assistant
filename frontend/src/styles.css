@@ -187,10 +187,140 @@ textarea {
   overflow: hidden;
 }
 
+.meeting-stage {
+  background: #f8fafc;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(240px, 0.82fr) minmax(320px, 1.18fr);
+  min-height: 520px;
+  padding: 12px;
+}
+
+.digital-interviewer-tile,
+.candidate-meeting-tile {
+  background: #fff;
+  border: 1px solid #d8e0ec;
+  border-radius: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.digital-interviewer-tile {
+  align-content: center;
+  display: grid;
+  gap: 16px;
+  justify-items: center;
+  min-height: 496px;
+  padding: 24px;
+  text-align: center;
+}
+
+.digital-avatar {
+  align-items: center;
+  display: grid;
+  height: 132px;
+  justify-items: center;
+  position: relative;
+  width: 132px;
+}
+
+.avatar-orbit {
+  background:
+    radial-gradient(circle at center, rgb(15 118 110 / 16%) 0 34%, transparent 35%),
+    conic-gradient(from 20deg, #0f766e, #22c55e, #0ea5e9, #0f766e);
+  border-radius: 999px;
+  inset: 0;
+  opacity: 0.88;
+  position: absolute;
+}
+
+.avatar-core {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #d8e0ec;
+  border-radius: 999px;
+  color: #0f766e;
+  display: grid;
+  font-size: 30px;
+  font-weight: 900;
+  height: 82px;
+  justify-items: center;
+  position: relative;
+  width: 82px;
+}
+
+.digital-interviewer-tile.speaking .avatar-orbit {
+  animation: avatarPulse 1.4s ease-in-out infinite;
+}
+
+.digital-name-row {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.digital-name-row strong {
+  font-size: 20px;
+}
+
+.digital-name-row span {
+  background: #dff5f2;
+  border-radius: 999px;
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 5px 9px;
+}
+
+.digital-interviewer-tile p {
+  color: #475569;
+  margin: 0;
+  max-width: 280px;
+}
+
+.digital-interviewer-tile small {
+  color: #637086;
+  font-weight: 700;
+}
+
+.voice-bars {
+  align-items: center;
+  display: flex;
+  gap: 5px;
+  height: 32px;
+}
+
+.voice-bars span {
+  background: #0f766e;
+  border-radius: 999px;
+  display: block;
+  height: 10px;
+  opacity: 0.35;
+  width: 6px;
+}
+
+.digital-interviewer-tile.speaking .voice-bars span {
+  animation: voiceBounce 0.8s ease-in-out infinite;
+  opacity: 0.95;
+}
+
+.digital-interviewer-tile.speaking .voice-bars span:nth-child(2) {
+  animation-delay: 0.12s;
+}
+
+.digital-interviewer-tile.speaking .voice-bars span:nth-child(3) {
+  animation-delay: 0.24s;
+}
+
+.digital-interviewer-tile.speaking .voice-bars span:nth-child(4) {
+  animation-delay: 0.36s;
+}
+
 .meeting-panel .lk-room-container {
   background: #f8fafc;
   color: #172033;
-  min-height: 520px;
+  min-height: 496px;
 }
 
 .candidate-livekit-room {
@@ -215,16 +345,16 @@ textarea {
   color-scheme: light;
   display: grid;
   grid-template-rows: 1fr auto;
-  min-height: 520px;
+  min-height: 496px;
 }
 
 .candidate-video-grid {
   background: linear-gradient(180deg, #f8fafc 0%, #eef3f8 100%);
-  min-height: 456px;
+  min-height: 432px;
 }
 
 .candidate-video-grid .lk-grid-layout {
-  min-height: 456px;
+  min-height: 432px;
 }
 
 .candidate-video-grid .lk-participant-tile {
@@ -252,12 +382,25 @@ textarea {
 .candidate-livekit-room .lk-control-bar {
   background: #ffffff;
   border-top: 1px solid #d8e0ec;
+  flex-wrap: wrap;
+  max-height: none;
+  row-gap: 8px;
 }
 
 .candidate-livekit-room .lk-button,
 .candidate-livekit-room .lk-start-audio-button,
 .candidate-livekit-room .lk-disconnect-button {
   box-shadow: 0 1px 2px rgb(15 23 42 / 8%);
+  min-width: 0;
+  padding: 9px 11px;
+}
+
+.candidate-livekit-room .lk-button-group-menu {
+  display: none;
+}
+
+.candidate-livekit-room .lk-button-group > .lk-button:first-child {
+  border-radius: 6px;
 }
 
 .candidate-livekit-room .lk-disconnect-button {
@@ -269,7 +412,7 @@ textarea {
   background: #f8fafc;
   color: #172033;
   display: grid;
-  min-height: 520px;
+  min-height: 496px;
   padding: 24px;
   text-align: center;
 }
@@ -353,6 +496,28 @@ textarea {
 
 .question-list p {
   margin: 0;
+}
+
+@keyframes avatarPulse {
+  0%,
+  100% {
+    filter: saturate(0.92);
+    transform: scale(0.98) rotate(0deg);
+  }
+  50% {
+    filter: saturate(1.15);
+    transform: scale(1.04) rotate(12deg);
+  }
+}
+
+@keyframes voiceBounce {
+  0%,
+  100% {
+    height: 10px;
+  }
+  50% {
+    height: 28px;
+  }
 }
 
 .events {

@@ -75,3 +75,11 @@
 - 新增 prep session API：`/api/prep-sessions/resume`、`/api/prep-sessions/{id}/followups`、`/api/prep-sessions/{id}/interview-session`。
 - 新增 LiveKit token API：`/api/sessions/{id}/livekit-token`。
 - 新增报告权限：默认 `recruiter_only`，可设置 `shared_with_candidate`。
+
+## 阶段 11：数字人会议体验
+
+- 新增 AI 面试官会议卡片，与候选人视频并列展示。
+- 当前问题加载和切换后自动 TTS 播报，不再把“点击朗读”作为主流程。
+- 增加数字人状态：准备中、提问中、等待回答、已结束、不支持。
+- 保留“重播问题”按钮作为 fallback。
+- 不引入真实 LiveKit bot participant、第三方数字人服务或口型视频生成。
