@@ -13,4 +13,6 @@ coverage/
 !.env.example
 mock-resumes/
 .playwright-mcp/
+presentations/*.pptx
+presentations/*.key
 presentations/project-intro/
