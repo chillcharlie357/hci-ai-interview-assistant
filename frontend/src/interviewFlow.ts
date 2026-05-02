@@ -281,7 +281,12 @@ function generateQuestions(draft: DraftInput, role: string): InterviewQuestion[]
 }
 
 function extractRole(text: string): string {
-  return text.match(/岗位是\s*([^，。,.；;\n]+)/)?.[1]?.trim() ?? text.match(/招聘\s*([^，。,.；;\n]+)/)?.[1]?.trim() ?? "";
+  return (
+    text.match(/岗位是\s*([^，。,.；;\n]+)/)?.[1]?.trim() ??
+    text.match(/职位是\s*([^，。,.；;\n]+)/)?.[1]?.trim() ??
+    text.match(/招聘\s*([^，。,.；;\n]+(?:岗位|职位|工程师|开发|专家|架构师|经理))/)?.[1]?.trim() ??
+    ""
+  );
 }
 
 function extractSkills(text: string): string[] {

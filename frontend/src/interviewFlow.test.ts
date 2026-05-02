@@ -23,6 +23,15 @@ describe("interviewFlow", () => {
     expect(session.currentQuestion?.id).toBe("q_001");
   });
 
+  it("does not extract recruiter-side text as the role", () => {
+    const draft = createDraft();
+    draft.jobDescription = "招聘端和候选人端都需要顺畅体验。职位是 AI 产品工程师，需要 TypeScript 和 LLM 应用。";
+
+    const session = createSessionFromDraft(draft);
+
+    expect(session.role).toBe("AI 产品工程师");
+  });
+
   it("records an answer and generates an auditable report", () => {
     vi.stubEnv("VITE_INTERVIEW_FILLER_WORDS", "嗯,啊");
     const session = createSessionFromDraft(createDraft());

@@ -117,6 +117,21 @@ class PrepFlowTest(unittest.TestCase):
         self.assertTrue(created["enable_video_observation"])
         self.assertGreaterEqual(len(created["questions"]), 6)
 
+    @patch("backend.interview.document_extractor.subprocess.run")
+    @patch("backend.interview.prep_session.LlmClient.from_env")
+    def test_followup_fallback_does_not_extract_recruiter_side_text_as_role(self, from_env_mock, run_mock):
+        run_mock.return_value = FakeCompletedProcess()
+        from_env_mock.return_value.complete_json.return_value = LlmResult(status="fallback", data=None)
+        prep = self.create_prep()
+
+        updated = self.request(
+            "POST",
+            f"/api/prep-sessions/{prep['prep_session_id']}/followups",
+            {"answer": "招聘端和候选人端都需要顺畅体验。职位是 AI 产品工程师，需要 TypeScript 和 LLM 应用。"},
+        )
+
+        self.assertEqual(updated["ready_summary"]["role"], "AI 产品工程师")
+
     @patch.dict(
         os.environ,
         {

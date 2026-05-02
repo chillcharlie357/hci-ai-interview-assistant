@@ -126,7 +126,11 @@ def _fallback_ready_summary(answer: str) -> ReadySummary:
 
 
 def _extract_role(text: str) -> str:
-    patterns = [r"岗位是\s*([^，。,.；;\n]+)", r"招聘\s*([^，。,.；;\n]+)", r"职位是\s*([^，。,.；;\n]+)"]
+    patterns = [
+        r"岗位是\s*([^，。,.；;\n]+)",
+        r"职位是\s*([^，。,.；;\n]+)",
+        r"招聘\s*([^，。,.；;\n]+(?:岗位|职位|工程师|开发|专家|架构师|经理))",
+    ]
     for pattern in patterns:
         match = re.search(pattern, text)
         if match:
