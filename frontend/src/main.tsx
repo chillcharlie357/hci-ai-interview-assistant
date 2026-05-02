@@ -20,6 +20,11 @@ import {
   type PrepSession,
   type ReportVisibility
 } from "./interviewFlow";
+import {
+  describeDigitalInterviewerState,
+  shouldAutoSpeakQuestion,
+  type DigitalInterviewerState
+} from "./digitalInterviewer";
 import { createSpeechTranscriber } from "./speechRecognition";
 import "./styles.css";
 
@@ -250,12 +255,33 @@ function CandidateInterviewPage({ sessionId }: { sessionId: string }) {
   const [liveKit, setLiveKit] = useState<{ url: string; token: string; room: string } | null>(null);
   const [meetingError, setMeetingError] = useState("");
   const [speechStatus, setSpeechStatus] = useState("未开始");
+  const [interviewerState, setInterviewerState] = useState<DigitalInterviewerState>("preparing");
   const [error, setError] = useState("");
   const transcriberRef = useRef<ReturnType<typeof createSpeechTranscriber> | null>(null);
+  const lastAutoSpokenQuestionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     void loadSession();
   }, [sessionId]);
+
+  useEffect(() => {
+    if (!session) {
+      setInterviewerState("preparing");
+      return;
+    }
+    if (!session.currentQuestion) {
+      setInterviewerState("finished");
+      return;
+    }
+    if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
+      setInterviewerState("unsupported");
+      return;
+    }
+    if (shouldAutoSpeakQuestion(session.currentQuestion.id, lastAutoSpokenQuestionIdRef.current, true)) {
+      lastAutoSpokenQuestionIdRef.current = session.currentQuestion.id;
+      speakQuestion("auto");
+    }
+  }, [session?.currentQuestion?.id]);
 
   async function loadSession() {
     setError("");
@@ -273,14 +299,23 @@ function CandidateInterviewPage({ sessionId }: { sessionId: string }) {
     }
   }
 
-  function speakQuestion() {
-    if (!session?.currentQuestion || !("speechSynthesis" in window)) {
+  function speakQuestion(mode: "auto" | "replay" = "replay") {
+    if (!session?.currentQuestion) {
+      setInterviewerState("finished");
+      return;
+    }
+    if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
+      setInterviewerState("unsupported");
       return;
     }
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(buildAvatarPrompt(session));
     utterance.lang = "zh-CN";
     utterance.rate = 0.95;
+    utterance.onstart = () => setInterviewerState("speaking");
+    utterance.onend = () => setInterviewerState("listening");
+    utterance.onerror = () => setInterviewerState(mode === "auto" ? "unsupported" : "listening");
+    setInterviewerState("speaking");
     window.speechSynthesis.speak(utterance);
   }
 
@@ -338,23 +373,33 @@ function CandidateInterviewPage({ sessionId }: { sessionId: string }) {
 
       <section className="meeting-layout">
         <div className="panel meeting-panel">
-          {liveKit ? (
-            <LiveKitRoom token={liveKit.token} serverUrl={liveKit.url} connect audio video>
-              <CandidateLiveKitConference />
-            </LiveKitRoom>
-          ) : (
-            <div className="meeting-placeholder">
-              <strong>会议服务未配置</strong>
-              <p>{meetingError || "请在 .env 中配置 LiveKit 后再进入真实视频会议。"}</p>
+          <div className="meeting-stage">
+            <DigitalInterviewerTile
+              candidateName={session?.candidateName ?? "候选人"}
+              currentStep={session ? Math.min(session.currentIndex + 1, session.questions.length) : 0}
+              totalSteps={session?.questions.length ?? 0}
+              state={interviewerState}
+            />
+            <div className="candidate-meeting-tile">
+              {liveKit ? (
+                <LiveKitRoom token={liveKit.token} serverUrl={liveKit.url} connect audio video>
+                  <CandidateLiveKitConference />
+                </LiveKitRoom>
+              ) : (
+                <div className="meeting-placeholder">
+                  <strong>会议服务未配置</strong>
+                  <p>{meetingError || "请在 .env 中配置 LiveKit 后再进入真实视频会议。"}</p>
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
         <div className="panel">
           <p className="eyebrow">数字人提问</p>
           <h2>{currentPrompt}</h2>
           <div className="actions">
-            <button type="button" onClick={speakQuestion} disabled={!session?.currentQuestion}>朗读问题</button>
+            <button type="button" onClick={() => speakQuestion("replay")} disabled={!session?.currentQuestion}>重播问题</button>
             <span>{session ? `${Math.min(session.currentIndex + 1, session.questions.length)}/${session.questions.length}` : "加载中"}</span>
           </div>
           <label>
@@ -383,6 +428,40 @@ function CandidateInterviewPage({ sessionId }: { sessionId: string }) {
 
       {error ? <p className="error-text">{error}</p> : null}
     </main>
+  );
+}
+
+function DigitalInterviewerTile({
+  candidateName,
+  currentStep,
+  totalSteps,
+  state
+}: {
+  candidateName: string;
+  currentStep: number;
+  totalSteps: number;
+  state: DigitalInterviewerState;
+}) {
+  const description = describeDigitalInterviewerState(state, Math.max(currentStep, 0), Math.max(totalSteps, 0));
+  return (
+    <div className={`digital-interviewer-tile ${description.isAnimated ? "speaking" : ""}`}>
+      <div className="digital-avatar" aria-hidden="true">
+        <div className="avatar-orbit" />
+        <div className="avatar-core">AI</div>
+      </div>
+      <div className="digital-name-row">
+        <strong>AI 面试官</strong>
+        <span>{description.label}</span>
+      </div>
+      <p>{candidateName}，我会按题目顺序主持本轮面试。</p>
+      <div className="voice-bars" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+        <span />
+      </div>
+      <small>{description.detail}</small>
+    </div>
   );
 }
 
