@@ -51,12 +51,27 @@ class KeyframeRecord:
 
 
 @dataclass(frozen=True)
+class VideoFrameRecord:
+    """每次抽帧产生的稠密缩略图，用于回放和取证。与事件解耦。"""
+
+    timestamp: float
+    data_url: str
+    metrics: VideoMetrics
+
+
+@dataclass(frozen=True)
 class VideoEvent:
     timestamp: float
     event_type: str
     confidence: float
     metrics: VideoMetrics
     keyframe_index: int | None = None
+
+
+# 事件附带的高保真关键帧上限（带 base64 原图，体积大，慎调）
+MAX_KEYFRAMES_PER_SESSION = 60
+# 抽帧流缩略图上限。按 2 秒一帧估算，600 帧约 20 分钟；超过会丢最早的。
+MAX_VIDEO_FRAMES_PER_SESSION = 600
 
 
 @dataclass(frozen=True)
@@ -71,6 +86,7 @@ class InterviewSession:
     llm_status: str = "fallback"
     video_events: list[VideoEvent] | None = None
     keyframes: list[KeyframeRecord] | None = None
+    video_frames: list[VideoFrameRecord] | None = None
     report_visibility: str = "recruiter_only"
     meeting_room: str = ""
     enable_video_observation: bool = True
@@ -101,6 +117,7 @@ def create_interview_session(
         llm_status="fallback",
         video_events=[],
         keyframes=[],
+        video_frames=[],
         report_visibility=report_visibility if report_visibility in {"recruiter_only", "shared_with_candidate"} else "recruiter_only",
         meeting_room=f"interview-{session_id}",
         enable_video_observation=enable_video_observation,
@@ -169,7 +186,11 @@ def record_video_event(
     video_metrics = metrics if isinstance(metrics, VideoMetrics) else VideoMetrics(**_filter_metric_fields(metrics))
     keyframes = list(session.keyframes or [])
     keyframe_index: int | None = None
-    if keyframe and keyframe.get("data_url"):
+    if (
+        keyframe
+        and keyframe.get("data_url")
+        and len(keyframes) < MAX_KEYFRAMES_PER_SESSION
+    ):
         keyframe_index = len(keyframes)
         keyframes.append(
             KeyframeRecord(
@@ -195,6 +216,37 @@ def record_video_event(
         message=f"已记录非语言观察：{event_type}，置信度 {confidence:.2f}。",
     )
     return replace(session, video_events=video_events, keyframes=keyframes, events=[*session.events, event])
+
+
+def record_video_frame(
+    session: InterviewSession,
+    timestamp: float,
+    data_url: str,
+    metrics: dict[str, object] | VideoMetrics | None = None,
+) -> InterviewSession:
+    """记录一次稠密抽帧缩略图。
+
+    与 `record_video_event` 不同：事件是稀疏的判定结论，帧是稠密的原料。
+    前端会按固定节拍（默认每 2 秒）上传一张小图；超过上限时按 FIFO 丢最早的一张，
+    保证内存有界，同时保留最近窗口便于人工复核。
+    """
+
+    if not data_url:
+        return session
+
+    video_metrics = (
+        metrics
+        if isinstance(metrics, VideoMetrics)
+        else VideoMetrics(**_filter_metric_fields(metrics or {}))
+    )
+    frames = list(session.video_frames or [])
+    frames.append(
+        VideoFrameRecord(timestamp=timestamp, data_url=data_url, metrics=video_metrics)
+    )
+    if len(frames) > MAX_VIDEO_FRAMES_PER_SESSION:
+        frames = frames[-MAX_VIDEO_FRAMES_PER_SESSION:]
+
+    return replace(session, video_frames=frames)
 
 
 def generate_markdown_report(session: InterviewSession) -> str:
@@ -243,10 +295,12 @@ def generate_markdown_report(session: InterviewSession) -> str:
 def summarize_video(session: InterviewSession) -> dict[str, object]:
     video_events = session.video_events or []
     keyframes = session.keyframes or []
+    frames = session.video_frames or []
     event_types = sorted({event.event_type for event in video_events})
     return {
         "event_count": len(video_events),
         "keyframe_count": len(keyframes),
+        "frame_count": len(frames),
         "event_types": event_types,
     }
 

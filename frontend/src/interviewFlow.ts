@@ -86,6 +86,7 @@ export type KeyframeRecord = {
 export type VideoSummary = {
   eventCount: number;
   keyframeCount: number;
+  frameCount: number;
   eventTypes: string[];
 };
 
@@ -134,6 +135,7 @@ export function createSessionFromDraft(draft: DraftInput): InterviewSession {
     videoSummary: {
       eventCount: 0,
       keyframeCount: 0,
+      frameCount: 0,
       eventTypes: []
     },
     reportVisibility: "recruiter_only",

@@ -3,10 +3,15 @@ from unittest.mock import patch
 
 from backend.interview.question_engine import InterviewQuestion
 from backend.interview.session import (
+    MAX_KEYFRAMES_PER_SESSION,
+    MAX_VIDEO_FRAMES_PER_SESSION,
     build_avatar_prompt,
     create_interview_session,
     generate_markdown_report,
     record_answer,
+    record_video_event,
+    record_video_frame,
+    summarize_video,
 )
 
 
@@ -82,6 +87,57 @@ class InterviewSessionTest(unittest.TestCase):
         self.assertIn("每条结论可以追溯到回答", report)
         self.assertIn("你在项目里负责哪一块？", report)
         self.assertIn("待人工确认", report)
+
+
+class VideoFrameRecordTest(unittest.TestCase):
+    def _new_session(self):
+        return create_interview_session(
+            candidate_name="张三",
+            role="AI 产品全栈工程师",
+            questions=QUESTIONS,
+        )
+
+    def test_records_frames_with_metrics(self):
+        session = self._new_session()
+        session = record_video_frame(session, 1.0, "data:image/jpeg;base64,aaa", {"brightness": 0.5})
+        session = record_video_frame(session, 2.0, "data:image/jpeg;base64,bbb", {"brightness": 0.6})
+
+        self.assertEqual(len(session.video_frames or []), 2)
+        summary = summarize_video(session)
+        self.assertEqual(summary["frame_count"], 2)
+
+    def test_ignores_empty_frame(self):
+        session = self._new_session()
+        session = record_video_frame(session, 1.0, "", {})
+        self.assertEqual(session.video_frames, [])
+
+    def test_frame_list_is_bounded_fifo(self):
+        session = self._new_session()
+        for index in range(MAX_VIDEO_FRAMES_PER_SESSION + 5):
+            session = record_video_frame(session, float(index), f"data:image/jpeg;base64,frame{index}")
+
+        frames = session.video_frames or []
+        self.assertEqual(len(frames), MAX_VIDEO_FRAMES_PER_SESSION)
+        # 最早的 5 张被丢掉，剩余从 index=5 开始
+        self.assertEqual(frames[0].data_url, "data:image/jpeg;base64,frame5")
+        self.assertEqual(
+            frames[-1].data_url,
+            f"data:image/jpeg;base64,frame{MAX_VIDEO_FRAMES_PER_SESSION + 4}",
+        )
+
+    def test_keyframes_are_capped(self):
+        session = self._new_session()
+        for index in range(MAX_KEYFRAMES_PER_SESSION + 3):
+            session = record_video_event(
+                session,
+                timestamp=float(index),
+                event_type=f"low_light_{index}",  # 用不同 type 绕开事件侧自身逻辑
+                confidence=0.8,
+                metrics={"face_present": True, "brightness": 0.1, "blur": 0.5, "motion": 0.1},
+                keyframe={"data_url": f"data:image/jpeg;base64,kf{index}", "reason": "low_light"},
+            )
+
+        self.assertEqual(len(session.keyframes or []), MAX_KEYFRAMES_PER_SESSION)
 
 
 if __name__ == "__main__":

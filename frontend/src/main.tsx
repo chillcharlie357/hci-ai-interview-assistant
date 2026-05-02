@@ -27,6 +27,7 @@ import {
   type DigitalInterviewerState
 } from "./digitalInterviewer";
 import { createSpeechTranscriber } from "./speechRecognition";
+import { useVideoObservation, type VideoObservationStatus } from "./useVideoObservation";
 import "./styles.css";
 
 function App() {
@@ -397,7 +398,10 @@ function CandidateInterviewPage({ sessionId }: { sessionId: string }) {
             <div className="candidate-meeting-tile">
               {liveKit ? (
                 <LiveKitRoom token={liveKit.token} serverUrl={liveKit.url} connect audio video>
-                  <CandidateLiveKitConference />
+                  <CandidateLiveKitConference
+                    sessionId={session?.id ?? ""}
+                    enableVideoObservation={session?.enableVideoObservation ?? false}
+                  />
                 </LiveKitRoom>
               ) : (
                 <div className="meeting-placeholder">
@@ -506,9 +510,52 @@ function DigitalInterviewerTile({
   );
 }
 
-function CandidateLiveKitConference() {
+function CandidateLiveKitConference({
+  sessionId,
+  enableVideoObservation
+}: {
+  sessionId: string;
+  enableVideoObservation: boolean;
+}) {
   const cameraTracks = useTracks([{ source: Track.Source.Camera, withPlaceholder: true }], {
     onlySubscribed: false
+  });
+
+  // 取本地候选人自己的 camera track 用于抽帧分析
+  const localCameraRef = cameraTracks.find(
+    (trackRef) => trackRef.participant?.isLocal && trackRef.publication?.track
+  );
+  const [hiddenVideoEl, setHiddenVideoEl] = useState<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    if (!hiddenVideoEl) {
+      return;
+    }
+    const track = localCameraRef?.publication?.track;
+    if (!track) {
+      return;
+    }
+    track.attach(hiddenVideoEl);
+    // 属性强制保证 drawImage 能从 video 正常读取
+    hiddenVideoEl.muted = true;
+    hiddenVideoEl.playsInline = true;
+    hiddenVideoEl.autoplay = true;
+    void hiddenVideoEl.play().catch(() => {
+      /* 自动播放在未交互时可能被阻止，忽略即可，下一次 tick 会重试 drawImage */
+    });
+    return () => {
+      try {
+        track.detach(hiddenVideoEl);
+      } catch {
+        /* track 断开时可能已 detach，忽略 */
+      }
+    };
+  }, [hiddenVideoEl, localCameraRef?.publication?.track]);
+
+  const observation = useVideoObservation({
+    sessionId,
+    enabled: enableVideoObservation && Boolean(sessionId) && Boolean(localCameraRef),
+    videoEl: hiddenVideoEl
   });
 
   return (
@@ -518,6 +565,26 @@ function CandidateLiveKitConference() {
           <ParticipantTile />
         </GridLayout>
       </div>
+      {enableVideoObservation ? (
+        <div className="observation-badge" aria-live="polite">
+          <span className={`observation-dot ${observation.status}`} />
+          <span className="observation-text">
+            摄像头观察：{describeObservationStatus(observation.status)}
+            {observation.frameCount > 0 ? ` · 帧 ${observation.frameCount}` : ""}
+            {observation.eventCount > 0 ? ` · 事件 ${observation.eventCount}` : ""}
+            {observation.keyframeCount > 0 ? ` · 关键帧 ${observation.keyframeCount}` : ""}
+            {observation.lastEventType ? ` · 最近：${observation.lastEventType}` : ""}
+          </span>
+        </div>
+      ) : null}
+      {/* 抽帧用隐藏 <video>，不展示给用户；画面本身已在上方 ParticipantTile 显示 */}
+      <video
+        ref={setHiddenVideoEl}
+        style={{ display: "none" }}
+        muted
+        playsInline
+        autoPlay
+      />
       <ControlBar
         controls={{
           microphone: true,
@@ -531,6 +598,23 @@ function CandidateLiveKitConference() {
       <RoomAudioRenderer />
     </div>
   );
+}
+
+function describeObservationStatus(status: VideoObservationStatus): string {
+  switch (status) {
+    case "running":
+      return "本地分析中（不录像）";
+    case "idle":
+      return "准备中";
+    case "no_track":
+      return "未检测到摄像头";
+    case "disabled":
+      return "已关闭";
+    case "error":
+      return "分析异常";
+    default:
+      return status;
+  }
 }
 
 function fileToBase64(file: File): Promise<string> {

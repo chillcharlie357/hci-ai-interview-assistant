@@ -19,6 +19,7 @@ from backend.interview.session import (
     create_interview_session,
     generate_markdown_report,
     record_video_event,
+    record_video_frame,
     record_answer,
     summarize_video,
 )
@@ -162,6 +163,23 @@ class SessionStore:
         self.sessions[session_id] = updated
         return updated
 
+    def record_video_frame(self, session_id: str, payload: dict[str, Any]) -> InterviewSession | None:
+        session = self.sessions.get(session_id)
+        if session is None:
+            return None
+        data_url = str(payload.get("data_url", "")).strip()
+        if not data_url:
+            return session
+        metrics = payload.get("metrics")
+        updated = record_video_frame(
+            session,
+            timestamp=float(payload.get("timestamp", 0)),
+            data_url=data_url,
+            metrics=dict(metrics) if isinstance(metrics, dict) else None,
+        )
+        self.sessions[session_id] = updated
+        return updated
+
 
 def handle_api_request(
     store: SessionStore,
@@ -268,6 +286,18 @@ def handle_api_request(
         if session is None:
             return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
         return HTTPStatus.OK, serialize_session(session)
+
+    if (
+        method == "POST"
+        and len(path_parts) == 4
+        and path_parts[:2] == ["api", "sessions"]
+        and path_parts[3] == "video-frames"
+    ):
+        session = store.record_video_frame(path_parts[2], body)
+        if session is None:
+            return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
+        # 帧上报频繁，避免每次把整段 session + 帧列表回传，只回摘要
+        return HTTPStatus.OK, {"video_summary": summarize_video(session)}
 
     return HTTPStatus.NOT_FOUND, {"error": "not_found"}
 

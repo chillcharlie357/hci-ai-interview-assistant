@@ -77,6 +77,7 @@ type ApiKeyframe = {
 type ApiVideoSummary = {
   event_count: number;
   keyframe_count: number;
+  frame_count?: number;
   event_types: string[];
 };
 
@@ -234,6 +235,24 @@ export async function submitVideoEvent(
   return mapSession(response);
 }
 
+export async function submitVideoFrame(
+  sessionId: string,
+  frame: { timestamp: number; dataUrl: string; metrics?: VideoMetrics },
+  options: ClientOptions = {}
+): Promise<VideoSummary> {
+  const response = await request<{ video_summary: ApiVideoSummary }>(
+    `/api/sessions/${sessionId}/video-frames`,
+    {
+      timestamp: frame.timestamp,
+      data_url: frame.dataUrl,
+      metrics: frame.metrics ? toApiVideoMetrics(frame.metrics) : undefined
+    },
+    200,
+    options
+  );
+  return mapVideoSummary(response.video_summary);
+}
+
 export async function requestLiveKitToken(
   sessionId: string,
   participant: { participantName: string; participantRole: "candidate" | "recruiter" },
@@ -385,6 +404,7 @@ function mapVideoSummary(summary?: ApiVideoSummary): VideoSummary {
   return {
     eventCount: summary?.event_count ?? 0,
     keyframeCount: summary?.keyframe_count ?? 0,
+    frameCount: summary?.frame_count ?? 0,
     eventTypes: summary?.event_types ?? []
   };
 }

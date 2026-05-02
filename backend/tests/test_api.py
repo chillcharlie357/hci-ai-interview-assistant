@@ -108,6 +108,62 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(updated["video_summary"]["event_count"], 1)
         self.assertIn("low_light", updated["video_summary"]["event_types"])
 
+    def test_records_video_frames_and_returns_lightweight_summary(self):
+        created = self.request(
+            "POST",
+            "/api/sessions",
+            {
+                "candidate_name": "张三",
+                "resume": "候选人负责 AI 面试平台。",
+                "job_description": "岗位是 AI 产品全栈工程师。",
+                "interview_goal": "评估项目经验。",
+            },
+            expected_status=201,
+        )
+
+        # 连续上报三帧，接口仅回 video_summary（不回整个 session，避免响应膨胀）
+        last_response: dict[str, object] = {}
+        for index in range(3):
+            last_response = self.request(
+                "POST",
+                f"/api/sessions/{created['id']}/video-frames",
+                {
+                    "timestamp": float(index),
+                    "data_url": f"data:image/jpeg;base64,frame{index}",
+                    "metrics": {"face_present": True, "brightness": 0.5, "blur": 0.4, "motion": 0.1},
+                },
+            )
+
+        self.assertIn("video_summary", last_response)
+        self.assertEqual(last_response["video_summary"]["frame_count"], 3)
+        # 帧接口不应把所有帧塞进返回里
+        self.assertNotIn("video_frames", last_response)
+
+        # 但 GET /api/sessions/{id} 能查到
+        full = self.request("GET", f"/api/sessions/{created['id']}")
+        self.assertEqual(len(full["video_frames"]), 3)
+        self.assertEqual(full["video_frames"][0]["data_url"], "data:image/jpeg;base64,frame0")
+        self.assertEqual(full["video_summary"]["frame_count"], 3)
+
+    def test_ignores_empty_video_frame_payload(self):
+        created = self.request(
+            "POST",
+            "/api/sessions",
+            {
+                "candidate_name": "张三",
+                "resume": "候选人负责 AI 面试平台。",
+                "job_description": "岗位是 AI 产品全栈工程师。",
+                "interview_goal": "评估项目经验。",
+            },
+            expected_status=201,
+        )
+        response = self.request(
+            "POST",
+            f"/api/sessions/{created['id']}/video-frames",
+            {"timestamp": 1.0, "data_url": ""},
+        )
+        self.assertEqual(response["video_summary"]["frame_count"], 0)
+
     def test_report_includes_video_observations_without_hiring_language(self):
         created = self.request(
             "POST",
