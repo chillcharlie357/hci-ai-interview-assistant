@@ -132,7 +132,7 @@ def _print_human_report(path: Path, result: SpeechAnalysis) -> None:
             f"停顿            : {f.pause_count} 次，合计 {f.pause_total_sec:.2f} s，"
             f"最长 {f.longest_pause_sec:.2f} s"
         )
-        print(f"语速（近似）    : {f.speech_rate_sps:.2f} 音节/秒")
+        print(f"语速（VAD节奏） : {f.speech_rate_sps:.2f} 次/秒")
         print(f"响度            : mean={f.rms_db_mean:.1f} dBFS  动态范围={f.dynamic_range_db:.1f} dB")
         print(
             "F0              : "

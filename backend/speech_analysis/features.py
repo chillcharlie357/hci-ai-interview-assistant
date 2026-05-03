@@ -19,19 +19,74 @@ VAD_ENERGY_RATIO = 0.02
 VAD_ABSOLUTE_FLOOR = 1e-4
 # 一段连续静音达到这个秒数才算作「停顿」
 MIN_PAUSE_SEC = 0.25
+# 一段连续有声达到这个秒数才算作有效发声段（防止爆音碎片抖动）
+MIN_SPEECH_RUN_SEC = 0.06
 
 # F0 搜索范围（典型语音基频）
 F0_MIN_HZ = 75.0
 F0_MAX_HZ = 450.0
+# 长音频时分块计算 F0，避免一次性高内存/高时延
+F0_CHUNK_SEC = 30.0
+# 无 librosa 时，自相关 F0 的最大采样帧数，避免 1h 音频计算过慢
+MAX_AUTOCORR_FRAMES = 12000
 
 
 @dataclass(frozen=True)
 class _FramedSignal:
-    frames: "np.ndarray"       # shape: (n_frames, frame_length)
+    samples: "np.ndarray"      # 原始波形（mono float32）
+    frame_starts: "np.ndarray"  # 每帧起点（sample index）
     frame_length: int
     hop_length: int
     rms: "np.ndarray"          # shape: (n_frames,)
     voiced_mask: "np.ndarray"  # bool, shape: (n_frames,)
+
+
+@dataclass(frozen=True)
+class _RunningMoments:
+    count: int = 0
+    sum: float = 0.0
+    sum_sq: float = 0.0
+    min_value: float | None = None
+    max_value: float | None = None
+
+    def update(self, values: "np.ndarray") -> "_RunningMoments":
+        if values.size == 0:
+            return self
+        values64 = values.astype("float64", copy=False)
+        chunk_count = int(values64.size)
+        chunk_sum = float(values64.sum())
+        chunk_sum_sq = float((values64 * values64).sum())
+        chunk_min = float(values64.min())
+        chunk_max = float(values64.max())
+        return _RunningMoments(
+            count=self.count + chunk_count,
+            sum=self.sum + chunk_sum,
+            sum_sq=self.sum_sq + chunk_sum_sq,
+            min_value=chunk_min if self.min_value is None else min(self.min_value, chunk_min),
+            max_value=chunk_max if self.max_value is None else max(self.max_value, chunk_max),
+        )
+
+    def to_stats(self) -> dict[str, float | None]:
+        if self.count <= 0:
+            return {
+                "mean": None,
+                "std": None,
+                "min": None,
+                "max": None,
+                "range": None,
+            }
+        mean = self.sum / self.count
+        variance = max(0.0, self.sum_sq / self.count - mean * mean)
+        std = variance ** 0.5
+        min_value = self.min_value
+        max_value = self.max_value
+        return {
+            "mean": mean,
+            "std": std,
+            "min": min_value,
+            "max": max_value,
+            "range": (max_value - min_value) if (min_value is not None and max_value is not None) else None,
+        }
 
 
 def compute_acoustic_features(
@@ -53,8 +108,8 @@ def compute_acoustic_features(
     duration_sec = float(samples.shape[0]) / float(sample_rate)
     framed = _frame_signal(samples, sample_rate, numpy)
 
-    pause_stats = _pause_statistics(framed, sample_rate)
-    speech_rate = _estimate_speech_rate(framed, sample_rate, numpy)
+    pause_stats = _pause_statistics(framed, sample_rate, numpy)
+    speech_rate = _estimate_speech_rate_vad(framed, sample_rate, numpy)
     rms_stats = _rms_statistics(framed.rms, numpy)
     f0_stats, backend = _f0_statistics(samples, sample_rate, framed, numpy)
     voice_quality = _voice_quality(samples, sample_rate)
@@ -91,16 +146,26 @@ def _frame_signal(samples: "np.ndarray", sample_rate: int, numpy) -> _FramedSign
     frame_length = max(1, int(sample_rate * FRAME_MS / 1000))
     hop_length = max(1, int(sample_rate * HOP_MS / 1000))
 
+    # 确保至少 1 帧
     if samples.shape[0] < frame_length:
         padded = numpy.pad(samples, (0, frame_length - samples.shape[0]))
-        frames = padded[None, :]
     else:
-        n_frames = 1 + (samples.shape[0] - frame_length) // hop_length
-        shape = (n_frames, frame_length)
-        strides = (samples.strides[0] * hop_length, samples.strides[0])
-        frames = numpy.lib.stride_tricks.as_strided(samples, shape=shape, strides=strides)
+        padded = samples
 
-    rms = numpy.sqrt(numpy.mean(frames.astype(numpy.float64) ** 2, axis=1)).astype(numpy.float32)
+    max_start = max(0, padded.shape[0] - frame_length)
+    frame_starts = numpy.arange(0, max_start + 1, hop_length, dtype=numpy.int64)
+    if frame_starts.size == 0:
+        frame_starts = numpy.asarray([0], dtype=numpy.int64)
+
+    # 低内存 RMS：用平方和前缀和计算滑窗能量，避免构造 (n_frames, frame_length) 大矩阵
+    squared = padded.astype(numpy.float64, copy=False) ** 2
+    cumsum = numpy.empty(squared.shape[0] + 1, dtype=numpy.float64)
+    cumsum[0] = 0.0
+    cumsum[1:] = numpy.cumsum(squared)
+    ends = frame_starts + frame_length
+    frame_energy = cumsum[ends] - cumsum[frame_starts]
+    rms = numpy.sqrt(frame_energy / float(frame_length)).astype(numpy.float32)
+
     if rms.size:
         threshold = max(VAD_ABSOLUTE_FLOOR, float(rms.max()) * VAD_ENERGY_RATIO)
     else:
@@ -108,7 +173,8 @@ def _frame_signal(samples: "np.ndarray", sample_rate: int, numpy) -> _FramedSign
     voiced_mask = rms >= threshold
 
     return _FramedSignal(
-        frames=frames,
+        samples=padded,
+        frame_starts=frame_starts,
         frame_length=frame_length,
         hop_length=hop_length,
         rms=rms,
@@ -116,7 +182,7 @@ def _frame_signal(samples: "np.ndarray", sample_rate: int, numpy) -> _FramedSign
     )
 
 
-def _pause_statistics(framed: _FramedSignal, sample_rate: int) -> dict[str, float]:
+def _pause_statistics(framed: _FramedSignal, sample_rate: int, numpy) -> dict[str, float]:
     hop_sec = framed.hop_length / float(sample_rate)
     voiced_mask = framed.voiced_mask
     total_frames = int(voiced_mask.shape[0])
@@ -131,8 +197,8 @@ def _pause_statistics(framed: _FramedSignal, sample_rate: int) -> dict[str, floa
     speech_ratio = float(voiced_mask.sum()) / float(total_frames)
 
     # 跳过首尾静音，只统计「句中停顿」
-    voiced_indices = [i for i, flag in enumerate(voiced_mask) if flag]
-    if not voiced_indices:
+    voiced_indices = numpy.flatnonzero(voiced_mask)
+    if voiced_indices.size == 0:
         return {
             "speech_ratio": 0.0,
             "pause_count": 0,
@@ -140,7 +206,7 @@ def _pause_statistics(framed: _FramedSignal, sample_rate: int) -> dict[str, floa
             "longest_pause_sec": 0.0,
         }
 
-    first_voiced, last_voiced = voiced_indices[0], voiced_indices[-1]
+    first_voiced, last_voiced = int(voiced_indices[0]), int(voiced_indices[-1])
     pause_runs: list[int] = []
     run_length = 0
     for index in range(first_voiced, last_voiced + 1):
@@ -160,18 +226,21 @@ def _pause_statistics(framed: _FramedSignal, sample_rate: int) -> dict[str, floa
     }
 
 
-# -------------------- 语速估计 --------------------
+# -------------------- 语速估计（VAD） --------------------
 
 
-def _estimate_speech_rate(framed: _FramedSignal, sample_rate: int, numpy) -> float:
-    """用能量局部极大值做「音节核」粗估。
+def _estimate_speech_rate_vad(framed: _FramedSignal, sample_rate: int, numpy) -> float:
+    """基于 VAD 语音片段估计语速 proxy（单位 sps）。
 
-    注意：这是一个近似值，不等价于真实音节数；仅作为观察信号，
-    告诉人工复核「语速明显偏快/偏慢」的候选。
+    定义：
+    - 先从 voiced_mask 中提取连续有声段（过滤掉短于 MIN_SPEECH_RUN_SEC 的碎片）。
+    - 再计算：`有效有声段数量 / 总有声时长(秒)`。
+
+    该值是稳定、低成本的节奏指标，适用于长面试趋势观察；
+    不等价于精确音节计数，但比能量峰值法在噪声场景下更稳。
     """
 
-    rms = framed.rms
-    if rms.size < 3:
+    if framed.voiced_mask.size == 0:
         return 0.0
 
     hop_sec = framed.hop_length / float(sample_rate)
@@ -179,20 +248,25 @@ def _estimate_speech_rate(framed: _FramedSignal, sample_rate: int, numpy) -> flo
     if voiced_duration <= 0.1:
         return 0.0
 
-    # 平滑一下防止噪声导致多峰
-    kernel = max(3, int(0.05 / hop_sec))  # 50ms 平滑窗
-    if kernel > rms.size:
-        smoothed = rms.astype(numpy.float64)
-    else:
-        weights = numpy.ones(kernel, dtype=numpy.float64) / kernel
-        smoothed = numpy.convolve(rms.astype(numpy.float64), weights, mode="same")
+    min_frames = max(1, int(round(MIN_SPEECH_RUN_SEC / hop_sec)))
+    speech_run_count = _count_true_runs(framed.voiced_mask, min_frames=min_frames, numpy=numpy)
 
-    threshold = float(smoothed.mean())
-    peaks = 0
-    for i in range(1, smoothed.size - 1):
-        if smoothed[i] > threshold and smoothed[i] >= smoothed[i - 1] and smoothed[i] > smoothed[i + 1]:
-            peaks += 1
-    return peaks / voiced_duration if voiced_duration > 0 else 0.0
+    return float(speech_run_count) / voiced_duration if voiced_duration > 0 else 0.0
+
+
+def _count_true_runs(mask: "np.ndarray", *, min_frames: int, numpy) -> int:
+    if mask.size == 0:
+        return 0
+    padded = numpy.concatenate(
+        [numpy.asarray([False], dtype=bool), mask.astype(bool, copy=False), numpy.asarray([False], dtype=bool)]
+    )
+    edges = numpy.diff(padded.astype(numpy.int8))
+    starts = numpy.flatnonzero(edges == 1)
+    ends = numpy.flatnonzero(edges == -1)
+    if starts.size == 0:
+        return 0
+    run_lengths = ends - starts
+    return int((run_lengths >= int(min_frames)).sum())
 
 
 # -------------------- RMS / 动态范围 --------------------
@@ -228,46 +302,58 @@ def _f0_statistics(
     except Exception:
         librosa = None
 
-    f0_series: "np.ndarray | None" = None
-    voiced_flag: "np.ndarray | None" = None
-
     if librosa is not None:
-        try:
-            f0, voiced, _ = librosa.pyin(
-                samples,
-                fmin=F0_MIN_HZ,
-                fmax=F0_MAX_HZ,
-                sr=sample_rate,
-                frame_length=max(1024, framed.frame_length * 2),
-            )
-            f0_series = f0
-            voiced_flag = voiced
-            backend = "librosa"
-        except Exception:
-            f0_series = None
+        librosa_stats = _f0_statistics_with_librosa_chunked(samples, sample_rate, framed, numpy, librosa)
+        if librosa_stats is not None:
+            return librosa_stats, "librosa"
 
-    if f0_series is None:
-        f0_series = _autocorrelation_f0(framed, sample_rate, numpy)
-        voiced_flag = f0_series > 0
+    # scipy 增强路径：Hann 窗自相关 + 抛物线插值 + 倍频校正。精度介于 librosa 与纯
+    # 自相关之间，且在 Intel Mac + Python 3.12 这种没有 numba wheel 的环境下可用。
+    try:
+        import scipy  # type: ignore  # noqa: F401
+    except Exception:
+        scipy = None
+    if scipy is not None:
+        scipy_stats = _f0_statistics_with_scipy(framed, sample_rate, numpy)
+        if scipy_stats is not None:
+            return scipy_stats, "scipy"
 
-    if f0_series is None or f0_series.size == 0:
+    fallback_stats = _f0_statistics_with_autocorr_chunked(framed, sample_rate, numpy)
+    return fallback_stats, backend
+
+
+def _f0_statistics_with_scipy(framed: _FramedSignal, sample_rate: int, numpy) -> dict[str, float | None] | None:
+    """基于加窗自相关 + 抛物线峰值插值的 F0 估计。
+
+    相比纯 numpy 自相关：
+    - 使用 Hann 窗抑制边缘泄漏，自相关峰更稳定。
+    - 对峰值附近三个采样点做抛物线拟合，得到亚采样精度 lag。
+    - 对 1/2 倍频处的假峰做简单回溯校验，减少「八度误判」。
+    """
+    try:
+        from scipy.signal import get_window  # type: ignore
+    except Exception:
+        return None
+
+    frame_indices = numpy.flatnonzero(framed.voiced_mask)
+    if frame_indices.size == 0:
         return {
             "f0_mean_hz": None,
             "f0_std_hz": None,
             "f0_min_hz": None,
             "f0_max_hz": None,
             "f0_range_hz": None,
-            "voiced_ratio": None,
-        }, backend
+            "voiced_ratio": 0.0,
+        }
 
-    voiced_mask = numpy.isfinite(f0_series) & (f0_series > 0)
-    if voiced_flag is not None:
-        voiced_mask = voiced_mask & numpy.asarray(voiced_flag, dtype=bool)
+    if frame_indices.size > MAX_AUTOCORR_FRAMES:
+        choose = numpy.linspace(0, frame_indices.size - 1, num=MAX_AUTOCORR_FRAMES, dtype=numpy.int64)
+        frame_indices = frame_indices[choose]
 
-    voiced_values = f0_series[voiced_mask]
-    voiced_ratio = float(voiced_mask.sum()) / float(f0_series.size) if f0_series.size else 0.0
-
-    if voiced_values.size == 0:
+    min_lag = max(2, int(sample_rate / F0_MAX_HZ))
+    max_lag = min(framed.frame_length - 2, int(sample_rate / F0_MIN_HZ))
+    if max_lag <= min_lag:
+        voiced_ratio = float(framed.voiced_mask.sum()) / float(framed.voiced_mask.size)
         return {
             "f0_mean_hz": None,
             "f0_std_hz": None,
@@ -275,34 +361,164 @@ def _f0_statistics(
             "f0_max_hz": None,
             "f0_range_hz": None,
             "voiced_ratio": voiced_ratio,
-        }, backend
+        }
 
+    window = get_window("hann", framed.frame_length, fftbins=False).astype(numpy.float32)
+    values: list[float] = []
+
+    for frame_index in frame_indices:
+        start = int(framed.frame_starts[int(frame_index)])
+        frame = framed.samples[start : start + framed.frame_length]
+        if frame.size < framed.frame_length:
+            continue
+        windowed = (frame - frame.mean()) * window
+        energy = float(numpy.dot(windowed, windowed))
+        if energy <= 0:
+            continue
+
+        autocorr = numpy.correlate(windowed, windowed, mode="full")[len(windowed) - 1 :]
+        if autocorr.size <= max_lag + 1:
+            continue
+
+        segment = autocorr[min_lag : max_lag + 1]
+        peak_index = int(numpy.argmax(segment))
+        peak_value = float(segment[peak_index])
+        if peak_value <= 0.3 * energy:
+            continue
+
+        lag = peak_index + min_lag
+        # 抛物线插值：用峰值及左右邻点拟合二次函数取极值
+        if 0 < peak_index < segment.size - 1:
+            y0 = float(segment[peak_index - 1])
+            y1 = peak_value
+            y2 = float(segment[peak_index + 1])
+            denom = (y0 - 2.0 * y1 + y2)
+            if denom != 0:
+                shift = 0.5 * (y0 - y2) / denom
+                if -1.0 < shift < 1.0:
+                    lag = lag + shift
+
+        # 倍频校正：如果半周期位置自相关也很强，说明真实周期是 lag/2
+        half_lag = lag / 2.0
+        half_index = int(round(half_lag)) - min_lag
+        if 0 <= half_index < segment.size:
+            half_value = float(segment[half_index])
+            if half_value >= 0.85 * peak_value:
+                lag = half_lag
+
+        if lag <= 0:
+            continue
+        values.append(float(sample_rate) / float(lag))
+
+    voiced_ratio = float(framed.voiced_mask.sum()) / float(framed.voiced_mask.size)
+    if not values:
+        return {
+            "f0_mean_hz": None,
+            "f0_std_hz": None,
+            "f0_min_hz": None,
+            "f0_max_hz": None,
+            "f0_range_hz": None,
+            "voiced_ratio": voiced_ratio,
+        }
+
+    values_np = numpy.asarray(values, dtype=numpy.float64)
     return {
-        "f0_mean_hz": float(voiced_values.mean()),
-        "f0_std_hz": float(voiced_values.std()),
-        "f0_min_hz": float(voiced_values.min()),
-        "f0_max_hz": float(voiced_values.max()),
-        "f0_range_hz": float(voiced_values.max() - voiced_values.min()),
+        "f0_mean_hz": float(values_np.mean()),
+        "f0_std_hz": float(values_np.std()),
+        "f0_min_hz": float(values_np.min()),
+        "f0_max_hz": float(values_np.max()),
+        "f0_range_hz": float(values_np.max() - values_np.min()),
         "voiced_ratio": voiced_ratio,
-    }, backend
+    }
 
 
-def _autocorrelation_f0(framed: _FramedSignal, sample_rate: int, numpy) -> "np.ndarray":
-    """无 librosa 时的兜底：逐帧自相关估计 F0。结果精度有限但可用。"""
+def _f0_statistics_with_librosa_chunked(samples: "np.ndarray", sample_rate: int, framed: _FramedSignal, numpy, librosa):
+    chunk_samples = max(int(sample_rate * F0_CHUNK_SEC), framed.frame_length * 4)
+    moments = _RunningMoments()
+    total_frames = 0
+    voiced_frames = 0
+
+    frame_length = max(1024, framed.frame_length * 2)
+    hop_length = framed.hop_length
+
+    for start in range(0, samples.shape[0], chunk_samples):
+        chunk = samples[start : start + chunk_samples]
+        if chunk.size < framed.frame_length:
+            continue
+        try:
+            f0, voiced, _ = librosa.pyin(
+                chunk,
+                fmin=F0_MIN_HZ,
+                fmax=F0_MAX_HZ,
+                sr=sample_rate,
+                frame_length=frame_length,
+                hop_length=hop_length,
+            )
+        except Exception:
+            return None
+
+        if f0 is None or len(f0) == 0:
+            continue
+
+        f0_arr = numpy.asarray(f0, dtype=numpy.float64)
+        voiced_flag = numpy.asarray(voiced, dtype=bool) if voiced is not None else numpy.ones_like(f0_arr, dtype=bool)
+        valid_mask = numpy.isfinite(f0_arr) & (f0_arr > 0) & voiced_flag
+
+        total_frames += int(f0_arr.size)
+        voiced_frames += int(valid_mask.sum())
+        if valid_mask.any():
+            moments = moments.update(f0_arr[valid_mask])
+
+    voiced_ratio = float(voiced_frames) / float(total_frames) if total_frames > 0 else None
+    stats = moments.to_stats()
+    return {
+        "f0_mean_hz": stats["mean"],
+        "f0_std_hz": stats["std"],
+        "f0_min_hz": stats["min"],
+        "f0_max_hz": stats["max"],
+        "f0_range_hz": stats["range"],
+        "voiced_ratio": voiced_ratio,
+    }
+
+
+def _f0_statistics_with_autocorr_chunked(framed: _FramedSignal, sample_rate: int, numpy) -> dict[str, float | None]:
+    frame_indices = numpy.flatnonzero(framed.voiced_mask)
+    if frame_indices.size == 0:
+        return {
+            "f0_mean_hz": None,
+            "f0_std_hz": None,
+            "f0_min_hz": None,
+            "f0_max_hz": None,
+            "f0_range_hz": None,
+            "voiced_ratio": 0.0,
+        }
+
+    # 超长音频抽样部分有声帧估计 F0，保证时延可控
+    if frame_indices.size > MAX_AUTOCORR_FRAMES:
+        choose = numpy.linspace(0, frame_indices.size - 1, num=MAX_AUTOCORR_FRAMES, dtype=numpy.int64)
+        frame_indices = frame_indices[choose]
+
+    values: list[float] = []
     min_lag = max(1, int(sample_rate / F0_MAX_HZ))
     max_lag = min(framed.frame_length - 1, int(sample_rate / F0_MIN_HZ))
     if max_lag <= min_lag:
-        return numpy.zeros(framed.frames.shape[0], dtype=numpy.float32)
+        voiced_ratio = float(framed.voiced_mask.sum()) / float(framed.voiced_mask.size)
+        return {
+            "f0_mean_hz": None,
+            "f0_std_hz": None,
+            "f0_min_hz": None,
+            "f0_max_hz": None,
+            "f0_range_hz": None,
+            "voiced_ratio": voiced_ratio,
+        }
 
-    f0 = numpy.zeros(framed.frames.shape[0], dtype=numpy.float32)
-    for i, frame in enumerate(framed.frames):
-        if not framed.voiced_mask[i]:
-            continue
+    for frame_index in frame_indices:
+        start = int(framed.frame_starts[int(frame_index)])
+        frame = framed.samples[start : start + framed.frame_length]
         windowed = frame - frame.mean()
         energy = float(numpy.dot(windowed, windowed))
         if energy <= 0:
             continue
-        # 计算自相关（仅正向 lag，避免 FFT 依赖）
         autocorr = numpy.correlate(windowed, windowed, mode="full")[len(windowed) - 1 :]
         if autocorr.size <= max_lag:
             continue
@@ -310,9 +526,29 @@ def _autocorrelation_f0(framed: _FramedSignal, sample_rate: int, numpy) -> "np.n
         lag = int(numpy.argmax(segment)) + min_lag
         peak = float(segment[lag - min_lag])
         if peak <= 0.3 * energy:
-            continue  # 相关性太弱，视为无声帧
-        f0[i] = sample_rate / lag
-    return f0
+            continue
+        values.append(float(sample_rate / lag))
+
+    voiced_ratio = float(framed.voiced_mask.sum()) / float(framed.voiced_mask.size)
+    if not values:
+        return {
+            "f0_mean_hz": None,
+            "f0_std_hz": None,
+            "f0_min_hz": None,
+            "f0_max_hz": None,
+            "f0_range_hz": None,
+            "voiced_ratio": voiced_ratio,
+        }
+
+    values_np = numpy.asarray(values, dtype=numpy.float64)
+    return {
+        "f0_mean_hz": float(values_np.mean()),
+        "f0_std_hz": float(values_np.std()),
+        "f0_min_hz": float(values_np.min()),
+        "f0_max_hz": float(values_np.max()),
+        "f0_range_hz": float(values_np.max() - values_np.min()),
+        "voiced_ratio": voiced_ratio,
+    }
 
 
 # -------------------- 音质：jitter / shimmer / HNR --------------------

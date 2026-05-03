@@ -9,6 +9,7 @@ import {
   submitAnswer,
   submitPrepFollowup,
   submitResume,
+  submitSpeechChunk,
   submitVideoEvent
 } from "./apiClient";
 import type { DraftInput } from "./interviewFlow";
@@ -230,6 +231,44 @@ describe("apiClient", () => {
 
     expect(token.url).toBe("wss://livekit.test");
     expect(report.report).toContain("智能面试纪要");
+  });
+
+  it("submits speech chunks and returns chunk + cumulative metrics", async () => {
+    const fetcher = async () =>
+      new Response(
+        JSON.stringify({
+          chunk: {
+            status: "ok",
+            backend: "librosa",
+            duration_sec: 3.2,
+            voiced_duration_sec: 2.4,
+            speech_rate_sps: 1.4,
+            f0_mean_hz: 210,
+            f0_std_hz: 32,
+            f0_min_hz: 160,
+            f0_max_hz: 280,
+            warnings: []
+          },
+          cumulative: {
+            chunk_count: 5,
+            analyzed_duration_sec: 16.1,
+            voiced_duration_sec: 11.2,
+            speech_rate_sps: 1.3,
+            f0_mean_hz: 205,
+            f0_std_hz: 29,
+            f0_min_hz: 150,
+            f0_max_hz: 292,
+            f0_range_hz: 142
+          }
+        }),
+        { status: 200 }
+      );
+
+    const result = await submitSpeechChunk("session_1", { audioBase64: "AAA", targetSampleRate: 16000 }, { fetcher });
+
+    expect(result.chunk.status).toBe("ok");
+    expect(result.cumulative.chunk_count).toBe(5);
+    expect(result.cumulative.f0_std_hz).toBe(29);
   });
 
   it("fetches a session by id", async () => {

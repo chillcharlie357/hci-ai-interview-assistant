@@ -125,6 +125,36 @@ export type LiveKitToken = {
   room: string;
 };
 
+export type SpeechChunkMetrics = {
+  status: string;
+  backend: string;
+  duration_sec: number;
+  voiced_duration_sec: number;
+  speech_rate_sps: number;
+  f0_mean_hz: number | null;
+  f0_std_hz: number | null;
+  f0_min_hz: number | null;
+  f0_max_hz: number | null;
+  warnings: string[];
+};
+
+export type SpeechCumulativeMetrics = {
+  chunk_count: number;
+  analyzed_duration_sec: number;
+  voiced_duration_sec: number;
+  speech_rate_sps: number;
+  f0_mean_hz: number | null;
+  f0_std_hz: number | null;
+  f0_min_hz: number | null;
+  f0_max_hz: number | null;
+  f0_range_hz: number | null;
+};
+
+export type SpeechChunkResponse = {
+  chunk: SpeechChunkMetrics;
+  cumulative: SpeechCumulativeMetrics;
+};
+
 export async function createSession(draft: DraftInput, options: ClientOptions = {}): Promise<InterviewSession> {
   const payload = {
     candidate_name: draft.candidateName,
@@ -244,6 +274,22 @@ export async function requestLiveKitToken(
     {
       participant_name: participant.participantName,
       participant_role: participant.participantRole
+    },
+    200,
+    options
+  );
+}
+
+export async function submitSpeechChunk(
+  sessionId: string,
+  payload: { audioBase64: string; targetSampleRate?: number },
+  options: ClientOptions = {}
+): Promise<SpeechChunkResponse> {
+  return await request<SpeechChunkResponse>(
+    `/api/sessions/${sessionId}/speech-chunks`,
+    {
+      audio_base64: payload.audioBase64,
+      target_sample_rate: payload.targetSampleRate
     },
     200,
     options

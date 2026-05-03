@@ -78,6 +78,45 @@ class SpeechAnalysisTest(unittest.TestCase):
         self.assertEqual(result.status, "fallback")
         self.assertTrue(any("missing_sample_rate" in w for w in result.warnings))
 
+    def test_vad_based_speech_rate_distinguishes_fragmented_rhythm(self) -> None:
+        sample_rate = 16000
+
+        def tone(seconds: float) -> np.ndarray:
+            t = np.arange(int(sample_rate * seconds)) / sample_rate
+            return (0.35 * np.sin(2 * np.pi * 200 * t)).astype(np.float32)
+
+        def silence(seconds: float) -> np.ndarray:
+            return np.zeros(int(sample_rate * seconds), dtype=np.float32)
+
+        # 碎片化说话节奏：更多短有声段
+        fragmented = np.concatenate(
+            [tone(0.12), silence(0.10), tone(0.12), silence(0.10), tone(0.12), silence(0.10), tone(0.12)]
+        )
+        # 连续说话节奏：同量级总时长，但有声段更连续
+        continuous = np.concatenate([tone(0.48), silence(0.10), tone(0.12)])
+
+        r_fragmented = analyze_speech(fragmented, sample_rate=sample_rate)
+        r_continuous = analyze_speech(continuous, sample_rate=sample_rate)
+
+        assert r_fragmented.acoustic is not None and r_continuous.acoustic is not None
+        self.assertGreater(r_fragmented.acoustic.speech_rate_sps, r_continuous.acoustic.speech_rate_sps)
+
+    def test_pitch_std_captures_tone_variation(self) -> None:
+        sample_rate = 16000
+        seg_sec = 0.2
+        t = np.arange(int(sample_rate * seg_sec)) / sample_rate
+        low = (0.4 * np.sin(2 * np.pi * 180 * t)).astype(np.float32)
+        high = (0.4 * np.sin(2 * np.pi * 300 * t)).astype(np.float32)
+
+        samples = np.concatenate([low, high, low, high, low, high, low, high])
+        result = analyze_speech(samples, sample_rate=sample_rate)
+
+        assert result.acoustic is not None
+        # 语调变化以 F0 标准差表示：高低频交替时应明显高于 0
+        self.assertIsNotNone(result.acoustic.f0_std_hz)
+        assert result.acoustic.f0_std_hz is not None
+        self.assertGreater(result.acoustic.f0_std_hz, 20.0)
+
     def test_accepts_wav_file(self) -> None:
         sample_rate = 16000
         t = np.arange(int(sample_rate * 1.5)) / sample_rate

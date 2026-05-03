@@ -1,6 +1,10 @@
+import base64
+import io
 import json
+import math
 import unittest
 from unittest.mock import patch
+import wave
 
 from backend.interview.api import SessionStore, handle_api_request
 from backend.interview.llm_client import LlmResult
@@ -203,6 +207,63 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(updated["llm_status"], "ok")
         analyze_mock.assert_called_once_with("我负责问题生成。")
 
+    def test_records_speech_chunks_and_returns_chunk_and_cumulative_metrics(self):
+        created = self.request(
+            "POST",
+            "/api/sessions",
+            {
+                "candidate_name": "张三",
+                "resume": "候选人负责 AI 面试平台。",
+                "job_description": "岗位是 AI 产品全栈工程师。",
+                "interview_goal": "评估项目经验。",
+            },
+            expected_status=201,
+        )
+
+        first = self.request(
+            "POST",
+            f"/api/sessions/{created['id']}/speech-chunks",
+            {"audio_base64": self._tone_wav_base64(freq_hz=180.0, duration_sec=0.6)},
+        )
+        second = self.request(
+            "POST",
+            f"/api/sessions/{created['id']}/speech-chunks",
+            {"audio_base64": self._tone_wav_base64(freq_hz=300.0, duration_sec=0.6)},
+        )
+
+        self.assertIn("chunk", first)
+        self.assertIn("cumulative", first)
+        self.assertEqual(first["cumulative"]["chunk_count"], 1)
+        self.assertGreater(first["cumulative"]["analyzed_duration_sec"], 0.4)
+
+        self.assertIn("chunk", second)
+        self.assertIn("cumulative", second)
+        self.assertEqual(second["cumulative"]["chunk_count"], 2)
+        self.assertGreater(second["cumulative"]["analyzed_duration_sec"], first["cumulative"]["analyzed_duration_sec"])
+        self.assertGreaterEqual(second["cumulative"]["speech_rate_sps"], 0.0)
+        self.assertIsNotNone(second["cumulative"]["f0_std_hz"])
+
+    def test_rejects_invalid_speech_chunk_payload(self):
+        created = self.request(
+            "POST",
+            "/api/sessions",
+            {
+                "candidate_name": "张三",
+                "resume": "候选人负责 AI 面试平台。",
+                "job_description": "岗位是 AI 产品全栈工程师。",
+                "interview_goal": "评估项目经验。",
+            },
+            expected_status=201,
+        )
+
+        bad = self.request(
+            "POST",
+            f"/api/sessions/{created['id']}/speech-chunks",
+            {"audio_base64": "not-a-valid-base64"},
+            expected_status=400,
+        )
+        self.assertEqual(bad["error"], "invalid_audio_payload")
+
     def test_returns_404_for_unknown_session(self):
         response = self.request(
             "POST",
@@ -217,6 +278,22 @@ class ApiTest(unittest.TestCase):
         status, body = handle_api_request(self.store, method, path, payload or {})
         self.assertEqual(status, expected_status, json.dumps(body, ensure_ascii=False))
         return body
+
+    def _tone_wav_base64(self, *, freq_hz: float, duration_sec: float, sample_rate: int = 16000) -> str:
+        frame_count = max(1, int(sample_rate * duration_sec))
+        data = bytearray()
+        for i in range(frame_count):
+            sample = int(0.5 * 32767 * math.sin(2.0 * math.pi * freq_hz * i / sample_rate))
+            data.extend(int(sample).to_bytes(2, byteorder="little", signed=True))
+
+        buffer = io.BytesIO()
+        with wave.open(buffer, "wb") as handle:
+            handle.setnchannels(1)
+            handle.setsampwidth(2)
+            handle.setframerate(sample_rate)
+            handle.writeframes(bytes(data))
+
+        return base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
 if __name__ == "__main__":

@@ -572,6 +572,14 @@ textarea {
   margin-top: 12px;
 }
 
+.speech-metrics-box {
+  border-top: 1px solid #d8e0ec;
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
 @keyframes avatarPulse {
   0%,
   100% {

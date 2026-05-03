@@ -179,7 +179,11 @@ def _build_warnings(features: AcousticFeatures, backend: str) -> list[str]:
     if features.speech_ratio < 0.2 and features.duration_sec > 1.0:
         warnings.append("语音占比过低，可能存在噪声或麦克风问题。")
     if backend == "numpy-fallback":
-        warnings.append("未安装 librosa，F0 使用自相关兜底算法，精度有限；建议 `uv add librosa` 以获得更准确结果。")
+        warnings.append("当前 F0 使用纯 numpy 自相关兜底算法，精度有限；建议安装 scipy 或 librosa。")
+    elif backend == "scipy":
+        warnings.append(
+            "当前 F0 走 scipy 加窗自相关 + 抛物线插值（含倍频校正）；若需更精确可 `uv add librosa`，但 Intel Mac + Python 3.12 需预先解决 numba wheel 问题。"
+        )
     if features.jitter is None:
         warnings.append("未安装 parselmouth，无法计算 jitter / shimmer / HNR；建议 `uv add praat-parselmouth`。")
     if features.rms_db_mean < -45.0 and features.duration_sec > 1.0:
@@ -192,4 +196,6 @@ def _resolve_status(features: AcousticFeatures, backend: str) -> str:
         return "fallback"
     if backend == "librosa" and features.jitter is not None:
         return "ok"
+    if backend in ("librosa", "scipy"):
+        return "partial"
     return "partial"

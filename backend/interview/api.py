@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import binascii
 from dataclasses import asdict, replace
 import argparse
 import json
@@ -22,12 +24,20 @@ from backend.interview.session import (
     record_answer,
     summarize_video,
 )
+from backend.speech_analysis import analyze_speech
+from backend.speech_analysis.aggregate import (
+    SpeechAggregateState,
+    chunk_metrics_from_analysis,
+    merge_chunk_metrics,
+    summarize_cumulative_metrics,
+)
 
 
 class SessionStore:
     def __init__(self) -> None:
         self.sessions: dict[str, InterviewSession] = {}
         self.prep_sessions: dict[str, PrepSession] = {}
+        self.speech_aggregates: dict[str, SpeechAggregateState] = {}
 
     def create(self, payload: dict[str, Any]) -> InterviewSession:
         llm_status = "fallback"
@@ -126,6 +136,7 @@ class SessionStore:
         )
         session = replace(session, llm_status=llm_status)
         self.sessions[session.id] = session
+        self.speech_aggregates[session.id] = SpeechAggregateState()
         return session
 
     def get(self, session_id: str) -> InterviewSession | None:
@@ -161,6 +172,38 @@ class SessionStore:
         )
         self.sessions[session_id] = updated
         return updated
+
+    def record_speech_chunk(self, session_id: str, payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        session = self.sessions.get(session_id)
+        if session is None:
+            return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
+
+        audio_base64 = str(payload.get("audio_base64", "")).strip()
+        if not audio_base64:
+            return HTTPStatus.BAD_REQUEST, {"error": "audio_payload_missing", "message": "缺少 audio_base64。"}
+
+        try:
+            audio_bytes = _decode_audio_base64(audio_base64)
+        except ValueError as error:
+            return HTTPStatus.BAD_REQUEST, {"error": "invalid_audio_payload", "message": str(error)}
+
+        target_sample_rate = payload.get("target_sample_rate", 16000)
+        if target_sample_rate in (0, None):
+            target_sample_rate = None
+        elif not isinstance(target_sample_rate, int):
+            return HTTPStatus.BAD_REQUEST, {"error": "invalid_target_sample_rate", "message": "target_sample_rate 必须是整数。"}
+
+        analysis = analyze_speech(audio_bytes, target_sample_rate=target_sample_rate)
+        chunk_metrics = chunk_metrics_from_analysis(analysis)
+
+        current_state = self.speech_aggregates.get(session_id, SpeechAggregateState())
+        next_state = merge_chunk_metrics(current_state, chunk_metrics)
+        self.speech_aggregates[session_id] = next_state
+
+        return HTTPStatus.OK, {
+            "chunk": chunk_metrics.to_dict(),
+            "cumulative": summarize_cumulative_metrics(next_state).to_dict(),
+        }
 
 
 def handle_api_request(
@@ -257,6 +300,14 @@ def handle_api_request(
         except LiveKitConfigError as error:
             return HTTPStatus.SERVICE_UNAVAILABLE, {"error": "livekit_not_configured", "message": str(error)}
         return HTTPStatus.OK, token
+
+    if (
+        method == "POST"
+        and len(path_parts) == 4
+        and path_parts[:2] == ["api", "sessions"]
+        and path_parts[3] == "speech-chunks"
+    ):
+        return store.record_speech_chunk(path_parts[2], body)
 
     if (
         method == "POST"
@@ -368,6 +419,17 @@ def _contains_forbidden_hiring_language(text: str) -> bool:
     lowered = text.lower()
     forbidden_terms = ["hire", "no-hire", "no hire", "录用", "不录用", "自动评分"]
     return any(term in lowered for term in forbidden_terms)
+
+
+def _decode_audio_base64(value: str) -> bytes:
+    candidate = value.split(",", 1)[1] if "," in value else value
+    try:
+        decoded = base64.b64decode(candidate, validate=True)
+    except binascii.Error as error:
+        raise ValueError("audio_base64 不是合法的 base64。") from error
+    if not decoded:
+        raise ValueError("audio_base64 解码后为空。")
+    return decoded
 
 
 def main() -> None:

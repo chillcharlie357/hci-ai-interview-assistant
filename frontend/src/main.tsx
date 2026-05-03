@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { ControlBar, GridLayout, LiveKitRoom, ParticipantTile, RoomAudioRenderer, useTracks } from "@livekit/components-react";
 import "@livekit/components-styles";
@@ -11,7 +11,9 @@ import {
   requestLiveKitToken,
   submitAnswer,
   submitPrepFollowup,
-  submitResume
+  submitResume,
+  submitSpeechChunk,
+  type SpeechChunkResponse
 } from "./apiClient";
 import {
   buildAvatarPrompt,
@@ -27,6 +29,7 @@ import {
   type DigitalInterviewerState
 } from "./digitalInterviewer";
 import { createSpeechTranscriber } from "./speechRecognition";
+import { startPcmRecorder, type PcmRecorderHandle } from "./pcmRecorder";
 import "./styles.css";
 
 function App() {
@@ -256,11 +259,19 @@ function CandidateInterviewPage({ sessionId }: { sessionId: string }) {
   const [liveKit, setLiveKit] = useState<{ url: string; token: string; room: string } | null>(null);
   const [meetingError, setMeetingError] = useState("");
   const [speechStatus, setSpeechStatus] = useState("未开始");
+  const [audioChunkStatus, setAudioChunkStatus] = useState("未启动");
+  const [chunkMetrics, setChunkMetrics] = useState<SpeechChunkResponse["chunk"] | null>(null);
+  const [cumulativeMetrics, setCumulativeMetrics] = useState<SpeechChunkResponse["cumulative"] | null>(null);
   const [interviewerState, setInterviewerState] = useState<DigitalInterviewerState>("preparing");
   const [answerStartedAt, setAnswerStartedAt] = useState<number | null>(null);
+  const [finishingAnswer, setFinishingAnswer] = useState(false);
   const [error, setError] = useState("");
   const transcriberRef = useRef<ReturnType<typeof createSpeechTranscriber> | null>(null);
+  const pcmRecorderRef = useRef<PcmRecorderHandle | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const chunkUploadQueueRef = useRef<Promise<void>>(Promise.resolve());
   const lastAutoSpokenQuestionIdRef = useRef<string | null>(null);
+  const interimTextRef = useRef<string>("");
 
   useEffect(() => {
     void loadSession();
@@ -284,6 +295,16 @@ function CandidateInterviewPage({ sessionId }: { sessionId: string }) {
       speakQuestion("auto");
     }
   }, [session?.currentQuestion?.id]);
+
+  useEffect(() => {
+    return () => {
+      transcriberRef.current?.stop();
+      void pcmRecorderRef.current?.stop();
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      pcmRecorderRef.current = null;
+      mediaStreamRef.current = null;
+    };
+  }, []);
 
   async function loadSession() {
     setError("");
@@ -328,29 +349,101 @@ function CandidateInterviewPage({ sessionId }: { sessionId: string }) {
     if (!session?.currentQuestion || answerStartedAt !== null) {
       return;
     }
+    setChunkMetrics(null);
+    setCumulativeMetrics(null);
+    interimTextRef.current = "";
+
     const transcriber = createSpeechTranscriber(
-      window,
+      window as Parameters<typeof createSpeechTranscriber>[0],
+      // final：只追加确认片段，避免 interim 重复累积
       (text) => setAnswerText((current) => (current ? `${current}${text}` : text)),
       (message) => {
         setSpeechStatus(formatSpeechStatus(message));
+      },
+      // interim：仅记录，不参与最终文本
+      (text) => {
+        interimTextRef.current = text;
       }
     );
     transcriberRef.current = transcriber;
     transcriber.start();
     setSpeechStatus(transcriber.supported ? "识别中" : "不支持");
+    void startAudioChunkUpload();
     setAnswerStartedAt(Date.now());
   }
 
-  function stopCandidateSpeech() {
+  async function startAudioChunkUpload() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setAudioChunkStatus("当前浏览器不支持麦克风采集");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+
+      const recorder = await startPcmRecorder(stream, (wavBlob) => {
+        enqueueSpeechChunkUpload(wavBlob);
+      });
+      pcmRecorderRef.current = recorder;
+      setAudioChunkStatus(`采集中（每 4 秒上传，采样率 ${recorder.sampleRate} Hz）`);
+    } catch (startError) {
+      setAudioChunkStatus(startError instanceof Error ? `音频上传未启动：${startError.message}` : "音频上传未启动");
+    }
+  }
+
+  function enqueueSpeechChunkUpload(blob: Blob) {
+    chunkUploadQueueRef.current = chunkUploadQueueRef.current
+      .then(async () => {
+        setAudioChunkStatus("上传中...");
+        const audioBase64 = await blobToBase64(blob);
+        const analyzed = await submitSpeechChunk(sessionId, { audioBase64, targetSampleRate: 16000 });
+        setChunkMetrics(analyzed.chunk);
+        setCumulativeMetrics(analyzed.cumulative);
+
+        if (analyzed.chunk.duration_sec <= 0 || analyzed.chunk.status === "fallback") {
+          const warning = analyzed.chunk.warnings[0] ?? "后端未成功解码该分片";
+          setAudioChunkStatus(`上传成功但解析失败：${warning}`);
+          return;
+        }
+
+        setAudioChunkStatus(`已上传 ${analyzed.cumulative.chunk_count} 段`);
+      })
+      .catch((uploadError) => {
+        setAudioChunkStatus(uploadError instanceof Error ? `上传失败：${uploadError.message}` : "上传失败，已跳过该片段");
+      });
+  }
+
+  async function stopCandidateSpeech() {
     transcriberRef.current?.stop();
     setSpeechStatus("已停止");
+
+    const recorder = pcmRecorderRef.current;
+    if (recorder) {
+      await recorder.stop();
+      pcmRecorderRef.current = null;
+    }
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+    mediaStreamRef.current = null;
+
+    await chunkUploadQueueRef.current;
+    setAudioChunkStatus((current) => {
+      if (current.includes("已停止")) {
+        return current;
+      }
+      if (current.startsWith("已上传") || current.startsWith("上传成功但解析失败")) {
+        return `${current}（已停止）`;
+      }
+      return "上传已停止";
+    });
   }
 
   async function finishCandidateAnswer() {
-    if (!session?.currentQuestion) {
+    if (!session?.currentQuestion || finishingAnswer) {
       return;
     }
-    stopCandidateSpeech();
+    setFinishingAnswer(true);
+    await stopCandidateSpeech();
     setError("");
     try {
       const measuredDuration = answerStartedAt ? Math.max(1, Math.round((Date.now() - answerStartedAt) / 1000)) : durationSec;
@@ -368,6 +461,8 @@ function CandidateInterviewPage({ sessionId }: { sessionId: string }) {
       }
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "提交回答失败");
+    } finally {
+      setFinishingAnswer(false);
     }
   }
 
@@ -440,11 +535,42 @@ function CandidateInterviewPage({ sessionId }: { sessionId: string }) {
                 开始回答
               </button>
             ) : (
-              <button type="button" onClick={finishCandidateAnswer} disabled={!session?.currentQuestion}>
-                结束回答
+              <button type="button" onClick={finishCandidateAnswer} disabled={!session?.currentQuestion || finishingAnswer}>
+                {finishingAnswer ? "处理中..." : "结束回答"}
               </button>
             )}
             <span>{speechStatus}</span>
+            <span className="muted">音频分析：{audioChunkStatus}</span>
+          </div>
+          <div className="speech-metrics-box">
+            <p className="eyebrow">语音分析（Chunk + 累计）</p>
+            {chunkMetrics?.warnings?.length ? <p className="muted">最近告警：{chunkMetrics.warnings[0]}</p> : null}
+            <div className="metric-grid">
+              <div className="metric-item">
+                <span>Chunk 语速（次/秒）</span>
+                <strong>{formatNumber(chunkMetrics?.speech_rate_sps)}</strong>
+              </div>
+              <div className="metric-item">
+                <span>Chunk 语调变化 Std(Hz)</span>
+                <strong>{formatNumber(chunkMetrics?.f0_std_hz)}</strong>
+              </div>
+              <div className="metric-item">
+                <span>累计语速（次/秒）</span>
+                <strong>{formatNumber(cumulativeMetrics?.speech_rate_sps)}</strong>
+              </div>
+              <div className="metric-item">
+                <span>累计语调变化 Std(Hz)</span>
+                <strong>{formatNumber(cumulativeMetrics?.f0_std_hz)}</strong>
+              </div>
+              <div className="metric-item">
+                <span>累计已上传片段</span>
+                <strong>{cumulativeMetrics?.chunk_count ?? 0}</strong>
+              </div>
+              <div className="metric-item">
+                <span>累计分析时长（秒）</span>
+                <strong>{formatNumber(cumulativeMetrics?.analyzed_duration_sec)}</strong>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -470,6 +596,25 @@ function formatSpeechStatus(message: string) {
     return "语音服务不可用，可手动输入";
   }
   return message || "识别失败，可手动修正";
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("读取音频分片失败"));
+    reader.onload = () => {
+      const value = String(reader.result ?? "");
+      resolve(value.includes(",") ? value.split(",")[1] : value);
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+
+function formatNumber(value: number | null | undefined): string {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "--";
+  }
+  return value.toFixed(2);
 }
 
 function DigitalInterviewerTile({
