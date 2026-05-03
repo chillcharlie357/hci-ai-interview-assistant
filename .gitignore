@@ -21,3 +21,8 @@ presentations/*.pptx
 presentations/*.key
 presentations/project-intro/
 scripts/resource/
+
+# Claude Code local config
+.claude/
+
+

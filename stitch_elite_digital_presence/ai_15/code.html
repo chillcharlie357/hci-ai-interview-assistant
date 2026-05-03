@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>面试测评报告</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-fixed-variant": "#673d00",
+                        "on-secondary-fixed": "#001e2b",
+                        "error": "#ba1a1a",
+                        "primary-fixed": "#e9ddff",
+                        "primary": "#6b38d4",
+                        "surface-tint": "#6d3bd7",
+                        "on-tertiary-container": "#fffbff",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container": "#f3ebf8",
+                        "surface-container-highest": "#e7e0ed",
+                        "on-primary-fixed-variant": "#5516be",
+                        "surface": "#fef7ff",
+                        "on-background": "#1d1a23",
+                        "on-secondary": "#ffffff",
+                        "inverse-on-surface": "#f5eefb",
+                        "surface-container-high": "#ede5f3",
+                        "background": "#fef7ff",
+                        "on-secondary-fixed-variant": "#004d66",
+                        "surface-dim": "#ded7e4",
+                        "tertiary-fixed-dim": "#ffb869",
+                        "outline-variant": "#cbc3d7",
+                        "secondary-fixed": "#c0e8ff",
+                        "on-tertiary": "#ffffff",
+                        "tertiary-fixed": "#ffdcbb",
+                        "on-error-container": "#93000a",
+                        "primary-container": "#8455ef",
+                        "on-primary-fixed": "#23005c",
+                        "on-primary-container": "#fffbff",
+                        "on-error": "#ffffff",
+                        "on-tertiary-fixed": "#2c1700",
+                        "secondary": "#006686",
+                        "on-surface": "#1d1a23",
+                        "outline": "#7b7486",
+                        "surface-bright": "#fef7ff",
+                        "inverse-primary": "#d0bcff",
+                        "inverse-surface": "#322f39",
+                        "on-primary": "#ffffff",
+                        "surface-variant": "#e7e0ed",
+                        "tertiary-container": "#a76500",
+                        "tertiary": "#855000",
+                        "on-secondary-container": "#005b78",
+                        "surface-container-low": "#f8f1fe",
+                        "secondary-container": "#7ed4fd",
+                        "primary-fixed-dim": "#d0bcff",
+                        "secondary-fixed-dim": "#7bd1fa",
+                        "on-surface-variant": "#494454",
+                        "error-container": "#ffdad6"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "gutter": "24px",
+                        "sm": "8px",
+                        "unit": "4px",
+                        "xl": "32px",
+                        "container-margin": "40px",
+                        "md": "16px",
+                        "xs": "4px",
+                        "xxl": "48px",
+                        "lg": "24px"
+                    },
+                    "fontFamily": {
+                        "h1": ["PingFang SC", "Manrope", "sans-serif"],
+                        "h2": ["PingFang SC", "Manrope", "sans-serif"],
+                        "label-sm": ["PingFang SC", "Inter", "sans-serif"],
+                        "display-lg": ["PingFang SC", "Manrope", "sans-serif"],
+                        "body-md": ["PingFang SC", "Inter", "sans-serif"],
+                        "body-lg": ["PingFang SC", "Inter", "sans-serif"]
+                    },
+                    "fontSize": {
+                        "h1": ["32px", { "lineHeight": "1.4", "fontWeight": "600" }],
+                        "h2": ["24px", { "lineHeight": "1.5", "fontWeight": "600" }],
+                        "label-sm": ["14px", { "lineHeight": "1.4", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "display-lg": ["48px", { "lineHeight": "1.2", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "body-lg": ["18px", { "lineHeight": "1.7", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 0.5px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 8px 32px 0 rgba(107, 56, 212, 0.05);
+        }
+        .text-gradient {
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-image: linear-gradient(to right, #6b38d4, #8455ef);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md min-h-screen flex antialiased">
+<!-- SideNavBar -->
+<nav class="hidden md:flex h-screen w-64 border-r rounded-r-2xl border-violet-100/20 shadow-xl fixed left-0 top-0 flex-col pt-20 pb-6 bg-white/80 backdrop-blur-2xl z-40">
+<div class="px-6 mb-8 flex items-center gap-4">
+<img alt="AI 面试专家" class="w-12 h-12 rounded-full object-cover border-2 border-primary-container" data-alt="A futuristic, sleek AI avatar glowing with a soft purple light. The avatar is abstract and geometric, representing advanced artificial intelligence. The background is a clean, bright light-mode white. The mood is intelligent, calm, and professional." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCIU_8S8IyrNqc0K-xidNh6ciEBHtcqEegOVpnMHMb-qcc4o0OgbaOBOHLH2RNSf2lYqBk-DSti1-WhJeB98-POeL-AoRlY8_cc7_CabhziesRyWE1PkKVLaPX2XsURi2BaJWXeTNt1EQEhHiMyiTtPnjVvlhff67xgECvk-1pHtIoNd2IZZ4xh6Qj7UIvOBQB2kgbd2bb0gYHjs7AoNEjQb5Mu3UKvcADSpMjgToabBI6I_ECHUVRJfTMXN6G7By20RkUJiQ8DG2ta"/>
+<div>
+<h2 class="font-h2 text-h2 text-on-background">面试管理</h2>
+<p class="font-body-md text-body-md text-outline">智能辅助系统</p>
+</div>
+</div>
+<button class="mx-6 mb-8 bg-primary text-on-primary font-label-sm text-label-sm py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(107,56,212,0.3)] hover:-translate-y-0.5 transition-transform">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">add</span>
+            开始新面试
+        </button>
+<ul class="flex-1 px-4 space-y-2">
+<li>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 hover:text-violet-500 hover:bg-violet-50 transition-colors font-label-sm text-label-sm" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+                    仪表盘
+                </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 hover:text-violet-500 hover:bg-violet-50 transition-colors font-label-sm text-label-sm" href="#">
+<span class="material-symbols-outlined">settings_suggest</span>
+                    面试设置
+                </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 hover:text-violet-500 hover:bg-violet-50 transition-colors font-label-sm text-label-sm" href="#">
+<span class="material-symbols-outlined">video_chat</span>
+                    面试环节
+                </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg bg-gradient-to-r from-violet-600/10 to-transparent text-violet-600 border-r-4 border-violet-600 font-label-sm text-label-sm" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">assessment</span>
+                    评估报告
+                </a>
+</li>
+</ul>
+<div class="px-4 mt-auto">
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 hover:text-violet-500 hover:bg-violet-50 transition-colors font-label-sm text-label-sm" href="#">
+<span class="material-symbols-outlined">logout</span>
+                退出登录
+            </a>
+</div>
+</nav>
+<!-- TopNavBar (Mobile only for layout purposes, acting as header) -->
+<header class="md:hidden fixed top-0 w-full z-50 flex justify-between items-center px-6 h-16 bg-white/70 backdrop-blur-xl border-b border-white/20 shadow-[0_8px_32px_0_rgba(139,92,246,0.1)]">
+<span class="font-h2 text-h2 text-gradient font-bold">AI 智能面试系统</span>
+<button><span class="material-symbols-outlined text-primary">menu</span></button>
+</header>
+<!-- Main Content -->
+<main class="flex-1 md:ml-64 pt-20 md:pt-10 px-6 md:px-container-margin pb-20 max-w-7xl mx-auto w-full">
+<!-- Header Section -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-xl gap-6">
+<div class="flex items-center gap-6">
+<img alt="候选人头像" class="w-20 h-20 rounded-2xl object-cover shadow-lg border border-white/50" data-alt="A professional portrait of a confident young woman in a smart casual outfit. She is looking slightly off-camera with a subtle, composed smile. The lighting is bright and even, set against a soft, light-mode background. The overall tone is polished and corporate." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC6pCQS2R_1FBO1VJKsF8XUUlawnrufUt9YBIVhj-gCzDLuEHz2Zlp9xgLNKrPTJnfFGN37hLws2GaHUDfakUJA5ap3jRtdX_KhIb7GDTgKueQd752V8SFXP-VrMGcgPbv2FeIw0ddUY5fJbnwB2boRorrXvO8HMNN1pVJauXJ5DU7kf1dGWucQHCr8Z875JAb-ke8bpkJBb2o_OyppdoM_echQQuKXY0-4uN7BwFwz58iGhYRoBIh0E7pxGKX5m-RAt2WQyU9cpjLS"/>
+<div>
+<h1 class="font-display-lg text-[32px] md:text-display-lg text-on-background mb-1">李明悦</h1>
+<div class="flex items-center gap-4">
+<span class="font-label-sm text-label-sm text-primary bg-primary-fixed px-3 py-1 rounded-full">高级产品经理</span>
+<span class="font-body-md text-body-md text-outline flex items-center gap-1"><span class="material-symbols-outlined text-[18px]">calendar_today</span> 2023.10.24</span>
+</div>
+</div>
+</div>
+<button class="bg-surface-container-high text-primary hover:bg-primary-fixed border border-primary/20 px-6 py-3 rounded-xl font-label-sm text-label-sm flex items-center gap-2 transition-all shadow-sm">
+<span class="material-symbols-outlined">download</span>
+                下载 PDF 报告
+            </button>
+</div>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
+<!-- Overall Score (Large Display) -->
+<div class="glass-panel rounded-[24px] p-xl flex flex-col items-center justify-center text-center lg:col-span-1 relative overflow-hidden group">
+<div class="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-50"></div>
+<div class="relative z-10">
+<h3 class="font-h2 text-h2 text-on-surface mb-2">AI 综合评分</h3>
+<p class="font-body-md text-body-md text-outline mb-6">基于 45 分钟深度对谈分析</p>
+<div class="relative inline-flex items-center justify-center">
+<!-- Decorative SVG Circle -->
+<svg class="w-48 h-48 transform -rotate-90" viewbox="0 0 120 120">
+<circle cx="60" cy="60" fill="none" r="54" stroke="#f3ebf8" stroke-width="8"></circle>
+<circle class="text-primary-container" cx="60" cy="60" fill="none" r="54" stroke="#8455ef" stroke-dasharray="339.29" stroke-dashoffset="40" stroke-linecap="round" stroke-width="8"></circle>
+</svg>
+<div class="absolute flex flex-col items-center">
+<span class="font-display-lg text-display-lg text-gradient leading-none">88</span>
+<span class="font-label-sm text-label-sm text-primary mt-1">极佳匹配</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Soft Skills Radar (Placeholder representation) -->
+<div class="glass-panel rounded-[24px] p-xl lg:col-span-2 flex flex-col">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-h2 text-h2 text-on-surface">能力图谱分析</h3>
+<span class="material-symbols-outlined text-outline">tune</span>
+</div>
+<div class="flex-1 flex items-center justify-center bg-surface/50 rounded-xl border border-outline-variant/30 p-6">
+<!-- Abstract representation of a radar chart -->
+<div class="relative w-64 h-64 border border-primary/20 rounded-full flex items-center justify-center">
+<div class="absolute w-48 h-48 border border-primary/20 rounded-full"></div>
+<div class="absolute w-32 h-32 border border-primary/20 rounded-full"></div>
+<!-- Spokes -->
+<div class="absolute w-full h-[1px] bg-primary/20"></div>
+<div class="absolute h-full w-[1px] bg-primary/20"></div>
+<div class="absolute w-full h-[1px] bg-primary/20 transform rotate-45"></div>
+<div class="absolute h-full w-[1px] bg-primary/20 transform -rotate-45"></div>
+<!-- Polygon overlay representing data -->
+<svg class="absolute inset-0 w-full h-full pointer-events-none" viewbox="0 0 100 100">
+<polygon fill="rgba(107, 56, 212, 0.2)" points="50,15 80,40 70,85 30,80 15,45" stroke="#8455ef" stroke-width="2"></polygon>
+</svg>
+<!-- Labels -->
+<span class="absolute top-[-20px] font-label-sm text-label-sm text-on-surface-variant">逻辑思维</span>
+<span class="absolute bottom-[-20px] font-label-sm text-label-sm text-on-surface-variant">抗压能力</span>
+<span class="absolute right-[-40px] font-label-sm text-label-sm text-on-surface-variant">沟通表达</span>
+<span class="absolute left-[-40px] font-label-sm text-label-sm text-on-surface-variant">创新能力</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Detail Sections -->
+<div class="mt-gutter grid grid-cols-1 lg:grid-cols-2 gap-gutter">
+<!-- Q&A Tracking -->
+<div class="glass-panel rounded-[24px] p-xl flex flex-col">
+<h3 class="font-h2 text-h2 text-on-surface mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">chat</span>
+                    核心问答追踪
+                </h3>
+<div class="space-y-6">
+<!-- Q&A Item 1 -->
+<div class="bg-surface-container-lowest p-6 rounded-xl border border-surface-dim shadow-sm">
+<div class="flex items-start gap-3 mb-3">
+<span class="material-symbols-outlined text-outline mt-1">help_outline</span>
+<div>
+<p class="font-label-sm text-label-sm text-on-surface-variant mb-1">问题 1</p>
+<p class="font-body-md text-body-md text-on-background font-medium">请描述一次你主导并成功落地的复杂项目经历。</p>
+</div>
+</div>
+<div class="pl-9 mb-4">
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed">候选人详细阐述了主导“智能客服中台”重构的过程。明确指出了跨部门协作的痛点，并采用了敏捷迭代方案，最终提升了系统响应速度 40%。</p>
+</div>
+<div class="pl-9 flex gap-2 flex-wrap">
+<span class="px-2 py-1 rounded-md bg-secondary-fixed text-on-secondary-fixed-variant font-label-sm text-[12px]">领导力突出</span>
+<span class="px-2 py-1 rounded-md bg-tertiary-fixed text-on-tertiary-fixed-variant font-label-sm text-[12px]">数据驱动</span>
+</div>
+</div>
+<!-- Q&A Item 2 -->
+<div class="bg-surface-container-lowest p-6 rounded-xl border border-surface-dim shadow-sm">
+<div class="flex items-start gap-3 mb-3">
+<span class="material-symbols-outlined text-outline mt-1">help_outline</span>
+<div>
+<p class="font-label-sm text-label-sm text-on-surface-variant mb-1">问题 2</p>
+<p class="font-body-md text-body-md text-on-background font-medium">面对资源紧缺的突发情况，你是如何调整产品排期的？</p>
+</div>
+</div>
+<div class="pl-9">
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed">回答稍显保守，侧重于向上级申请资源而非内部挖掘潜力。但在优先级排序的逻辑上较为清晰，能准确识别核心 MVP 需求。</p>
+</div>
+<div class="pl-9 mt-4 flex gap-2 flex-wrap">
+<span class="px-2 py-1 rounded-md bg-surface-variant text-on-surface-variant font-label-sm text-[12px]">优先级管理</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Non-verbal & Expression -->
+<div class="glass-panel rounded-[24px] p-xl flex flex-col">
+<h3 class="font-h2 text-h2 text-on-surface mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">face</span>
+                    表达与非语言观察
+                </h3>
+<!-- Emotion Snaps -->
+<div class="mb-8">
+<p class="font-label-sm text-label-sm text-on-surface-variant mb-4">关键情绪捕获</p>
+<div class="flex gap-4">
+<div class="flex-1 relative rounded-lg overflow-hidden group">
+<img alt="自信陈述" class="w-full h-24 object-cover" data-alt="A close-up shot of a professional woman during a video call, showing a confident and engaged expression. The setting is a clean, well-lit modern home office. The overall lighting is bright and flat, characteristic of a light-mode UI style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBHwTXTBcxr3YXq_Jd76geWTYSEiTSMvxkk1w6h4JRHV2TEe9tj2y1UeCQL2-c4ksheIqXbMStotdsEWJXOVn8ZsM92EPlIUDLqhD34PQE1FCL4nOW3qltN1tWt5xDzn3YNOOe8jRzpFNhaz0tvnU-C_z-mWTrJlIultdE9uCD5aCgrC742g2OerNGPMQjxTgwZtRrox-ZZgkCHRHFjJ_62ketYEz4XJP6cUI0DjjaCEFiQwpuF88JPSpqDeFCu5RlqpOfL1rtzyhs4"/>
+<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+<span class="text-white font-label-sm text-[12px]">自信陈述 (78%)</span>
+</div>
+</div>
+<div class="flex-1 relative rounded-lg overflow-hidden group">
+<img alt="深度思考" class="w-full h-24 object-cover opacity-80" data-alt="A close-up portrait of a young woman looking thoughtful and concentrated, as if listening intently to a complex question during an interview. Soft, natural lighting highlights her features against a minimalist, bright background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDZ5LV_4xWhfZkU-h7jQpmP_3kwzVwCzor4MPy1qaDLef2u85viA7N954zWei51-ov2DEX9r9AtLCrNdGLO7nTrLFAkjo6y0d4z9JcPY3_UShefnbW0xBAelLLr51X9MCMXmTuQlpzgORkctsR6alwhY4H1pxIssT-DKIg3rkgSR0Ocamvg9vNzJ_3PKmw_S43eBd7qN9aotKIGiQgdUkKkUMEG-Jeqpxwdiu-mYv9bkmX53m5u4jR47wuGex8SWKPjd3nmTE-DL7NB"/>
+<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+<span class="text-white font-label-sm text-[12px]">深度思考 (15%)</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Metrics -->
+<div class="space-y-6">
+<div>
+<div class="flex justify-between mb-2">
+<span class="font-label-sm text-label-sm text-on-background">语速与停顿节奏</span>
+<span class="font-label-sm text-label-sm text-primary">优秀</span>
+</div>
+<div class="w-full h-2 bg-surface-variant rounded-full overflow-hidden">
+<div class="h-full bg-gradient-to-r from-secondary-container to-primary w-[85%] rounded-full"></div>
+</div>
+<p class="font-body-md text-[13px] text-outline mt-2">平均语速 180字/分钟，重点处有明显合理停顿。</p>
+</div>
+<div>
+<div class="flex justify-between mb-2">
+<span class="font-label-sm text-label-sm text-on-background">眼神交流专注度</span>
+<span class="font-label-sm text-label-sm text-primary">良好</span>
+</div>
+<div class="w-full h-2 bg-surface-variant rounded-full overflow-hidden">
+<div class="h-full bg-gradient-to-r from-secondary-container to-primary w-[75%] rounded-full"></div>
+</div>
+<p class="font-body-md text-[13px] text-outline mt-2">注视屏幕区域占比 75%，视线较少游离。</p>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>
