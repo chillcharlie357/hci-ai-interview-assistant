@@ -28,6 +28,8 @@ import {
   shouldAutoSpeakQuestion,
   type DigitalInterviewerState
 } from "./digitalInterviewer";
+import { buildQuestionPreviewItems } from "./questionPreview";
+import { buildReportFilename, downloadMarkdownReport } from "./reportDownload";
 import { createSpeechTranscriber } from "./speechRecognition";
 import { startPcmRecorder, type PcmRecorderHandle } from "./pcmRecorder";
 import "./styles.css";
@@ -129,7 +131,24 @@ function RecruiterPage() {
     }
   }
 
+  async function downloadRecruiterReport() {
+    if (!session) {
+      return;
+    }
+    setError("");
+    try {
+      const result = report ? { report } : await fetchReport(session.id, "recruiter");
+      if (!report) {
+        setReport(result.report);
+      }
+      downloadMarkdownReport(buildReportFilename(session.candidateName, session.id), result.report);
+    } catch (downloadError) {
+      setError(downloadError instanceof Error ? downloadError.message : "下载报告失败");
+    }
+  }
+
   const interviewUrl = session ? `${window.location.origin}/interview/${session.id}` : "";
+  const questionPreviewItems = session ? buildQuestionPreviewItems(session.questions) : [];
 
   return (
     <main className="workspace-shell">
@@ -228,21 +247,39 @@ function RecruiterPage() {
         <section className="panel">
           <div className="section-header">
             <div>
-              <p className="eyebrow">面试题与报告</p>
+              <p className="eyebrow">生成测试题目</p>
               <h2>{session.questions.length} 道问题</h2>
             </div>
-            <button type="button" onClick={loadRecruiterReport}>查看招聘端报告</button>
+            <div className="actions compact">
+              <button type="button" onClick={loadRecruiterReport}>查看招聘端报告</button>
+              <button type="button" className="secondary-button" onClick={downloadRecruiterReport}>下载面试结果</button>
+            </div>
           </div>
           <ol className="question-list">
-            {session.questions.map((question, index) => (
-              <li key={question.id}>
-                <span>{index + 1}</span>
+            {questionPreviewItems.map((question) => (
+              <li key={`${session.id}-${question.index}`}>
+                <span>{question.index}</span>
                 <strong>{question.dimension}</strong>
                 <p>{question.prompt}</p>
+                <dl className="question-meta">
+                  <div>
+                    <dt>追问建议</dt>
+                    <dd>{question.followUp}</dd>
+                  </div>
+                  <div>
+                    <dt>观察点</dt>
+                    <dd>{question.evidenceHint}</dd>
+                  </div>
+                </dl>
               </li>
             ))}
           </ol>
-          {report ? <pre>{report}</pre> : null}
+          {report ? (
+            <div className="report-block">
+              <p className="eyebrow">面试报告</p>
+              <pre>{report}</pre>
+            </div>
+          ) : null}
         </section>
       ) : null}
 
@@ -466,6 +503,20 @@ function CandidateInterviewPage({ sessionId }: { sessionId: string }) {
     }
   }
 
+  async function downloadCandidateReport() {
+    if (!session || session.reportVisibility !== "shared_with_candidate") {
+      return;
+    }
+    setError("");
+    try {
+      const result = await fetchReport(session.id, "candidate");
+      setReport(result.report);
+      downloadMarkdownReport(buildReportFilename(session.candidateName, session.id), result.report);
+    } catch (downloadError) {
+      setError(downloadError instanceof Error ? downloadError.message : "下载报告失败");
+    }
+  }
+
   const localReport = useMemo(() => (session ? generateMarkdownReport(session) : ""), [session]);
   const captions = useMemo(() => (session ? buildConversationCaptions(session, answerText) : []), [session, answerText]);
   const isAnswering = answerStartedAt !== null;
@@ -576,7 +627,14 @@ function CandidateInterviewPage({ sessionId }: { sessionId: string }) {
       </section>
 
       <section className="panel">
-        <p className="eyebrow">候选人可见报告</p>
+        <div className="section-header">
+          <div>
+            <p className="eyebrow">候选人可见报告</p>
+          </div>
+          {session?.reportVisibility === "shared_with_candidate" ? (
+            <button type="button" className="secondary-button" onClick={downloadCandidateReport}>下载面试结果</button>
+          ) : null}
+        </div>
         <pre>{report || (session?.reportVisibility === "shared_with_candidate" ? localReport : "报告默认仅招聘端可见。")}</pre>
       </section>
 

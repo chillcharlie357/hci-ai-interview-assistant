@@ -24,6 +24,8 @@
 - 可以开启摄像头并记录非语言观察信号，关键帧默认只保存在内存 session。
 - 未配置 OpenAI 环境变量时可规则 fallback，并返回 `llm_status: fallback`。
 - 可以在面试后生成 Markdown 风格纪要。
+- 招聘端可以查看生成的完整测试题目，包含追问和观察点。
+- 可以按报告可见性下载 Markdown 面试结果。
 - Python 核心逻辑和 TypeScript 前端关键流程有自动化测试覆盖。
 
 ## 非目标

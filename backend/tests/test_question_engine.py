@@ -39,6 +39,14 @@ class QuestionEngineTest(unittest.TestCase):
             self.assertGreaterEqual(len(question.follow_ups), 1)
             self.assertGreaterEqual(len(question.evidence_hints), 1)
 
+    def test_does_not_extract_recruiter_side_text_as_role(self):
+        signals = extract_signals(
+            job_description="招聘端和候选人端都需要顺畅体验。职位是 AI 产品工程师，需要 TypeScript 和 LLM 应用。",
+            interview_goal="评估项目经验。",
+        )
+
+        self.assertEqual(signals.role, "AI 产品工程师")
+
 
 if __name__ == "__main__":
     unittest.main()

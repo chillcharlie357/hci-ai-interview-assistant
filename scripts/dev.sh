@@ -50,7 +50,9 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-load_env_file
+if [[ "${INTERVIEW_DISABLE_DOTENV:-0}" != "1" ]]; then
+  load_env_file
+fi
 
 if [[ ! -d "$ROOT_DIR/frontend/node_modules" ]]; then
   (cd "$ROOT_DIR/frontend" && pnpm install)
