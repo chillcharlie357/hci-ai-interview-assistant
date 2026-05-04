@@ -309,6 +309,30 @@ export async function fetchReport(
   return { report: response.report, llmStatus: response.llm_status };
 }
 
+/** 快速创建 mock 面试，用于调试 */
+export async function createMockSession(
+  config: {
+    template?: "frontend" | "backend" | "ai" | "pm";
+    candidateName?: string;
+    reportVisibility?: ReportVisibility;
+    enableVideoObservation?: boolean;
+  } = {},
+  options: ClientOptions = {}
+): Promise<InterviewSession> {
+  const response = await request<ApiSession>(
+    "/api/mock-session",
+    {
+      template: config.template ?? "frontend",
+      candidate_name: config.candidateName ?? "测试候选人",
+      report_visibility: config.reportVisibility ?? "recruiter_only",
+      enable_video_observation: config.enableVideoObservation ?? true
+    },
+    201,
+    options
+  );
+  return mapSession(response);
+}
+
 async function request<T>(path: string, payload: unknown, expectedStatus: number, options: ClientOptions): Promise<T> {
   const baseUrl = options.baseUrl ?? getApiBaseUrl();
   const fetcher = options.fetcher ?? fetch;

@@ -5,7 +5,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Button, Card, Tag, Input, Spin, App } from "antd";
+import { Button, Card, Tag, Input, Spin, App, Modal } from "antd";
 import {
   VideoCameraOutlined,
   RobotOutlined,
@@ -14,6 +14,8 @@ import {
   ForwardOutlined,
   EyeOutlined,
   SoundOutlined,
+  AudioMutedOutlined,
+  StopFilled,
 } from "@ant-design/icons";
 import { LiveKitRoom, ControlBar, GridLayout, ParticipantTile, RoomAudioRenderer, useTracks } from "@livekit/components-react";
 import "@livekit/components-styles";
@@ -58,11 +60,16 @@ export function InterviewPage() {
   const [focusScore, setFocusScore] = useState(92);
   const [confidenceScore, setConfidenceScore] = useState(85);
 
+  // 摄像头和麦克风状态
+  const [cameraEnabled, setCameraEnabled] = useState(true);
+  const [micEnabled, setMicEnabled] = useState(true);
+
   const transcriberRef = useRef<ReturnType<typeof createSpeechTranscriber> | null>(null);
   const pcmRecorderRef = useRef<PcmRecorderHandle | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const chunkUploadQueueRef = useRef<Promise<void>>(Promise.resolve());
   const lastAutoSpokenQuestionIdRef = useRef<string | null>(null);
+  const danmakuScrollRef = useRef<HTMLDivElement | null>(null);
 
   // 加载会话
   useEffect(() => {
@@ -234,7 +241,45 @@ export function InterviewPage() {
     }
   }
 
+  // 切换摄像头
+  const toggleCamera = () => {
+    setCameraEnabled(prev => !prev);
+    // TODO: 实际控制 LiveKit 摄像头
+  };
+
+  // 切换麦克风
+  const toggleMic = () => {
+    setMicEnabled(prev => !prev);
+    // TODO: 实际控制 LiveKit 麦克风
+  };
+
+  // 结束面试
+  const handleEndInterview = () => {
+    Modal.confirm({
+      title: "确认结束面试？",
+      content: "结束后将无法继续回答问题。",
+      okText: "结束面试",
+      cancelText: "取消",
+      okButtonProps: { danger: true },
+      onOk: () => {
+        // 如果正在回答，先提交
+        if (isAnswering) {
+          void finishCandidateAnswer();
+        }
+        message.success("面试已结束");
+      },
+    });
+  };
+
   const captions = useMemo(() => (session ? buildConversationCaptions(session, answerText) : []), [session, answerText]);
+
+  // 自动滚动到底部
+  useEffect(() => {
+    if (danmakuScrollRef.current) {
+      danmakuScrollRef.current.scrollTop = danmakuScrollRef.current.scrollHeight;
+    }
+  }, [captions]);
+
   const isAnswering = answerStartedAt !== null;
   const currentQuestion = session?.currentQuestion;
   const questionProgress = session ? `${Math.min(session.currentIndex + 1, session.questions.length)}/${session.questions.length}` : "";
@@ -297,18 +342,18 @@ export function InterviewPage() {
           </div>
         </div>
 
-        {/* 弹幕字幕区 - 半透明深色背景 */}
+        {/* 弹幕字幕区 - 透明背景，类似抖音直播评论 */}
         <div className="danmaku-captions">
-          <div className="danmaku-scroll">
+          <div className="danmaku-scroll" ref={danmakuScrollRef}>
             {captions.map((caption) => (
-              <div key={caption.id} className={`caption-row ${caption.speaker}`}>
-                <div className="caption-avatar">
-                  {caption.speaker === "ai" ? <RobotOutlined /> : <UserOutlined />}
+              <div key={caption.id} className={`caption-bubble ${caption.speaker}`}>
+                <div className="caption-header">
+                  <span className="caption-avatar">
+                    {caption.speaker === "ai" ? <RobotOutlined /> : <UserOutlined />}
+                  </span>
+                  <strong className="caption-name">{caption.label}</strong>
                 </div>
-                <div className="caption-bubble">
-                  <strong>{caption.label}</strong>
-                  <p>{caption.text}</p>
-                </div>
+                <p className="caption-text">{caption.text}</p>
               </div>
             ))}
           </div>
@@ -337,6 +382,7 @@ export function InterviewPage() {
                   onClick={finishCandidateAnswer}
                   loading={finishingAnswer}
                   icon={<StopOutlined />}
+                  disabled={interviewerState === "speaking"}
                 >
                   结束回答
                 </Button>
@@ -345,11 +391,41 @@ export function InterviewPage() {
                   size="large"
                   onClick={finishCandidateAnswer}
                   icon={<ForwardOutlined />}
+                  disabled={interviewerState === "speaking"}
                 >
                   进入下一题
                 </Button>
               </>
             )}
+          </div>
+
+          {/* 工具栏：摄像头、麦克风、结束面试 */}
+          <div className="interview-toolbar">
+            <Button
+              type={cameraEnabled ? "primary" : "default"}
+              icon={<VideoCameraOutlined />}
+              onClick={toggleCamera}
+              className={`toolbar-btn ${cameraEnabled ? "" : "disabled"}`}
+            >
+              {cameraEnabled ? "摄像头" : "已关闭"}
+            </Button>
+            <Button
+              type={micEnabled ? "primary" : "default"}
+              icon={micEnabled ? <SoundOutlined /> : <AudioMutedOutlined />}
+              onClick={toggleMic}
+              className={`toolbar-btn ${micEnabled ? "" : "disabled"}`}
+            >
+              {micEnabled ? "麦克风" : "已静音"}
+            </Button>
+            <Button
+              type="primary"
+              danger
+              icon={<StopFilled />}
+              onClick={handleEndInterview}
+              className="toolbar-btn end-btn"
+            >
+              结束面试
+            </Button>
           </div>
         </div>
       </section>
@@ -485,8 +561,9 @@ export function InterviewPage() {
       <style>{`
         .interview-page {
           display: flex;
-          min-height: 100vh;
+          height: calc(100vh - var(--topbar-height));
           background: #f7f9fb;
+          overflow: hidden;
         }
 
         .interview-loading {
@@ -499,11 +576,13 @@ export function InterviewPage() {
         }
 
         .interview-left {
-          width: 60%;
+          flex: 1.4;
           display: flex;
           flex-direction: column;
-          padding: var(--space-lg);
-          gap: var(--space-md);
+          padding: var(--space-md);
+          gap: var(--space-sm);
+          min-width: 0;
+          overflow: hidden;
         }
 
         .interview-header {
@@ -560,7 +639,7 @@ export function InterviewPage() {
           grid-template-columns: repeat(2, 1fr);
           gap: var(--space-sm);
           flex: 1;
-          min-height: 300px;
+          min-height: 0;
         }
 
         .candidate-video-tile {
@@ -585,82 +664,109 @@ export function InterviewPage() {
           font-size: 48px;
         }
 
-        /* 弹幕字幕区 - 半透明深色背景 */
+        /* 弹幕字幕区 - 透明背景，类似抖音直播评论 */
         .danmaku-captions {
-          background: rgba(45, 49, 51, 0.85);
-          backdrop-filter: blur(24px);
-          border-radius: var(--radius-2xl);
-          padding: var(--space-lg);
+          background: transparent;
+          padding: 0;
           display: flex;
           flex-direction: column;
-          gap: var(--space-md);
-          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-          border: 1px solid rgba(190, 199, 212, 0.1);
-          min-height: 200px;
+          gap: var(--space-sm);
+          flex-shrink: 0;
         }
 
         .danmaku-scroll {
-          flex: 1;
+          max-height: 120px;
           overflow-y: auto;
           display: flex;
           flex-direction: column;
           gap: var(--space-sm);
-          max-height: 150px;
+          max-height: 180px;
+          padding: var(--space-xs);
         }
 
-        .caption-row {
+        /* 弹幕气泡 - 类似抖音直播评论 */
+        .caption-bubble {
           display: flex;
-          gap: var(--space-sm);
-          animation: captionFadeIn 0.3s ease;
+          flex-direction: column;
+          gap: 4px;
+          padding: 10px 14px;
+          border-radius: 16px;
+          max-width: 85%;
+          animation: captionSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+          backdrop-filter: blur(12px);
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
         }
 
-        .caption-row.candidate {
-          flex-direction: row-reverse;
+        .caption-bubble.ai {
+          background: rgba(22, 119, 255, 0.12);
+          border: 1px solid rgba(22, 119, 255, 0.2);
+          align-self: flex-start;
+          border-bottom-left-radius: 4px;
+        }
+
+        .caption-bubble.candidate {
+          background: rgba(255, 255, 255, 0.95);
+          border: 1px solid rgba(0, 0, 0, 0.06);
+          align-self: flex-end;
+          border-bottom-right-radius: 4px;
+        }
+
+        .caption-header {
+          display: flex;
+          align-items: center;
+          gap: 6px;
         }
 
         .caption-avatar {
-          width: 28px;
-          height: 28px;
+          width: 20px;
+          height: 20px;
           border-radius: 50%;
-          background: #cfe5ff;
           display: flex;
           align-items: center;
           justify-content: center;
-          color: #003948;
-          flex-shrink: 0;
+          font-size: 10px;
         }
 
-        .caption-row.candidate .caption-avatar {
-          background: #e0e3e5;
-          color: #3f4852;
+        .caption-bubble.ai .caption-avatar {
+          background: var(--color-primary);
+          color: white;
         }
 
-        .caption-bubble {
-          background: rgba(255, 255, 255, 0.9);
-          padding: var(--space-xs) var(--space-sm);
-          border-radius: var(--radius);
-          max-width: 80%;
+        .caption-bubble.candidate .caption-avatar {
+          background: #f0f0f0;
+          color: #666;
         }
 
-        .caption-bubble strong {
+        .caption-name {
           font-size: 12px;
-          color: #6f7883;
+          font-weight: 600;
         }
 
-        .caption-bubble p {
-          margin: 4px 0 0;
+        .caption-bubble.ai .caption-name {
+          color: var(--color-primary);
+        }
+
+        .caption-bubble.candidate .caption-name {
+          color: #666;
+        }
+
+        .caption-text {
+          margin: 0;
+          font-size: 14px;
+          line-height: 1.5;
           color: #191c1e;
+          word-break: break-word;
         }
 
         .caption-input .ant-input {
-          background: rgba(255, 255, 255, 0.1);
-          border-color: rgba(255, 255, 255, 0.2);
-          color: white;
+          background: rgba(255, 255, 255, 0.95);
+          border-color: rgba(0, 0, 0, 0.1);
+          color: #191c1e;
           border-radius: var(--radius-lg);
         }
 
         .caption-input .ant-input::placeholder {
-          color: rgba(255, 255, 255, 0.5);
+          color: rgba(0, 0, 0, 0.35);
         }
 
         .caption-actions {
@@ -669,17 +775,59 @@ export function InterviewPage() {
           justify-content: flex-end;
         }
 
+        /* 工具栏 */
+        .interview-toolbar {
+          display: flex;
+          justify-content: center;
+          gap: var(--space-md);
+          padding: var(--space-md) 0 0;
+          border-top: 1px solid rgba(0, 0, 0, 0.06);
+          margin-top: var(--space-md);
+        }
+
+        .toolbar-btn {
+          min-width: 100px;
+          border-radius: var(--radius-full);
+          font-weight: 500;
+        }
+
+        .toolbar-btn.disabled {
+          opacity: 0.5;
+        }
+
+        .toolbar-btn.end-btn {
+          background: #ff4d4f;
+          border-color: #ff4d4f;
+        }
+
+        .toolbar-btn.end-btn:hover {
+          background: #ff7875;
+          border-color: #ff7875;
+        }
+
+        @keyframes captionSlideUp {
+          from {
+            opacity: 0;
+            transform: translateY(16px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
         /* 右侧面板 */
         .interview-right {
-          width: 40%;
+          flex: 1;
           background: rgba(242, 244, 246, 0.5);
           backdrop-filter: blur(12px);
           border-left: 1px solid rgba(190, 199, 212, 0.2);
-          padding: var(--space-lg);
+          padding: var(--space-md);
           display: flex;
           flex-direction: column;
-          gap: var(--space-md);
+          gap: var(--space-sm);
           overflow-y: auto;
+          min-width: 0;
         }
 
         /* 题目面板 */
@@ -928,21 +1076,31 @@ export function InterviewPage() {
         @media (max-width: 1200px) {
           .interview-page {
             flex-direction: column;
+            height: auto;
+            overflow: auto;
           }
 
           .interview-left, .interview-right {
+            flex: none;
             width: 100%;
+          }
+
+          .interview-left {
+            overflow: visible;
           }
 
           .interview-right {
             border-left: none;
             border-top: 1px solid rgba(190, 199, 212, 0.2);
           }
-        }
 
-        @keyframes captionFadeIn {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
+          .video-grid {
+            min-height: 300px;
+          }
+
+          .danmaku-scroll {
+            max-height: 150px;
+          }
         }
       `}</style>
     </div>

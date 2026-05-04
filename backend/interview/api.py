@@ -320,7 +320,99 @@ def handle_api_request(
             return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
         return HTTPStatus.OK, serialize_session(session)
 
+    # Mock session creation - 快速创建测试面试
+    if method == "POST" and path_parts == ["api", "mock-session"]:
+        return _create_mock_session(store, body)
+
     return HTTPStatus.NOT_FOUND, {"error": "not_found"}
+
+
+# Mock 数据 - 用于快速调试
+MOCK_RESUMES = {
+    "frontend": """# 李明 - 高级前端工程师
+
+目标岗位：高级前端工程师 / 前端架构方向
+
+工作年限：6 年。常用技术：TypeScript、React、Vite、Node.js、Vitest、Playwright。
+
+最近项目：负责 B2B 数据分析平台前端架构升级，将多页配置台改造为模块化工作台，沉淀表单 schema、权限菜单、图表组件和前端监控。
+
+核心成果：首屏加载时间从 3.8 秒降至 1.6 秒；将关键页面 E2E 覆盖率从 0 提升到 65%；推动代码评审规范和组件文档落地。
+
+可追问点：复杂表单状态管理、权限控制、性能优化、跨团队协作、前端测试策略。
+""",
+    "backend": """# 陈宇 - 后端平台工程师
+
+目标岗位：Python 后端工程师 / 平台工程方向
+
+工作年限：5 年。常用技术：Python、FastAPI、PostgreSQL、Redis、Celery、Docker、Kubernetes。
+
+最近项目：设计并实现企业内部任务编排平台，支持异步任务、重试、审计日志、租户隔离和指标告警。
+
+核心成果：任务失败定位时间从小时级降到分钟级；通过连接池和批处理将高峰期 API P95 从 900ms 降到 240ms。
+
+可追问点：数据库索引设计、异步任务一致性、接口限流、容器部署、故障排查案例。
+""",
+    "ai": """# 赵楠 - 机器学习工程师
+
+目标岗位：机器学习工程师 / 多模态算法方向
+
+工作年限：3 年。常用技术：PyTorch、Transformers、OpenCV、PaddleOCR、向量检索、模型评测。
+
+最近项目：负责面向工业质检的图像异常检测系统，构建数据清洗、训练、离线评测和在线推理服务。
+
+核心成果：缺陷召回率从 82% 提升到 93%；通过蒸馏和 TensorRT 将单图推理耗时从 120ms 降到 38ms。
+
+可追问点：数据不平衡、模型上线监控、误报漏报分析、视觉模型优化、多模态应用边界。
+""",
+    "pm": """# 王欣 - AI 产品经理
+
+目标岗位：AI 产品经理 / 智能应用方向
+
+工作年限：4 年。常用领域：LLM 应用、RAG、标注体系、B 端产品设计、数据分析。
+
+最近项目：从 0 到 1 推动客服知识库助手，负责需求访谈、数据闭环、评测集设计、灰度策略和运营看板。
+
+核心成果：试点团队平均响应时长降低 28%；建立命中率、幻觉率、人工接管率等评估指标。
+
+可追问点：如何定义 AI 产品效果、如何处理模型失败、评测集建设、跨部门推进、隐私与合规边界。
+""",
+}
+
+MOCK_JOB_DESCRIPTIONS = {
+    "frontend": "负责 Web 前端开发，熟悉 React/Vue 框架，有良好的工程化实践。要求有架构设计经验，能推动团队技术规范落地。",
+    "backend": "负责服务端开发，熟悉 Python/Java/Go，有分布式系统经验。要求有高并发系统设计能力，熟悉微服务架构。",
+    "ai": "负责 LLM 应用开发，熟悉 RAG、Agent、Prompt Engineering。要求有模型落地经验，能独立完成从训练到部署的全流程。",
+    "pm": "负责产品规划和迭代，有用户研究、数据分析和跨团队协作经验。要求有 AI 产品经验，能独立推动产品从 0 到 1。",
+}
+
+
+def _create_mock_session(store: SessionStore, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+    """使用 mock 数据快速创建面试 session，跳过简历解析"""
+    template = body.get("template", "frontend")
+    candidate_name = body.get("candidate_name", "测试候选人")
+
+    resume = MOCK_RESUMES.get(template, MOCK_RESUMES["frontend"])
+    job_description = MOCK_JOB_DESCRIPTIONS.get(template, MOCK_JOB_DESCRIPTIONS["frontend"])
+
+    question_set = generate_interview_questions(
+        resume=resume,
+        job_description=job_description,
+        interview_goal="评估技术能力、项目经验和表达能力。",
+    )
+
+    session = create_interview_session(
+        candidate_name=candidate_name,
+        role=template.replace("frontend", "前端工程师").replace("backend", "后端工程师").replace("ai", "AI工程师").replace("pm", "产品经理"),
+        questions=question_set.questions,
+        report_visibility=str(body.get("report_visibility", "recruiter_only")),
+        enable_video_observation=bool(body.get("enable_video_observation", True)),
+    )
+    session = replace(session, llm_status="fallback")
+    store.sessions[session.id] = session
+    store.speech_aggregates[session.id] = SpeechAggregateState()
+
+    return HTTPStatus.CREATED, serialize_session(session)
 
 
 def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPServer:

@@ -24,10 +24,12 @@ import {
   CopyOutlined,
   EyeOutlined,
   DownloadOutlined,
+  ThunderboltOutlined,
 } from "@ant-design/icons";
 
 import {
   createInterviewSessionFromPrep,
+  createMockSession,
   submitPrepFollowup,
   submitResume,
   fetchReport,
@@ -170,6 +172,25 @@ export function RecruiterPage() {
     }
   };
 
+  // 快速开始 - 使用 mock 数据
+  const handleQuickStart = async (template: "frontend" | "backend" | "ai" | "pm") => {
+    setLoading(true);
+    try {
+      const result = await createMockSession({
+        template,
+        candidateName: candidateName || "测试候选人",
+        reportVisibility,
+        enableVideoObservation,
+      });
+      setSession(result);
+      message.success("面试创建成功（Mock 模式）");
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "创建面试失败");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // 查看报告
   const handleViewReport = async () => {
     if (!session) return;
@@ -220,6 +241,23 @@ export function RecruiterPage() {
           <h1 className="recruiter-page-title">准备新面试</h1>
           <p className="recruiter-page-subtitle">配置候选人信息，AI 将为您生成专属面试大纲。</p>
         </div>
+
+        {/* 快速开始 - Mock 模式 */}
+        <Card className="recruiter-page-card quick-start-card">
+          <div className="quick-start-header">
+            <ThunderboltOutlined className="quick-start-icon" />
+            <div>
+              <h3>快速开始（调试模式）</h3>
+              <p>跳过简历解析，使用预设数据快速创建面试</p>
+            </div>
+          </div>
+          <div className="quick-start-buttons">
+            <Button onClick={() => handleQuickStart("frontend")}>前端工程师</Button>
+            <Button onClick={() => handleQuickStart("backend")}>后端工程师</Button>
+            <Button onClick={() => handleQuickStart("ai")}>AI 工程师</Button>
+            <Button onClick={() => handleQuickStart("pm")}>产品经理</Button>
+          </div>
+        </Card>
 
         {/* 两列布局：简历卡片 + 岗位配置卡片 */}
         <div className="recruiter-cards-row">
@@ -463,6 +501,48 @@ export function RecruiterPage() {
         .recruiter-page-subtitle {
           font-size: 16px;
           color: var(--color-text-secondary);
+        }
+
+        /* 快速开始卡片 */
+        .quick-start-card {
+          margin-bottom: var(--space-lg);
+          background: linear-gradient(135deg, rgba(22, 119, 255, 0.05), rgba(82, 196, 26, 0.05));
+          border: 1px dashed rgba(22, 119, 255, 0.3);
+        }
+
+        .quick-start-header {
+          display: flex;
+          align-items: center;
+          gap: var(--space-md);
+          margin-bottom: var(--space-md);
+        }
+
+        .quick-start-icon {
+          font-size: 32px;
+          color: var(--color-primary);
+        }
+
+        .quick-start-header h3 {
+          margin: 0;
+          font-size: 16px;
+          font-weight: 600;
+          color: var(--color-text);
+        }
+
+        .quick-start-header p {
+          margin: 4px 0 0;
+          font-size: 13px;
+          color: var(--color-text-tertiary);
+        }
+
+        .quick-start-buttons {
+          display: flex;
+          gap: var(--space-sm);
+          flex-wrap: wrap;
+        }
+
+        .quick-start-buttons .ant-btn {
+          border-radius: var(--radius-md);
         }
 
         .recruiter-cards-row {

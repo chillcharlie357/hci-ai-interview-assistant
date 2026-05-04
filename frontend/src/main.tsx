@@ -10,6 +10,7 @@ import zhCN from "antd/locale/zh_CN";
 
 import { themeConfig } from "./theme/config";
 import { AppLayout } from "./components/layout";
+import { DashboardPage } from "./pages/DashboardPage";
 import { RecruiterPage } from "./pages/RecruiterPage";
 import { InterviewPage } from "./pages/InterviewPage";
 import { ReportPage } from "./pages/ReportPage";
@@ -29,24 +30,24 @@ function App() {
               path="/recruiter"
               element={
                 <AppLayout title="AI 智能面试系统">
-                  <RecruiterPage />
+                  <DashboardPage />
                 </AppLayout>
               }
             />
             <Route
               path="/recruiter/setup"
               element={
-                <AppLayout title="AI 智能面试系统">
+                <AppLayout title="面试配置">
                   <RecruiterPage />
                 </AppLayout>
               }
             />
 
-            {/* 面试端路由 - 全屏沉浸式，不显示侧边栏 */}
+            {/* 面试端路由 - 带侧边栏 */}
             <Route
               path="/interview/:sessionId"
               element={
-                <AppLayout showSidebar={false} showTopBarActions={false} title="AI 面试间">
+                <AppLayout showSidebar={true} showTopBarActions={false} title="AI 面试间">
                   <InterviewPage />
                 </AppLayout>
               }
