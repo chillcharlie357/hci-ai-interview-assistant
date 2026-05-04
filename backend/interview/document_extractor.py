@@ -51,6 +51,8 @@ def extract_resume_markdown(file_name: str, data_base64: str) -> ExtractedDocume
             [command, "flash-extract", temp_path],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=timeout,
         )
     except FileNotFoundError as exc:

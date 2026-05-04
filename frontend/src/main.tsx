@@ -1,751 +1,94 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { createRoot } from "react-dom/client";
-import { ControlBar, GridLayout, LiveKitRoom, ParticipantTile, RoomAudioRenderer, useTracks } from "@livekit/components-react";
-import "@livekit/components-styles";
-import { Track } from "livekit-client";
+/**
+ * 应用入口
+ * 使用 React Router 实现路由
+ */
 
-import {
-  createInterviewSessionFromPrep,
-  fetchReport,
-  getSession,
-  requestLiveKitToken,
-  submitAnswer,
-  submitPrepFollowup,
-  submitResume,
-  submitSpeechChunk,
-  type SpeechChunkResponse
-} from "./apiClient";
-import {
-  buildAvatarPrompt,
-  generateMarkdownReport,
-  type InterviewSession,
-  type PrepSession,
-  type ReportVisibility
-} from "./interviewFlow";
-import {
-  buildConversationCaptions,
-  describeDigitalInterviewerState,
-  shouldAutoSpeakQuestion,
-  type DigitalInterviewerState
-} from "./digitalInterviewer";
-import { buildQuestionPreviewItems } from "./questionPreview";
-import { buildReportFilename, downloadMarkdownReport } from "./reportDownload";
-import { createSpeechTranscriber } from "./speechRecognition";
-import { startPcmRecorder, type PcmRecorderHandle } from "./pcmRecorder";
-import "./styles.css";
+import { createRoot } from "react-dom/client";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { ConfigProvider, App as AntApp } from "antd";
+import zhCN from "antd/locale/zh_CN";
+
+import { themeConfig } from "./theme/config";
+import { AppLayout } from "./components/layout";
+import { DashboardPage } from "./pages/DashboardPage";
+import { RecruiterPage } from "./pages/RecruiterPage";
+import { InterviewPage } from "./pages/InterviewPage";
+import { ReportPage } from "./pages/ReportPage";
+import { NoSessionPage } from "./pages/NoSessionPage";
+
+// 导入全局样式
+import "./styles/global.css";
 
 function App() {
-  const path = window.location.pathname;
-  const match = path.match(/^\/interview\/([^/]+)/);
-  if (match) {
-    return <CandidateInterviewPage sessionId={decodeURIComponent(match[1])} />;
-  }
-  return <RecruiterPage />;
-}
-
-function RecruiterPage() {
-  const [candidateName, setCandidateName] = useState("候选人");
-  const [resumeFile, setResumeFile] = useState<File | null>(null);
-  const [prep, setPrep] = useState<PrepSession | null>(null);
-  const [followupAnswer, setFollowupAnswer] = useState("");
-  const [session, setSession] = useState<InterviewSession | null>(null);
-  const [reportVisibility, setReportVisibility] = useState<ReportVisibility>("recruiter_only");
-  const [useLlmQuestions, setUseLlmQuestions] = useState(true);
-  const [enableVideoObservation, setEnableVideoObservation] = useState(true);
-  const [report, setReport] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  async function uploadResume() {
-    if (!resumeFile) {
-      setError("请先选择简历文件。");
-      return;
-    }
-    setBusy(true);
-    setError("");
-    setReport("");
-    try {
-      const dataBase64 = await fileToBase64(resumeFile);
-      setPrep(
-        await submitResume({
-          candidateName,
-          fileName: resumeFile.name,
-          contentType: resumeFile.type || "application/octet-stream",
-          dataBase64
-        })
-      );
-    } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : "简历上传失败");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function submitFollowup() {
-    if (!prep || !followupAnswer.trim()) {
-      return;
-    }
-    setBusy(true);
-    setError("");
-    try {
-      setPrep(await submitPrepFollowup(prep.id, followupAnswer));
-      setFollowupAnswer("");
-    } catch (followupError) {
-      setError(followupError instanceof Error ? followupError.message : "提交职位信息失败");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function createInterview() {
-    if (!prep) {
-      return;
-    }
-    setBusy(true);
-    setError("");
-    try {
-      const created = await createInterviewSessionFromPrep(prep.id, {
-        reportVisibility,
-        useLlmQuestions,
-        enableVideoObservation
-      });
-      setSession(created);
-      setReport("");
-    } catch (createError) {
-      setError(createError instanceof Error ? createError.message : "创建面试失败");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function loadRecruiterReport() {
-    if (!session) {
-      return;
-    }
-    setError("");
-    try {
-      const result = await fetchReport(session.id, "recruiter");
-      setReport(result.report);
-    } catch (reportError) {
-      setError(reportError instanceof Error ? reportError.message : "获取报告失败");
-    }
-  }
-
-  async function downloadRecruiterReport() {
-    if (!session) {
-      return;
-    }
-    setError("");
-    try {
-      const result = report ? { report } : await fetchReport(session.id, "recruiter");
-      if (!report) {
-        setReport(result.report);
-      }
-      downloadMarkdownReport(buildReportFilename(session.candidateName, session.id), result.report);
-    } catch (downloadError) {
-      setError(downloadError instanceof Error ? downloadError.message : "下载报告失败");
-    }
-  }
-
-  const interviewUrl = session ? `${window.location.origin}/interview/${session.id}` : "";
-  const questionPreviewItems = session ? buildQuestionPreviewItems(session.questions) : [];
-
   return (
-    <main className="workspace-shell">
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">招聘端</p>
-          <h1>AI 辅助面试配置</h1>
-        </div>
-        {session ? <a className="link-button" href={interviewUrl}>打开面试端</a> : null}
-      </header>
-
-      <section className="workflow-grid">
-        <div className="panel">
-          <p className="eyebrow">1. 上传简历</p>
-          <label>
-            候选人
-            <input value={candidateName} onChange={(event) => setCandidateName(event.target.value)} />
-          </label>
-          <label>
-            简历文件
-            <input
-              type="file"
-              accept=".pdf,.docx,.png,.jpg,.jpeg,.webp"
-              onChange={(event) => setResumeFile(event.target.files?.[0] ?? null)}
+    <ConfigProvider theme={themeConfig} locale={zhCN}>
+      <AntApp>
+        <BrowserRouter>
+          <Routes>
+            {/* 招聘端路由 */}
+            <Route
+              path="/recruiter"
+              element={
+                <AppLayout title="AI 智能面试系统">
+                  <DashboardPage />
+                </AppLayout>
+              }
             />
-          </label>
-          <button type="button" onClick={uploadResume} disabled={busy}>
-            上传并解析
-          </button>
-          {prep ? <pre className="preview-box">{prep.resumeMarkdownPreview}</pre> : null}
-        </div>
-
-        <div className="panel">
-          <p className="eyebrow">2. 补齐职位要求</p>
-          {(prep?.followupQuestions ?? []).map((question, index) => (
-            <p className="question-prompt" key={`${question}-${index}`}>{question}</p>
-          ))}
-          {prep?.readySummary ? (
-            <div className="summary-box">
-              <strong>{prep.readySummary.role}</strong>
-              <p>{prep.readySummary.jobDescription}</p>
-              <p>{prep.readySummary.interviewGoal}</p>
-            </div>
-          ) : null}
-          <label>
-            招聘方回答
-            <textarea
-              value={followupAnswer}
-              rows={6}
-              placeholder="补充岗位职责、必须能力、希望重点追问的经历..."
-              onChange={(event) => setFollowupAnswer(event.target.value)}
+            <Route
+              path="/recruiter/setup"
+              element={
+                <AppLayout title="面试配置">
+                  <RecruiterPage />
+                </AppLayout>
+              }
             />
-          </label>
-          <button type="button" onClick={submitFollowup} disabled={!prep || busy}>
-            提交职位信息
-          </button>
-          {prep ? <p className="status-line">LLM 状态：{prep.llmStatus}</p> : null}
-        </div>
 
-        <div className="panel">
-          <p className="eyebrow">3. 面试配置</p>
-          <label>
-            报告可见性
-            <select value={reportVisibility} onChange={(event) => setReportVisibility(event.target.value as ReportVisibility)}>
-              <option value="recruiter_only">仅招聘端可见</option>
-              <option value="shared_with_candidate">招聘端和候选人都可见</option>
-            </select>
-          </label>
-          <label className="check-row">
-            <input type="checkbox" checked={useLlmQuestions} onChange={(event) => setUseLlmQuestions(event.target.checked)} />
-            使用 LLM 生成面试问题
-          </label>
-          <label className="check-row">
-            <input
-              type="checkbox"
-              checked={enableVideoObservation}
-              onChange={(event) => setEnableVideoObservation(event.target.checked)}
+            {/* 面试端路由 - 带侧边栏 */}
+            <Route
+              path="/interview/:sessionId"
+              element={
+                <AppLayout showSidebar={true} showTopBarActions={false} title="AI 面试间">
+                  <InterviewPage />
+                </AppLayout>
+              }
             />
-            允许面试端摄像头观察信号
-          </label>
-          <button type="button" onClick={createInterview} disabled={!prep || busy}>
-            生成问题和面试链接
-          </button>
-          {session ? (
-            <div className="summary-box">
-              <strong>{session.role}</strong>
-              <p>Room：{session.meetingRoom}</p>
-              <p>报告权限：{session.reportVisibility === "recruiter_only" ? "仅招聘端" : "双方可见"}</p>
-              <input readOnly value={interviewUrl} />
-            </div>
-          ) : null}
-        </div>
-      </section>
+            {/* 面试间入口 - 无 sessionId 时显示提示 */}
+            <Route
+              path="/interview"
+              element={
+                <AppLayout title="AI 面试间">
+                  <NoSessionPage type="interview" />
+                </AppLayout>
+              }
+            />
 
-      {session ? (
-        <section className="panel">
-          <div className="section-header">
-            <div>
-              <p className="eyebrow">生成测试题目</p>
-              <h2>{session.questions.length} 道问题</h2>
-            </div>
-            <div className="actions compact">
-              <button type="button" onClick={loadRecruiterReport}>查看招聘端报告</button>
-              <button type="button" className="secondary-button" onClick={downloadRecruiterReport}>下载面试结果</button>
-            </div>
-          </div>
-          <ol className="question-list">
-            {questionPreviewItems.map((question) => (
-              <li key={`${session.id}-${question.index}`}>
-                <span>{question.index}</span>
-                <strong>{question.dimension}</strong>
-                <p>{question.prompt}</p>
-                <dl className="question-meta">
-                  <div>
-                    <dt>追问建议</dt>
-                    <dd>{question.followUp}</dd>
-                  </div>
-                  <div>
-                    <dt>观察点</dt>
-                    <dd>{question.evidenceHint}</dd>
-                  </div>
-                </dl>
-              </li>
-            ))}
-          </ol>
-          {report ? (
-            <div className="report-block">
-              <p className="eyebrow">面试报告</p>
-              <pre>{report}</pre>
-            </div>
-          ) : null}
-        </section>
-      ) : null}
+            {/* 报告页路由 */}
+            <Route
+              path="/report/:sessionId"
+              element={
+                <AppLayout title="AI 智能面试系统">
+                  <ReportPage />
+                </AppLayout>
+              }
+            />
+            {/* 报告入口 - 无 sessionId 时显示提示 */}
+            <Route
+              path="/report"
+              element={
+                <AppLayout title="评价报告">
+                  <NoSessionPage type="report" />
+                </AppLayout>
+              }
+            />
 
-      {error ? <p className="error-text">{error}</p> : null}
-    </main>
+            {/* 默认重定向到招聘端 */}
+            <Route path="/" element={<Navigate to="/recruiter" replace />} />
+            <Route path="*" element={<Navigate to="/recruiter" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AntApp>
+    </ConfigProvider>
   );
-}
-
-function CandidateInterviewPage({ sessionId }: { sessionId: string }) {
-  const [session, setSession] = useState<InterviewSession | null>(null);
-  const [answerText, setAnswerText] = useState("");
-  const [durationSec, setDurationSec] = useState(90);
-  const [report, setReport] = useState("");
-  const [liveKit, setLiveKit] = useState<{ url: string; token: string; room: string } | null>(null);
-  const [meetingError, setMeetingError] = useState("");
-  const [speechStatus, setSpeechStatus] = useState("未开始");
-  const [audioChunkStatus, setAudioChunkStatus] = useState("未启动");
-  const [chunkMetrics, setChunkMetrics] = useState<SpeechChunkResponse["chunk"] | null>(null);
-  const [cumulativeMetrics, setCumulativeMetrics] = useState<SpeechChunkResponse["cumulative"] | null>(null);
-  const [interviewerState, setInterviewerState] = useState<DigitalInterviewerState>("preparing");
-  const [answerStartedAt, setAnswerStartedAt] = useState<number | null>(null);
-  const [finishingAnswer, setFinishingAnswer] = useState(false);
-  const [error, setError] = useState("");
-  const transcriberRef = useRef<ReturnType<typeof createSpeechTranscriber> | null>(null);
-  const pcmRecorderRef = useRef<PcmRecorderHandle | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const chunkUploadQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const lastAutoSpokenQuestionIdRef = useRef<string | null>(null);
-  const interimTextRef = useRef<string>("");
-
-  useEffect(() => {
-    void loadSession();
-  }, [sessionId]);
-
-  useEffect(() => {
-    if (!session) {
-      setInterviewerState("preparing");
-      return;
-    }
-    if (!session.currentQuestion) {
-      setInterviewerState("finished");
-      return;
-    }
-    if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
-      setInterviewerState("unsupported");
-      return;
-    }
-    if (shouldAutoSpeakQuestion(session.currentQuestion.id, lastAutoSpokenQuestionIdRef.current, true)) {
-      lastAutoSpokenQuestionIdRef.current = session.currentQuestion.id;
-      speakQuestion("auto");
-    }
-  }, [session?.currentQuestion?.id]);
-
-  useEffect(() => {
-    return () => {
-      transcriberRef.current?.stop();
-      void pcmRecorderRef.current?.stop();
-      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
-      pcmRecorderRef.current = null;
-      mediaStreamRef.current = null;
-    };
-  }, []);
-
-  async function loadSession() {
-    setError("");
-    try {
-      const loaded = await getSession(sessionId);
-      setSession(loaded);
-      try {
-        setLiveKit(await requestLiveKitToken(sessionId, { participantName: loaded.candidateName, participantRole: "candidate" }));
-        setMeetingError("");
-      } catch (tokenError) {
-        setMeetingError(tokenError instanceof Error ? tokenError.message : "会议服务未配置");
-      }
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "加载面试失败");
-    }
-  }
-
-  function speakQuestion(mode: "auto" | "replay" = "replay") {
-    if (!session?.currentQuestion) {
-      setInterviewerState("finished");
-      return;
-    }
-    if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
-      setInterviewerState("unsupported");
-      return;
-    }
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(buildAvatarPrompt(session));
-    utterance.lang = "zh-CN";
-    utterance.rate = 0.95;
-    utterance.onstart = () => setInterviewerState("speaking");
-    utterance.onend = () => {
-      setInterviewerState("listening");
-      startCandidateAnswer();
-    };
-    utterance.onerror = () => setInterviewerState(mode === "auto" ? "unsupported" : "listening");
-    setInterviewerState("speaking");
-    window.speechSynthesis.speak(utterance);
-  }
-
-  function startCandidateAnswer() {
-    if (!session?.currentQuestion || answerStartedAt !== null) {
-      return;
-    }
-    setChunkMetrics(null);
-    setCumulativeMetrics(null);
-    interimTextRef.current = "";
-
-    const transcriber = createSpeechTranscriber(
-      window as Parameters<typeof createSpeechTranscriber>[0],
-      // final：只追加确认片段，避免 interim 重复累积
-      (text) => setAnswerText((current) => (current ? `${current}${text}` : text)),
-      (message) => {
-        setSpeechStatus(formatSpeechStatus(message));
-      },
-      // interim：仅记录，不参与最终文本
-      (text) => {
-        interimTextRef.current = text;
-      }
-    );
-    transcriberRef.current = transcriber;
-    transcriber.start();
-    setSpeechStatus(transcriber.supported ? "识别中" : "不支持");
-    void startAudioChunkUpload();
-    setAnswerStartedAt(Date.now());
-  }
-
-  async function startAudioChunkUpload() {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setAudioChunkStatus("当前浏览器不支持麦克风采集");
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStreamRef.current = stream;
-
-      const recorder = await startPcmRecorder(stream, (wavBlob) => {
-        enqueueSpeechChunkUpload(wavBlob);
-      });
-      pcmRecorderRef.current = recorder;
-      setAudioChunkStatus(`采集中（每 4 秒上传，采样率 ${recorder.sampleRate} Hz）`);
-    } catch (startError) {
-      setAudioChunkStatus(startError instanceof Error ? `音频上传未启动：${startError.message}` : "音频上传未启动");
-    }
-  }
-
-  function enqueueSpeechChunkUpload(blob: Blob) {
-    chunkUploadQueueRef.current = chunkUploadQueueRef.current
-      .then(async () => {
-        setAudioChunkStatus("上传中...");
-        const audioBase64 = await blobToBase64(blob);
-        const analyzed = await submitSpeechChunk(sessionId, { audioBase64, targetSampleRate: 16000 });
-        setChunkMetrics(analyzed.chunk);
-        setCumulativeMetrics(analyzed.cumulative);
-
-        if (analyzed.chunk.duration_sec <= 0 || analyzed.chunk.status === "fallback") {
-          const warning = analyzed.chunk.warnings[0] ?? "后端未成功解码该分片";
-          setAudioChunkStatus(`上传成功但解析失败：${warning}`);
-          return;
-        }
-
-        setAudioChunkStatus(`已上传 ${analyzed.cumulative.chunk_count} 段`);
-      })
-      .catch((uploadError) => {
-        setAudioChunkStatus(uploadError instanceof Error ? `上传失败：${uploadError.message}` : "上传失败，已跳过该片段");
-      });
-  }
-
-  async function stopCandidateSpeech() {
-    transcriberRef.current?.stop();
-    setSpeechStatus("已停止");
-
-    const recorder = pcmRecorderRef.current;
-    if (recorder) {
-      await recorder.stop();
-      pcmRecorderRef.current = null;
-    }
-    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
-    mediaStreamRef.current = null;
-
-    await chunkUploadQueueRef.current;
-    setAudioChunkStatus((current) => {
-      if (current.includes("已停止")) {
-        return current;
-      }
-      if (current.startsWith("已上传") || current.startsWith("上传成功但解析失败")) {
-        return `${current}（已停止）`;
-      }
-      return "上传已停止";
-    });
-  }
-
-  async function finishCandidateAnswer() {
-    if (!session?.currentQuestion || finishingAnswer) {
-      return;
-    }
-    setFinishingAnswer(true);
-    await stopCandidateSpeech();
-    setError("");
-    try {
-      const measuredDuration = answerStartedAt ? Math.max(1, Math.round((Date.now() - answerStartedAt) / 1000)) : durationSec;
-      const result = await submitAnswer(session.id, { text: answerText, durationSec: measuredDuration });
-      setSession(result.session);
-      setAnswerText("");
-      setAnswerStartedAt(null);
-      setDurationSec(90);
-      setSpeechStatus("未开始");
-      try {
-        const visibleReport = await fetchReport(session.id, "candidate");
-        setReport(visibleReport.report);
-      } catch {
-        setReport("招聘端尚未开放候选人查看面试分析报告。");
-      }
-    } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "提交回答失败");
-    } finally {
-      setFinishingAnswer(false);
-    }
-  }
-
-  async function downloadCandidateReport() {
-    if (!session || session.reportVisibility !== "shared_with_candidate") {
-      return;
-    }
-    setError("");
-    try {
-      const result = await fetchReport(session.id, "candidate");
-      setReport(result.report);
-      downloadMarkdownReport(buildReportFilename(session.candidateName, session.id), result.report);
-    } catch (downloadError) {
-      setError(downloadError instanceof Error ? downloadError.message : "下载报告失败");
-    }
-  }
-
-  const localReport = useMemo(() => (session ? generateMarkdownReport(session) : ""), [session]);
-  const captions = useMemo(() => (session ? buildConversationCaptions(session, answerText) : []), [session, answerText]);
-  const isAnswering = answerStartedAt !== null;
-
-  return (
-    <main className="workspace-shell">
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">面试端</p>
-          <h1>{session?.candidateName ?? "候选人"} · 视频面试</h1>
-        </div>
-        <a className="link-button" href="/recruiter">返回招聘端</a>
-      </header>
-
-      <section className="meeting-layout">
-        <div className="panel meeting-panel">
-          <div className="meeting-stage">
-            <DigitalInterviewerTile
-              candidateName={session?.candidateName ?? "候选人"}
-              currentStep={session ? Math.min(session.currentIndex + 1, session.questions.length) : 0}
-              totalSteps={session?.questions.length ?? 0}
-              state={interviewerState}
-            />
-            <div className="candidate-meeting-tile">
-              {liveKit ? (
-                <LiveKitRoom token={liveKit.token} serverUrl={liveKit.url} connect audio video>
-                  <CandidateLiveKitConference />
-                </LiveKitRoom>
-              ) : (
-                <div className="meeting-placeholder">
-                  <strong>会议服务未配置</strong>
-                  <p>{meetingError || "请在 .env 中配置 LiveKit 后再进入真实视频会议。"}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="panel subtitle-panel">
-          <div className="section-header">
-            <div>
-              <p className="eyebrow">实时字幕</p>
-              <h2>{session ? `${Math.min(session.currentIndex + 1, session.questions.length)}/${session.questions.length}` : "加载中"}</h2>
-            </div>
-            <span className="status-pill">{isAnswering ? "候选人回答中" : interviewerState === "speaking" ? "数字人提问中" : "等待回答"}</span>
-          </div>
-          <div className="caption-stream" aria-live="polite">
-            {captions.map((caption) => (
-              <div className={`caption-row ${caption.speaker}`} key={caption.id}>
-                <strong>{caption.label}</strong>
-                <p>{caption.text}</p>
-              </div>
-            ))}
-          </div>
-          <label className="caption-input">
-            候选人字幕
-            <textarea
-              value={answerText}
-              rows={5}
-              placeholder={isAnswering ? "语音识别会实时写入这里，也可以手动修正..." : "等待数字人提问结束后开始回答..."}
-              onChange={(event) => setAnswerText(event.target.value)}
-            />
-          </label>
-          <div className="actions">
-            {!isAnswering ? (
-              <button type="button" onClick={startCandidateAnswer} disabled={!session?.currentQuestion || interviewerState === "speaking"}>
-                开始回答
-              </button>
-            ) : (
-              <button type="button" onClick={finishCandidateAnswer} disabled={!session?.currentQuestion || finishingAnswer}>
-                {finishingAnswer ? "处理中..." : "结束回答"}
-              </button>
-            )}
-            <span>{speechStatus}</span>
-            <span className="muted">音频分析：{audioChunkStatus}</span>
-          </div>
-          <div className="speech-metrics-box">
-            <p className="eyebrow">语音分析（Chunk + 累计）</p>
-            {chunkMetrics?.warnings?.length ? <p className="muted">最近告警：{chunkMetrics.warnings[0]}</p> : null}
-            <div className="metric-grid">
-              <div className="metric-item">
-                <span>Chunk 语速（次/秒）</span>
-                <strong>{formatNumber(chunkMetrics?.speech_rate_sps)}</strong>
-              </div>
-              <div className="metric-item">
-                <span>Chunk 语调变化 Std(Hz)</span>
-                <strong>{formatNumber(chunkMetrics?.f0_std_hz)}</strong>
-              </div>
-              <div className="metric-item">
-                <span>累计语速（次/秒）</span>
-                <strong>{formatNumber(cumulativeMetrics?.speech_rate_sps)}</strong>
-              </div>
-              <div className="metric-item">
-                <span>累计语调变化 Std(Hz)</span>
-                <strong>{formatNumber(cumulativeMetrics?.f0_std_hz)}</strong>
-              </div>
-              <div className="metric-item">
-                <span>累计已上传片段</span>
-                <strong>{cumulativeMetrics?.chunk_count ?? 0}</strong>
-              </div>
-              <div className="metric-item">
-                <span>累计分析时长（秒）</span>
-                <strong>{formatNumber(cumulativeMetrics?.analyzed_duration_sec)}</strong>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="panel">
-        <div className="section-header">
-          <div>
-            <p className="eyebrow">候选人可见报告</p>
-          </div>
-          {session?.reportVisibility === "shared_with_candidate" ? (
-            <button type="button" className="secondary-button" onClick={downloadCandidateReport}>下载面试结果</button>
-          ) : null}
-        </div>
-        <pre>{report || (session?.reportVisibility === "shared_with_candidate" ? localReport : "报告默认仅招聘端可见。")}</pre>
-      </section>
-
-      {error ? <p className="error-text">{error}</p> : null}
-    </main>
-  );
-}
-
-function formatSpeechStatus(message: string) {
-  if (message === "no-speech") {
-    return "未检测到语音，可手动修正";
-  }
-  if (message === "not-allowed") {
-    return "麦克风未授权，可手动输入";
-  }
-  if (message === "network") {
-    return "语音服务不可用，可手动输入";
-  }
-  return message || "识别失败，可手动修正";
-}
-
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("读取音频分片失败"));
-    reader.onload = () => {
-      const value = String(reader.result ?? "");
-      resolve(value.includes(",") ? value.split(",")[1] : value);
-    };
-    reader.readAsDataURL(blob);
-  });
-}
-
-function formatNumber(value: number | null | undefined): string {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return "--";
-  }
-  return value.toFixed(2);
-}
-
-function DigitalInterviewerTile({
-  candidateName,
-  currentStep,
-  totalSteps,
-  state
-}: {
-  candidateName: string;
-  currentStep: number;
-  totalSteps: number;
-  state: DigitalInterviewerState;
-}) {
-  const description = describeDigitalInterviewerState(state, Math.max(currentStep, 0), Math.max(totalSteps, 0));
-  return (
-    <div className={`digital-interviewer-tile ${description.isAnimated ? "speaking" : ""}`}>
-      <div className="digital-avatar" aria-hidden="true">
-        <div className="avatar-orbit" />
-        <div className="avatar-core">AI</div>
-      </div>
-      <div className="digital-name-row">
-        <strong>AI 面试官</strong>
-        <span>{description.label}</span>
-      </div>
-      <p>{candidateName}，我会按题目顺序主持本轮面试。</p>
-      <div className="voice-bars" aria-hidden="true">
-        <span />
-        <span />
-        <span />
-        <span />
-      </div>
-      <small>{description.detail}</small>
-    </div>
-  );
-}
-
-function CandidateLiveKitConference() {
-  const cameraTracks = useTracks([{ source: Track.Source.Camera, withPlaceholder: true }], {
-    onlySubscribed: false
-  });
-
-  return (
-    <div className="candidate-livekit-room">
-      <div className="candidate-video-grid">
-        <GridLayout tracks={cameraTracks}>
-          <ParticipantTile />
-        </GridLayout>
-      </div>
-      <ControlBar
-        controls={{
-          microphone: true,
-          camera: true,
-          screenShare: false,
-          chat: false,
-          settings: false,
-          leave: true
-        }}
-      />
-      <RoomAudioRenderer />
-    </div>
-  );
-}
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("读取文件失败"));
-    reader.onload = () => {
-      const value = String(reader.result ?? "");
-      resolve(value.includes(",") ? value.split(",")[1] : value);
-    };
-    reader.readAsDataURL(file);
-  });
 }
 
 createRoot(document.getElementById("root") as HTMLElement).render(<App />);

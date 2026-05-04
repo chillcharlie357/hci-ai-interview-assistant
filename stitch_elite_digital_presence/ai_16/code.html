@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>控制面板 - AI 智能面试系统</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-fixed-variant": "#673d00",
+                        "on-secondary-fixed": "#001e2b",
+                        "error": "#ba1a1a",
+                        "primary-fixed": "#e9ddff",
+                        "primary": "#6b38d4",
+                        "surface-tint": "#6d3bd7",
+                        "on-tertiary-container": "#fffbff",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container": "#f3ebf8",
+                        "surface-container-highest": "#e7e0ed",
+                        "on-primary-fixed-variant": "#5516be",
+                        "surface": "#fef7ff",
+                        "on-background": "#1d1a23",
+                        "on-secondary": "#ffffff",
+                        "inverse-on-surface": "#f5eefb",
+                        "surface-container-high": "#ede5f3",
+                        "background": "#fef7ff",
+                        "on-secondary-fixed-variant": "#004d66",
+                        "surface-dim": "#ded7e4",
+                        "tertiary-fixed-dim": "#ffb869",
+                        "outline-variant": "#cbc3d7",
+                        "secondary-fixed": "#c0e8ff",
+                        "on-tertiary": "#ffffff",
+                        "tertiary-fixed": "#ffdcbb",
+                        "on-error-container": "#93000a",
+                        "primary-container": "#8455ef",
+                        "on-primary-fixed": "#23005c",
+                        "on-primary-container": "#fffbff",
+                        "on-error": "#ffffff",
+                        "on-tertiary-fixed": "#2c1700",
+                        "secondary": "#006686",
+                        "on-surface": "#1d1a23",
+                        "outline": "#7b7486",
+                        "surface-bright": "#fef7ff",
+                        "inverse-primary": "#d0bcff",
+                        "inverse-surface": "#322f39",
+                        "on-primary": "#ffffff",
+                        "surface-variant": "#e7e0ed",
+                        "tertiary-container": "#a76500",
+                        "tertiary": "#855000",
+                        "on-secondary-container": "#005b78",
+                        "surface-container-low": "#f8f1fe",
+                        "secondary-container": "#7ed4fd",
+                        "primary-fixed-dim": "#d0bcff",
+                        "secondary-fixed-dim": "#7bd1fa",
+                        "on-surface-variant": "#494454",
+                        "error-container": "#ffdad6"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "gutter": "24px",
+                        "sm": "8px",
+                        "unit": "4px",
+                        "xl": "32px",
+                        "container-margin": "40px",
+                        "md": "16px",
+                        "xs": "4px",
+                        "xxl": "48px",
+                        "lg": "24px"
+                    },
+                    "fontFamily": {
+                        "h1": ["PingFang SC", "Manrope"],
+                        "h2": ["PingFang SC", "Manrope"],
+                        "label-sm": ["PingFang SC", "Inter"],
+                        "display-lg": ["PingFang SC", "Manrope"],
+                        "body-md": ["PingFang SC", "Inter"],
+                        "body-lg": ["PingFang SC", "Inter"]
+                    },
+                    "fontSize": {
+                        "h1": ["32px", { "lineHeight": "1.4", "fontWeight": "600" }],
+                        "h2": ["24px", { "lineHeight": "1.5", "fontWeight": "600" }],
+                        "label-sm": ["14px", { "lineHeight": "1.4", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "display-lg": ["48px", { "lineHeight": "1.2", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "body-lg": ["18px", { "lineHeight": "1.7", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 0.5px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 20px 40px -10px rgba(107, 56, 212, 0.1);
+        }
+        .glow-text {
+            text-shadow: 0 0 20px rgba(107, 56, 212, 0.3);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body-md min-h-screen overflow-x-hidden">
+<!-- TopNavBar -->
+<nav class="bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl docked full-width top-0 border-b border-white/20 dark:border-slate-800/50 shadow-[0_8px_32px_0_rgba(139,92,246,0.1)] fixed top-0 w-full z-50 flex justify-between items-center px-6 h-16 font-['Manrope'] antialiased">
+<div class="flex items-center gap-4">
+<span class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-violet-600 to-indigo-500">AI 智能面试系统</span>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-4 text-violet-600 dark:text-violet-400">
+<button aria-label="notifications" class="hover:bg-violet-50/50 dark:hover:bg-violet-900/20 transition-all duration-300 p-2 rounded-full Active: scale-95 transition-transform">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button aria-label="settings" class="hover:bg-violet-50/50 dark:hover:bg-violet-900/20 transition-all duration-300 p-2 rounded-full Active: scale-95 transition-transform">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<button aria-label="help" class="hover:bg-violet-50/50 dark:hover:bg-violet-900/20 transition-all duration-300 p-2 rounded-full Active: scale-95 transition-transform">
+<span class="material-symbols-outlined">help</span>
+</button>
+</div>
+<img alt="用户头像" class="w-10 h-10 rounded-full border-2 border-primary-container object-cover" data-alt="A professional headshot of a corporate HR manager in a modern, brightly lit office environment. The lighting is soft and flattering, highlighting a confident expression. The overall tone is polished and aligned with a high-end corporate AI platform aesthetic, featuring subtle hints of violet in the background out-of-focus elements." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB3Ruy_kSQOEXXUaoarUfE_S2uV4UCb3PXCPSiqB26H8TdzrftLjOFgtAo7UqwS6wjawsjVjsXirbJ9QwYi9E1FDwk49vMmlbVfM-IFWzGHO2ZCRU_StpHtqFad5DQYRlHjtg-c2lhWjC3tFfdu7YqStSpi-mYIdY99zsa7ZTL_XYdcvomPhxkgiLav2vq02Gum8NoAtQw0nqTds6tTnOjObSQmSdTPDehJz5pdYDfaGeb2e_S6TVyBZ57E13H4kur9968pjhqbgFl3"/>
+</div>
+</nav>
+<!-- SideNavBar (Hidden on Mobile) -->
+<aside class="hidden md:flex bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl h-screen w-64 border-r rounded-r-2xl border-r border-violet-100/20 dark:border-slate-800/50 shadow-xl fixed left-0 top-0 flex-col pt-20 pb-6 z-40 font-['Manrope'] text-sm font-medium">
+<div class="px-6 mb-8 mt-4 flex items-center gap-4">
+<img alt="AI 面试专家" class="w-12 h-12 rounded-xl object-cover border border-outline-variant/30 shadow-sm" data-alt="An abstract, stylized representation of an AI assistant avatar. The design features soft, flowing geometric shapes with a glassmorphism effect. Colors blend seamlessly between deep violet, ice blue, and bright white, conveying intelligence, tranquility, and modern technology. The image feels polished and premium." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAUceX4bj4rt4jYQZLQeB5WFl5_OVtLnQSy7IhfHpjZNy4f_m5KrsYNc68xv4ZkDIzVD_1KjazQ2bwJ2FBUFu62Yc4GQKrLPj-80Q9TfmBSoMcar9K2ex3jDpkCs4eIISWbTOj5wI-PqdHf5LvGcvA9O56sMhcWG3e7wwLKTmvU-W3jlvpFgYpxmPnObz3ZyKLT3diNii3N3zj0tpNqKpgy6gQ5lHjhD0PC8pAMfFRSj1idgQB_zNcxPrMUgHeVZv-eezPG-kJhy9lY"/>
+<div>
+<h2 class="font-h2 text-h2 text-on-surface">面试管理</h2>
+<p class="font-label-sm text-label-sm text-on-surface-variant">智能辅助系统</p>
+</div>
+</div>
+<nav class="flex-1 px-4 space-y-2">
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg bg-gradient-to-r from-violet-600/10 to-transparent text-violet-600 dark:text-violet-400 border-r-4 border-violet-600 Active: translate-x-1 duration-200" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+                仪表盘
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:text-violet-500 hover:bg-violet-50 dark:hover:bg-slate-800/50 transition-colors" href="#">
+<span class="material-symbols-outlined">settings_suggest</span>
+                面试设置
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:text-violet-500 hover:bg-violet-50 dark:hover:bg-slate-800/50 transition-colors" href="#">
+<span class="material-symbols-outlined">video_chat</span>
+                面试环节
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:text-violet-500 hover:bg-violet-50 dark:hover:bg-slate-800/50 transition-colors" href="#">
+<span class="material-symbols-outlined">assessment</span>
+                评估报告
+            </a>
+</nav>
+<div class="px-6 mt-auto space-y-4">
+<button class="w-full bg-primary text-on-primary py-3 rounded-xl font-label-sm text-label-sm hover:bg-primary-container hover:text-on-primary-container transition-all shadow-[0_4px_14px_0_rgba(107,56,212,0.39)] hover:shadow-[0_6px_20px_rgba(107,56,212,0.23)] hover:-translate-y-0.5">
+                开始新面试
+            </button>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:text-violet-500 hover:bg-violet-50 dark:hover:bg-slate-800/50 transition-colors" href="#">
+<span class="material-symbols-outlined">logout</span>
+                退出登录
+            </a>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="md:ml-64 pt-24 px-6 md:px-12 pb-24 min-h-screen">
+<header class="mb-10">
+<h1 class="font-h1 text-h1 text-on-surface mb-2">控制面板</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant">欢迎回来，以下是今天的面试概览。</p>
+</header>
+<!-- Stats Grid (Bento Style) -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+<div class="glass-card rounded-[32px] p-8 flex flex-col justify-between relative overflow-hidden group">
+<div class="absolute -right-10 -top-10 w-40 h-40 bg-primary/10 rounded-full blur-3xl group-hover:bg-primary/20 transition-all duration-500"></div>
+<div>
+<div class="flex items-center justify-between mb-4">
+<span class="font-label-sm text-label-sm text-on-surface-variant bg-surface-container-high px-3 py-1 rounded-full">总计</span>
+<span class="material-symbols-outlined text-primary bg-primary/10 p-2 rounded-xl">groups</span>
+</div>
+<h3 class="font-body-md text-body-md text-on-surface-variant mb-1">总面试数</h3>
+<div class="font-display-lg text-display-lg text-on-surface glow-text">1,248</div>
+</div>
+<div class="mt-6 flex items-center gap-2 font-label-sm text-label-sm text-secondary">
+<span class="material-symbols-outlined text-[18px]">trending_up</span>
+                    较上月增长 12%
+                </div>
+</div>
+<div class="glass-card rounded-[32px] p-8 flex flex-col justify-between relative overflow-hidden group">
+<div class="absolute -right-10 -top-10 w-40 h-40 bg-tertiary/10 rounded-full blur-3xl group-hover:bg-tertiary/20 transition-all duration-500"></div>
+<div>
+<div class="flex items-center justify-between mb-4">
+<span class="font-label-sm text-label-sm text-on-surface-variant bg-surface-container-high px-3 py-1 rounded-full">进行中</span>
+<span class="material-symbols-outlined text-tertiary bg-tertiary/10 p-2 rounded-xl">pending_actions</span>
+</div>
+<h3 class="font-body-md text-body-md text-on-surface-variant mb-1">待评估</h3>
+<div class="font-display-lg text-display-lg text-on-surface glow-text">42</div>
+</div>
+<div class="mt-6">
+<div class="w-full bg-surface-variant rounded-full h-2">
+<div class="bg-gradient-to-r from-tertiary-fixed-dim to-tertiary h-2 rounded-full" style="width: 60%"></div>
+</div>
+<div class="mt-2 text-right font-label-sm text-label-sm text-on-surface-variant">60% 需加急</div>
+</div>
+</div>
+<div class="glass-card rounded-[32px] p-8 flex flex-col justify-between relative overflow-hidden group">
+<div class="absolute -right-10 -top-10 w-40 h-40 bg-secondary/10 rounded-full blur-3xl group-hover:bg-secondary/20 transition-all duration-500"></div>
+<div>
+<div class="flex items-center justify-between mb-4">
+<span class="font-label-sm text-label-sm text-on-surface-variant bg-surface-container-high px-3 py-1 rounded-full">今日</span>
+<span class="material-symbols-outlined text-secondary bg-secondary/10 p-2 rounded-xl">check_circle</span>
+</div>
+<h3 class="font-body-md text-body-md text-on-surface-variant mb-1">今日完成</h3>
+<div class="font-display-lg text-display-lg text-on-surface glow-text">18</div>
+</div>
+<div class="mt-6 flex items-center gap-2 font-label-sm text-label-sm text-primary">
+<span class="material-symbols-outlined text-[18px]">verified</span>
+                    AI 评估已全部生成
+                </div>
+</div>
+</div>
+<!-- Ongoing Interviews Section -->
+<div>
+<div class="flex justify-between items-end mb-6">
+<h2 class="font-h2 text-h2 text-on-surface">进行中的面试</h2>
+<button class="font-label-sm text-label-sm text-primary hover:text-primary-container flex items-center gap-1 transition-colors">
+                    查看全部 <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+</div>
+<div class="space-y-4">
+<!-- Interview Card 1 -->
+<div class="glass-card rounded-2xl p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-6 hover:-translate-y-1 transition-all duration-300">
+<div class="flex items-center gap-4">
+<div class="relative">
+<img alt="候选人照片" class="w-14 h-14 rounded-full object-cover" data-alt="A professional headshot of a young female candidate. She is smiling confidently, wearing modern business casual attire. The background is slightly blurred, suggesting a bright, contemporary office space or a high-end studio setting. The lighting is bright and optimistic, fitting a professional AI platform aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBVp8MB43rY3mixsyxn62sQWVoLbkTQ2cdeCtIJSF2KFZvULdSVQKOYPM41DpAsV6ZFy3FLuTtBhbOXoA1c0KwlObq0lnFgGVlS7_UxpdrDUK8_aVjlcQ5XSbRUOyT2VEdl50iX22YoJqjVcOR5jffJDQ13he6y4YYXESoZ6lTgW0LS2HcxyuBpJUKeKqFTUfL6KZoEiHJYuJ-xWQQVICnT3dMdJKEqORexlBybDuLAaVd1oZqZLhsuMZOhY3yjI60SECXzFeq5_cUs"/>
+<span class="absolute bottom-0 right-0 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></span>
+</div>
+<div>
+<h4 class="font-h2 text-[18px] text-on-surface">林晓月</h4>
+<p class="font-body-md text-[14px] text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">work</span> 高级前端工程师
+                            </p>
+</div>
+</div>
+<div class="flex flex-col gap-1 lg:w-48">
+<span class="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">schedule</span> 14:30 - 15:30
+                        </span>
+<span class="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">videocam</span> 线上视频面试
+                        </span>
+</div>
+<div class="flex-1 lg:max-w-xs w-full">
+<div class="flex justify-between items-center mb-1">
+<span class="font-label-sm text-[12px] text-on-surface-variant">AI 匹配度</span>
+<span class="font-label-sm text-label-sm text-primary font-semibold">88%</span>
+</div>
+<div class="w-full bg-surface-variant rounded-full h-2 overflow-hidden">
+<div class="bg-gradient-to-r from-secondary-fixed-dim to-primary h-full rounded-full" style="width: 88%"></div>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full font-label-sm text-[12px] flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-secondary"></span> 面试中
+                        </span>
+<button aria-label="进入面试" class="bg-surface-container-highest text-on-surface p-2 rounded-xl hover:bg-primary hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined">login</span>
+</button>
+</div>
+</div>
+<!-- Interview Card 2 -->
+<div class="glass-card rounded-2xl p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-6 hover:-translate-y-1 transition-all duration-300">
+<div class="flex items-center gap-4">
+<div class="relative">
+<img alt="候选人照片" class="w-14 h-14 rounded-full object-cover" data-alt="A clean, professional portrait of a male candidate in a tailored suit. He looks focused and approachable. The setting is bright and clean, with a neutral, soft-focus background that ensures the focus remains entirely on him, matching a premium enterprise software interface style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBGNEmTqWx0zS8_9xRUCnRJziK7nTUa991Qi-IhYRyo71G72FkPqupmc0pSYnVK_qw1TUPoA_czXwcnq1qyHNr_HM-Ww8ihftuWzrn-CEFOtYyJlFsTWzU4kv-YncUFJhuPBY9yY9sHstGdZAmyJSRRUKzZW8wUoH2w9z58VuztlUCSRJPS8LAlSQy11smBekrIu60FXO6xASEPBd9xRvywhEyVBomoYzVTP1APxASI-cM--DDcmwh45tJ--6KOx2HGYAqzbCnE0HPm"/>
+<span class="absolute bottom-0 right-0 w-4 h-4 bg-yellow-400 border-2 border-white rounded-full"></span>
+</div>
+<div>
+<h4 class="font-h2 text-[18px] text-on-surface">张子墨</h4>
+<p class="font-body-md text-[14px] text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">work</span> 产品经理
+                            </p>
+</div>
+</div>
+<div class="flex flex-col gap-1 lg:w-48">
+<span class="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">schedule</span> 16:00 - 17:00
+                        </span>
+<span class="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">meeting_room</span> 1号会议室
+                        </span>
+</div>
+<div class="flex-1 lg:max-w-xs w-full">
+<div class="flex justify-between items-center mb-1">
+<span class="font-label-sm text-[12px] text-on-surface-variant">AI 匹配度 (预估)</span>
+<span class="font-label-sm text-label-sm text-outline font-semibold">待分析</span>
+</div>
+<div class="w-full bg-surface-variant rounded-full h-2 overflow-hidden">
+<div class="bg-outline-variant h-full rounded-full" style="width: 10%"></div>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="bg-surface-container-high text-on-surface-variant px-3 py-1 rounded-full font-label-sm text-[12px] flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-outline"></span> 即将开始
+                        </span>
+<button aria-label="查看详情" class="bg-surface-container-highest text-on-surface p-2 rounded-xl hover:bg-primary hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined">visibility</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

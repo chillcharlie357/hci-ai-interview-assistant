@@ -1,0 +1,183 @@
+/**
+ * 全局样式
+ * 基于 FRONTEND_DESIGN.md 设计规范
+ */
+
+/* ===== 导入变量和动画 ===== */
+@import "./variables.css";
+@import "./animations.css";
+
+/* ===== 重置样式 ===== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans-cn);
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--color-text);
+  background-color: var(--color-bg-layout);
+  min-height: 100vh;
+}
+
+/* ===== 选中样式 ===== */
+::selection {
+  background-color: var(--color-primary-bg);
+  color: var(--color-text);
+}
+
+/* ===== 滚动条样式 ===== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.15);
+  border-radius: 20px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.25);
+}
+
+/* ===== 玻璃拟态效果 ===== */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: var(--shadow-glass);
+}
+
+.glass-card {
+  background-color: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: var(--shadow-md);
+}
+
+/* ===== 按钮样式增强 ===== */
+.btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius);
+  padding: 11px 14px;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+.btn-primary:hover {
+  filter: brightness(1.1);
+  box-shadow: var(--shadow-glow-primary);
+}
+
+.btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: #334155;
+  color: #fff;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius);
+  padding: 11px 14px;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+/* ===== 卡片悬停效果 ===== */
+.hover-card {
+  transition: transform var(--transition-normal), box-shadow var(--transition-normal);
+}
+
+.hover-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ===== 页面容器 ===== */
+.page-container {
+  min-height: 100vh;
+  padding: var(--space-lg);
+}
+
+.page-container-center {
+  max-width: var(--setup-max-width);
+  margin: 0 auto;
+  padding: var(--space-xl);
+}
+
+.report-container {
+  max-width: var(--report-max-width);
+  margin: 0 auto;
+  padding: var(--space-xl);
+}
+
+/* ===== Eyebrow 标签 ===== */
+.eyebrow {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* ===== 维度标签 ===== */
+.dimension-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+}
+
+.dimension-tag-warning {
+  background: var(--color-warning-bg);
+  color: #b45309;
+}
+
+.dimension-tag-success {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+/* ===== 响应式工具类 ===== */
+@media (max-width: 800px) {
+  .page-container-center,
+  .report-container {
+    padding: var(--space-md);
+  }
+}
+
+/* ===== 深色模式适配 ===== */
+@media (prefers-color-scheme: dark) {
+  .glass-panel,
+  .glass-card {
+    background: rgba(30, 30, 30, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+}

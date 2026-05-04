@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>面试测评报告 - 智聘 AI</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=PingFang+SC:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface-bright": "#f7f9fb",
+                      "surface": "#f7f9fb",
+                      "on-tertiary-container": "#003948",
+                      "on-secondary-fixed": "#1a0063",
+                      "tertiary": "#00677f",
+                      "primary-fixed": "#cfe5ff",
+                      "on-primary-fixed": "#001d33",
+                      "inverse-surface": "#2d3133",
+                      "on-primary-container": "#00375a",
+                      "on-tertiary-fixed": "#001f28",
+                      "primary-fixed-dim": "#98cbff",
+                      "error": "#ba1a1a",
+                      "tertiary-container": "#00aad0",
+                      "secondary-container": "#7459f7",
+                      "surface-tint": "#00629d",
+                      "on-background": "#191c1e",
+                      "background": "#f7f9fb",
+                      "tertiary-fixed-dim": "#4cd6ff",
+                      "on-secondary-container": "#fffbff",
+                      "surface-container-low": "#f2f4f6",
+                      "inverse-primary": "#98cbff",
+                      "secondary": "#5b3cdd",
+                      "on-primary": "#ffffff",
+                      "error-container": "#ffdad6",
+                      "surface-container-lowest": "#ffffff",
+                      "on-surface-variant": "#3f4852",
+                      "on-tertiary": "#ffffff",
+                      "on-surface": "#191c1e",
+                      "primary-container": "#00a3ff",
+                      "on-error-container": "#93000a",
+                      "surface-container-high": "#e6e8ea",
+                      "secondary-fixed": "#e5deff",
+                      "primary": "#00629d",
+                      "on-secondary": "#ffffff",
+                      "on-error": "#ffffff",
+                      "outline": "#6f7883",
+                      "on-primary-fixed-variant": "#004a77",
+                      "surface-container-highest": "#e0e3e5",
+                      "on-secondary-fixed-variant": "#441cc8",
+                      "secondary-fixed-dim": "#c9bfff",
+                      "on-tertiary-fixed-variant": "#004e60",
+                      "surface-container": "#eceef0",
+                      "inverse-on-surface": "#eff1f3",
+                      "outline-variant": "#bec7d4",
+                      "surface-variant": "#e0e3e5",
+                      "surface-dim": "#d8dadc",
+                      "tertiary-fixed": "#b7eaff"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "md": "24px",
+                      "container-margin": "24px",
+                      "gutter": "16px",
+                      "lg": "40px",
+                      "xl": "64px",
+                      "sm": "16px",
+                      "base-unit": "4px",
+                      "xs": "8px"
+              },
+              "fontFamily": {
+                      "body-lg": [
+                              "Manrope", "PingFang SC"
+                      ],
+                      "h2": [
+                              "Manrope", "PingFang SC"
+                      ],
+                      "h3": [
+                              "Manrope", "PingFang SC"
+                      ],
+                      "body-md": [
+                              "Manrope", "PingFang SC"
+                      ],
+                      "label-sm": [
+                              "Manrope", "PingFang SC"
+                      ],
+                      "h1": [
+                              "Manrope", "PingFang SC"
+                      ]
+              },
+              "fontSize": {
+                      "body-lg": [
+                              "18px",
+                              {
+                                      "lineHeight": "1.7",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "h2": [
+                              "32px",
+                              {
+                                      "lineHeight": "1.3",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "h3": [
+                              "24px",
+                              {
+                                      "lineHeight": "1.4",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "1.6",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "label-sm": [
+                              "14px",
+                              {
+                                      "lineHeight": "1.4",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "h1": [
+                              "40px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "800"
+                              }
+                      ]
+              }
+            }
+          }
+        }
+    </script>
+<style>
+        .glass-card {
+            background-color: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 71, 255, 0.1);
+        }
+        .text-gradient {
+            background: linear-gradient(135deg, #00629d, #00a3ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .glow-button {
+            box-shadow: 0 4px 15px rgba(0, 163, 255, 0.3);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md antialiased min-h-screen flex flex-col md:flex-row">
+<!-- Desktop Side Navigation -->
+<nav class="hidden md:flex flex-col pt-6 pb-4 fixed left-0 top-0 w-64 h-[calc(100vh-64px)] mt-16 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl rounded-r-2xl border-r border-white/20 dark:border-slate-800/50 shadow-[20px_0_50px_rgba(0,71,255,0.05)] z-40 transition-transform duration-200 ease-in-out">
+<div class="px-md mb-lg">
+<h2 class="font-h3 text-h3 text-primary">AI 智能面试系统</h2>
+</div>
+<div class="flex-1 px-sm space-y-2">
+<a class="flex items-center gap-xs px-md py-sm rounded-lg text-slate-500 dark:text-slate-400 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">dashboard</span>
+<span class="font-label-sm text-label-sm">控制面板</span>
+</a>
+<a class="flex items-center gap-xs px-md py-sm rounded-lg text-slate-500 dark:text-slate-400 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">settings_suggest</span>
+<span class="font-label-sm text-label-sm">面试配置</span>
+</a>
+<a class="flex items-center gap-xs px-md py-sm rounded-lg text-slate-500 dark:text-slate-400 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">videocam</span>
+<span class="font-label-sm text-label-sm">面试间</span>
+</a>
+<a class="flex items-center gap-xs px-md py-sm rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-400 border-r-4 border-sky-500 font-semibold hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">analytics</span>
+<span class="font-label-sm text-label-sm">评价报告</span>
+</a>
+</div>
+<div class="px-md mt-auto">
+<div class="flex items-center gap-sm mb-md">
+<img alt="AI Assistant" class="w-10 h-10 rounded-full object-cover" data-alt="A futuristic, friendly glowing AI avatar sphere hovering in a clean, brightly lit modern tech space, light mode, vibrant blue accents, professional." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCRCWLcCvaSHSzlfpMIFZD_Z40Ls_qT1N_t13PTLvL-IUubH22pyXJN7mJDSA2Kz9K1BM2CBnfRQmlai5izOKaWidIIWICxfj9_OnJAMVEMzH9K1tNMMcFrRItVgIzdgnZKZT5hAaizGThvtguUH7NDHLHK-qsrcY3bfWCHaZlg0c6Z-_wY0GWvIYR_A3qu4llGZoxRABj55VGYywRuPL-Q38vUsCib7jQyuhL5ajRcJCnVpI5G1NUc6BQmqYvKIOz6i_qEwHczCAni"/>
+<div>
+<p class="font-label-sm text-label-sm text-on-surface">面试管家</p>
+<p class="text-xs text-on-surface-variant">在线活跃</p>
+</div>
+</div>
+<button class="w-full py-sm rounded-full border border-primary-container text-primary-container font-label-sm text-label-sm hover:bg-primary-container hover:text-on-primary transition-colors">
+                联系技术支持
+            </button>
+</div>
+</nav>
+<!-- Top Navigation (Mobile Bottom Nav Omitted for this focused desktop-style view, but Top Nav present) -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-8 h-16 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-white/20 dark:border-slate-800/50 shadow-[0_8px_32px_rgba(0,163,255,0.1)]">
+<div class="text-xl font-black text-sky-600 dark:text-sky-400 tracking-tighter">
+            AI 智能面试系统
+        </div>
+<div class="hidden md:flex gap-md font-manrope text-sm font-medium">
+<a class="text-slate-500 dark:text-slate-400 hover:text-sky-500 transition-colors hover:bg-sky-50/50 dark:hover:bg-sky-900/20 px-xs py-base-unit rounded" href="#">控制面板</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-sky-500 transition-colors hover:bg-sky-50/50 dark:hover:bg-sky-900/20 px-xs py-base-unit rounded" href="#">面试配置</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-sky-500 transition-colors hover:bg-sky-50/50 dark:hover:bg-sky-900/20 px-xs py-base-unit rounded" href="#">面试间</a>
+<a class="text-sky-600 dark:text-sky-400 border-b-2 border-sky-500 pb-1 font-bold hover:bg-sky-50/50 dark:hover:bg-sky-900/20 px-xs rounded-t" href="#">评价报告</a>
+</div>
+<div class="flex items-center gap-sm">
+<button class="text-sky-500 dark:text-sky-400 hover:bg-sky-50/50 p-xs rounded-full transition-colors active:scale-98">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="text-sky-500 dark:text-sky-400 hover:bg-sky-50/50 p-xs rounded-full transition-colors active:scale-98">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<button class="ml-sm bg-primary text-on-primary px-md py-xs rounded-full font-label-sm text-label-sm glow-button active:scale-98 transition-all duration-200">
+                开启新面试
+            </button>
+<img alt="用户头像" class="w-8 h-8 rounded-full object-cover ml-xs" data-alt="A professional portrait of a male tech professional smiling lightly, well-lit modern office background, light mode aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBTqdnByj8cC2sBfT5WqJulpvIChdCvKwRVtySuIy_x4ijwSCwEJhygauases5CqkbrS0Oohcp4weXGTi96gK2HA-9MM4TMO57vELZqc6UHINJjuRgCZPhDZXtJI1T0wm_yYLt0d10LWwOzcCU2cHehMvotNjldatbbC4NVnxQEyLj1JjSODSdFZyphS4EaGRxnp_FE97u9rBTUS7LvQM3wFDw14GFfzq79_Zk3nT4GRCK3kgF88RV8g6gJMp1AGBcBx1nougpYktpx"/>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-1 md:ml-64 mt-16 p-md md:p-xl overflow-y-auto">
+<div class="max-w-6xl mx-auto space-y-xl">
+<!-- Report Header -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-md">
+<div>
+<h1 class="font-h1 text-h1 text-on-background mb-xs">李明昊的面试报告</h1>
+<p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-xs">
+<span class="material-symbols-outlined text-primary">work</span> 高级前端开发工程师
+                        <span class="mx-xs text-outline-variant">|</span>
+<span class="material-symbols-outlined text-primary">calendar_today</span> 2023年10月24日
+                    </p>
+</div>
+<button class="bg-primary text-on-primary px-lg py-sm rounded-full font-label-sm text-label-sm flex items-center gap-xs glow-button hover:bg-primary/90 transition-colors active:scale-98">
+<span class="material-symbols-outlined">picture_as_pdf</span>
+                    下载 PDF 报告
+                </button>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-md">
+<!-- Section 1: Overall Rating Card -->
+<div class="glass-card rounded-2xl p-lg flex flex-col justify-center items-center text-center lg:col-span-1">
+<h3 class="font-h3 text-h3 text-on-surface mb-md">AI 综合评分</h3>
+<div class="text-[80px] font-extrabold text-gradient leading-none mb-sm">
+                        4.8
+                    </div>
+<div class="font-label-sm text-label-sm text-on-surface-variant mb-md">满分 5.0</div>
+<p class="font-body-md text-body-md text-on-surface-variant text-left mt-auto">
+                        候选人展现出卓越的技术深度和系统架构设计能力。在面对复杂的高并发场景时，逻辑清晰，表达流畅。团队协作意识强，符合高级工程师的岗位模型。建议优先录用。
+                    </p>
+</div>
+<!-- Section 3 & 4 Container -->
+<div class="lg:col-span-2 space-y-md">
+<!-- Section 3: Visual Charts (Mocked with layout) -->
+<div class="glass-card rounded-2xl p-lg">
+<h3 class="font-h3 text-h3 text-on-surface mb-md">软技能分析</h3>
+<div class="flex flex-col md:flex-row items-center justify-around gap-lg">
+<!-- Radar Chart Placeholder -->
+<div class="relative w-48 h-48 rounded-full border border-primary-fixed-dim flex items-center justify-center bg-surface-bright">
+<!-- Abstract representation of radar chart -->
+<div class="absolute inset-4 rounded-full border border-primary-container/30"></div>
+<div class="absolute inset-8 rounded-full border border-primary-container/20"></div>
+<div class="absolute inset-12 rounded-full border border-primary-container/10"></div>
+<div class="w-full h-full" style="background: conic-gradient(from 0deg, rgba(0,163,255,0.2) 0%, rgba(0,163,255,0.1) 100%); clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);"></div>
+<!-- Labels -->
+<span class="absolute -top-6 font-label-sm text-label-sm text-primary">逻辑思维</span>
+<span class="absolute -bottom-6 font-label-sm text-label-sm text-primary">抗压能力</span>
+<span class="absolute -left-10 font-label-sm text-label-sm text-primary">沟通表达</span>
+<span class="absolute -right-10 font-label-sm text-label-sm text-primary">团队协作</span>
+</div>
+<!-- Skill Bars -->
+<div class="flex-1 space-y-sm w-full">
+<div>
+<div class="flex justify-between font-label-sm text-label-sm mb-base-unit">
+<span class="text-on-surface">技术深度</span>
+<span class="text-primary">95%</span>
+</div>
+<div class="h-2 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full w-[95%] relative">
+<div class="absolute inset-0 bg-white/20 blur-[2px]"></div>
+</div>
+</div>
+</div>
+<div>
+<div class="flex justify-between font-label-sm text-label-sm mb-base-unit">
+<span class="text-on-surface">沟通表达</span>
+<span class="text-primary">88%</span>
+</div>
+<div class="h-2 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full w-[88%] relative">
+<div class="absolute inset-0 bg-white/20 blur-[2px]"></div>
+</div>
+</div>
+</div>
+<div>
+<div class="flex justify-between font-label-sm text-label-sm mb-base-unit">
+<span class="text-on-surface">逻辑思维</span>
+<span class="text-primary">92%</span>
+</div>
+<div class="h-2 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full w-[92%] relative">
+<div class="absolute inset-0 bg-white/20 blur-[2px]"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Section 4: Keyframe Thumbnails -->
+<div class="glass-card rounded-2xl p-lg">
+<h3 class="font-h3 text-h3 text-on-surface mb-md">面试关键情绪捕获</h3>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-sm">
+<div class="rounded-xl overflow-hidden relative">
+<img alt="专注情绪" class="w-full h-24 object-cover" data-alt="A close up portrait of a young professional looking thoughtfully and attentively at a screen, bright modern lighting, light mode aesthetic, high resolution, soft blue hues." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA7yG-HglLj2SxGLTaPnT4EMzAbb5790c19W6qBOvqBe3VKGBufL6NaxhjgGZYaoDxy4uB9S-Hqa04kRDl1gmph2-aIW1gTdAMi8rokYqHOygsSpfxggMKMuVvZfXrW3Ddy23N4o_tJOiVULmzqSUrVleu0e0IuCeY8qva3RdMVKrY6MfQUXG-tYedlYpy2o6KLdhz3NKwWHpYEAzFoJOXQBTmns1Yft7b3r9R-xpLJJiDJtEFYtS0fF-1HHm1Znpx9ldPYHfLqhYAp"/>
+<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-xs">
+<span class="font-label-sm text-[12px] text-white">05:21 极度专注</span>
+</div>
+</div>
+<div class="rounded-xl overflow-hidden relative">
+<img alt="自信表达" class="w-full h-24 object-cover" data-alt="A portrait of a confident tech professional smiling slightly while speaking during a video call, bright office background, light mode aesthetic, crisp details." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDi_CMgqRb70on7QWsE1QdNfU8qGIgJmi7i1WcO6tYSnBisVxUgOChpMPaNJII32peKHNE5m7HyfCSmVG7-Fi3uIoxaexfw2B-oO1_XS1qAqZGAmNOdEfRKS45cHWfH1sYfgjJsxTBMaYKKJa8rQ6uSjfV92D-3xkbTsZz9yyvtyMcMqvxupRfxvkBTMrCxLsFymQ51CeGhuoIOjc5ZMkVpuHCd7hpQqpUZOe-v7MPMPxH8GucCO3BvvL7tEogLcdybEgrnk_u9HfKP"/>
+<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-xs">
+<span class="font-label-sm text-[12px] text-white">12:45 自信阐述</span>
+</div>
+</div>
+<div class="rounded-xl overflow-hidden relative">
+<img alt="思考中" class="w-full h-24 object-cover" data-alt="A portrait of a professional looking slightly upward in thought, modern bright lighting, light mode aesthetic, clean and professional." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD4-d4SSJvwahYCq9nmcABMPzpUyDR12JvFn9ltw8V4ZJVxLcUr4aIH1MAdbZ9ugrzKWNR4wxoeaSrFQV7FdazToLiwvYEkKfG4PRhWYrjQmjDph8FbWZ2_rjGV6ZXVrd8ag9aTAXlz7zaQnskIVWB-7PvOW1IZHyA3eC1jGzVqLa-FCgByGZq8Dg0ix6OBJzU5DlpmhoeOHRkVFKc7iUpF4ghEP8rZ0ie-0fU4Jt95sQv0JXaJVr2W-DifXD6yPVs-h4KpugPoZXKu"/>
+<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-xs">
+<span class="font-label-sm text-[12px] text-white">28:10 深度思考</span>
+</div>
+</div>
+<div class="rounded-xl overflow-hidden relative">
+<img alt="愉快沟通" class="w-full h-24 object-cover" data-alt="A portrait of a professional laughing naturally during a meeting, well lit white background, light mode aesthetic, warm and engaging." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAR6Cih09YH1UlcYyDSoygzdyJ85T98zgZwU-fBiFAWX7IStedzQ-seFGSvAga-7Uf7bq48G02SJoIin1ZxOQk4ZpU6_bHEWeP4A2FB9M6xCRbJVNemSKsex5ZlDoDbF7X7vtXCHw0tojX-4L4XV_XJOuPTXD32Y-5VZU9LdbV-NZENtG9L7VwGY2uzdInOFT05rEamF2wsLsd536KiM2L7k0WC3gu-L4UzoWnwFBJHp7OdFnBF1d8aY134w4qo7d_7kBLIJ_shsoBb"/>
+<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-xs">
+<span class="font-label-sm text-[12px] text-white">42:30 积极互动</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Section 2: Detailed Q&A Timeline -->
+<div class="glass-card rounded-2xl p-lg">
+<h3 class="font-h3 text-h3 text-on-surface mb-lg">核心问答追踪</h3>
+<div class="space-y-lg relative before:absolute before:inset-y-0 before:left-[19px] before:w-[2px] before:bg-surface-dim">
+<!-- Timeline Item 1 -->
+<div class="relative pl-xl">
+<div class="absolute left-0 top-1 w-10 h-10 rounded-full bg-primary-fixed border-4 border-white flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-primary text-sm">psychology</span>
+</div>
+<div class="bg-surface-bright rounded-xl p-md border border-surface-container shadow-sm hover:shadow-md transition-shadow">
+<div class="flex justify-between items-start mb-sm">
+<h4 class="font-h3 text-[20px] text-on-surface">请描述一次你主导的复杂系统重构经验？</h4>
+<span class="bg-surface-tint/10 text-surface-tint px-sm py-base-unit rounded-full font-label-sm text-[12px]">核心亮点</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-md">
+                                候选人详细阐述了将单体应用拆分为微服务架构的过程。逻辑清晰，重点突出了在保证业务不中断的情况下的数据迁移策略，展现了优秀的全局观和风险把控能力。
+                            </p>
+<div class="flex gap-sm">
+<span class="px-sm py-base-unit bg-surface-container rounded-full font-label-sm text-[12px] text-on-surface-variant flex items-center gap-base-unit">
+<span class="material-symbols-outlined text-[16px] text-primary">star</span> 评分: 5.0
+                                </span>
+<span class="px-sm py-base-unit bg-surface-container rounded-full font-label-sm text-[12px] text-on-surface-variant flex items-center gap-base-unit">
+<span class="material-symbols-outlined text-[16px] text-tertiary">schedule</span> 耗时: 4m 30s
+                                </span>
+</div>
+</div>
+</div>
+<!-- Timeline Item 2 -->
+<div class="relative pl-xl">
+<div class="absolute left-0 top-1 w-10 h-10 rounded-full bg-surface-container border-4 border-white flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-outline text-sm">code</span>
+</div>
+<div class="bg-surface-bright rounded-xl p-md border border-surface-container shadow-sm hover:shadow-md transition-shadow">
+<div class="flex justify-between items-start mb-sm">
+<h4 class="font-h3 text-[20px] text-on-surface">如何处理前端的高并发请求导致的性能瓶颈？</h4>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-md">
+                                提出了请求合并、节流防抖、虚拟列表等常规方案，并深入探讨了 Service Worker 的缓存策略。回答全面，但对底层浏览器渲染机制的解析略显单薄。
+                            </p>
+<div class="flex gap-sm">
+<span class="px-sm py-base-unit bg-surface-container rounded-full font-label-sm text-[12px] text-on-surface-variant flex items-center gap-base-unit">
+<span class="material-symbols-outlined text-[16px] text-primary">star</span> 评分: 4.5
+                                </span>
+<span class="px-sm py-base-unit bg-surface-container rounded-full font-label-sm text-[12px] text-on-surface-variant flex items-center gap-base-unit">
+<span class="material-symbols-outlined text-[16px] text-tertiary">schedule</span> 耗时: 3m 15s
+                                </span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

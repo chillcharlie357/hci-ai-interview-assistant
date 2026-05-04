@@ -1,18 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-import json
 import re
 import time
 
-from backend.interview.llm_client import LlmClient
 
-
-DEFAULT_FOLLOWUP_QUESTIONS = [
-    "请补充这次招聘的岗位名称和职级范围。",
-    "请说明该岗位最核心的 3 项职责。",
-    "请说明本轮面试最想验证的能力或项目经历。",
-]
+DEFAULT_FOLLOWUP_QUESTIONS: list[str] = []  # 不再需要默认追问
 
 
 @dataclass(frozen=True)
@@ -54,28 +47,10 @@ def create_prep_session(candidate_name: str, resume_markdown: str) -> PrepSessio
 
 
 def advance_followup(session: PrepSession, answer: str) -> PrepSession:
+    """提交岗位信息，直接标记为 ready"""
     turns = [*session.turns, FollowupTurn(answer=answer.strip())]
-    llm_result = LlmClient.from_env().complete_json(
-        "你是招聘需求澄清助手。请只输出 JSON：ready(boolean), questions(string[]), role, job_description, interview_goal, focus_areas(string[])。如果职位要求和考察重点足够生成面试题，ready=true 且 questions=[]；否则 ready=false 并继续提出 1-3 个具体追问。",
-        json.dumps(
-            {
-                "resume_markdown": session.resume_markdown,
-                "recruiter_answers": [turn.answer for turn in turns],
-            },
-            ensure_ascii=False,
-        ),
-    )
-    if llm_result.status == "ok" and llm_result.data:
-        parsed = _parse_llm_followup(llm_result.data)
-        return replace(
-            session,
-            turns=turns,
-            followup_questions=parsed["questions"],
-            ready=bool(parsed["ready"]),
-            ready_summary=parsed["ready_summary"],
-            llm_status="ok",
-        )
 
+    # 直接从回答中提取岗位信息，标记为 ready
     summary = _fallback_ready_summary(answer)
     return replace(
         session,
@@ -99,30 +74,28 @@ def serialize_prep_session(session: PrepSession) -> dict[str, object]:
     }
 
 
-def _parse_llm_followup(data: dict[str, object]) -> dict[str, object]:
-    ready = bool(data.get("ready"))
-    questions = [str(item).strip() for item in data.get("questions", []) if str(item).strip()] if isinstance(data.get("questions"), list) else []
-    summary = ReadySummary(
-        role=str(data.get("role") or "候选人").strip() or "候选人",
-        job_description=str(data.get("job_description") or "").strip(),
-        interview_goal=str(data.get("interview_goal") or "").strip(),
-        focus_areas=[str(item).strip() for item in data.get("focus_areas", []) if str(item).strip()] if isinstance(data.get("focus_areas"), list) else [],
-    )
-    return {
-        "ready": ready,
-        "questions": [] if ready else questions or DEFAULT_FOLLOWUP_QUESTIONS[:1],
-        "ready_summary": summary if ready else None,
-    }
-
-
 def _fallback_ready_summary(answer: str) -> ReadySummary:
-    role = _extract_role(answer) or "候选人"
+    """从回答中提取岗位信息"""
+    # 尝试解析格式化的岗位信息
+    role = _extract_field(answer, "岗位") or _extract_role(answer) or "候选人"
+    job_description = _extract_field(answer, "岗位描述") or answer.strip() or "招聘方未补充职位要求。"
+    interview_goal = _extract_field(answer, "面试目标") or "评估候选人与岗位相关的项目经验、技术实现能力和表达能力。"
+
     return ReadySummary(
         role=role,
-        job_description=answer.strip() or "招聘方未补充职位要求。",
-        interview_goal=answer.strip() or "评估候选人与岗位相关的项目经验、技术实现能力和表达能力。",
+        job_description=job_description,
+        interview_goal=interview_goal,
         focus_areas=_extract_focus_areas(answer),
     )
+
+
+def _extract_field(text: str, field_name: str) -> str:
+    """从格式化文本中提取字段值，例如 '岗位：前端工程师'"""
+    pattern = rf"{field_name}[：:]\s*([^\n]+)"
+    match = re.search(pattern, text)
+    if match:
+        return match.group(1).strip()
+    return ""
 
 
 def _extract_role(text: str) -> str:
