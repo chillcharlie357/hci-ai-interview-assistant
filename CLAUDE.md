@@ -6,13 +6,18 @@
 
 AI 辅助面试 MVP，包含两条用户流程：
 
-- **招聘端** (`/recruiter`)：上传简历，回答 LLM 关于岗位的追问，配置报告可见性，创建面试链接。
+- **招聘端** (`/recruiter`)：
+  - 控制面板：统计数据、最近面试、快捷入口
+  - 面试配置 (`/recruiter/setup`)：上传简历，回答 LLM 关于岗位的追问，配置报告可见性，创建面试链接
+  - 支持 Mock 模式快速创建测试面试（跳过简历解析）
 - **候选人端** (`/interview/{sessionId}`)：加入 LiveKit 视频房间，听取数字人面试官提问，通过浏览器语音转文字或手动文本回答，提交答案进入报告流程。
+- **评价报告** (`/report/{sessionId}`)：雷达图展示软技能分析、问答时间线、完整报告下载。
 
 ## 技术栈
 
 - **后端**：Python 3.12，标准库 HTTP 服务器，由 `uv` 管理。无框架，使用 `http.server.ThreadingHTTPServer`。
-- **前端**：TypeScript + React + Vite，由 `pnpm` 管理。
+- **前端**：TypeScript + React + Vite + Ant Design，由 `pnpm` 管理。
+- **图表**：Recharts（雷达图等可视化）。
 - **LLM**：OpenAI 兼容的 Chat Completions 格式（通过 `.env` 配置）。
 - **浏览器视频**：`getUserMedia`、Canvas 指标，可选 MediaPipe Tasks Vision。
 - **简历解析**：MinerU CLI（外部工具）。
@@ -96,7 +101,14 @@ docker compose up --build
 ### 前端 (`frontend/src/`)
 
 - `main.tsx` — React 应用入口，招聘端和面试端路由。
-- `apiClient.ts` — 后端 API 客户端函数。
+- `pages/` — 页面组件：
+  - `DashboardPage/` — 控制面板（统计数据、最近面试、快捷入口）
+  - `RecruiterPage/` — 面试配置页（简历上传、岗位配置、Mock 模式）
+  - `InterviewPage/` — 面试间（数字人、视频、弹幕字幕、工具栏）
+  - `ReportPage/` — 评价报告（雷达图、问答时间线、完整报告）
+  - `NoSessionPage/` — 无会话提示页
+- `components/layout/` — 布局组件（TopNavBar、SideNavBar、AppLayout）
+- `apiClient.ts` — 后端 API 客户端函数，包含 Mock session 创建。
 - `interviewFlow.ts` — 面试状态机/流程逻辑。
 - `digitalInterviewer.ts` — 数字人面试官提示处理（TTS 集成）。
 - `speechRecognition.ts` — 浏览器语音转文字封装。
@@ -104,7 +116,9 @@ docker compose up --build
 - `pcmRecorder.ts` — 语音分析的音频录制。
 - `questionPreview.ts` — 题目预览展示逻辑。
 - `reportDownload.ts` — 报告下载/导出。
-- `config.ts` — 运行时配置，读取 `VITE_API_BASE_URL`、`VITE_INTERVIEW_FILLER_WORDS`。
+- `store/` — Zustand 全局状态管理。
+- `theme/` — Ant Design 主题配置。
+- `styles/` — CSS 变量、动画、全局样式。
 
 ### 数据流
 
@@ -136,12 +150,14 @@ docker compose up --build
 
 实现功能或变更产品范围前，先阅读 spec 文档：
 
-- `spec/prd.md` — 产品需求（v0.4）、数据结构、验收标准
+- `spec/prd.md` — 产品需求（v0.5）、数据结构、验收标准
 - `spec/goals.md` — MVP 目标、范围边界、非目标
-- `spec/implementation-plan.md` — 分阶段实施计划（12 个阶段）
+- `spec/implementation-plan.md` — 分阶段实施计划（13 个阶段）
 - `spec/problem-related-work-solution.md` — 问题分析、竞品格局、设计原则
 - `spec/digital-interviewer-meeting-experience.md` — 数字人面试官 UX 规范
 - `spec/execution-process.md` — 分支策略、TDD 流程、模块边界、Mock E2E 边界
+- `spec/FRONTEND_DESIGN.md` — 前端设计规范（设计语言、色彩、组件、布局）
+- `spec/stitch_elite_digital_presence/` — 设计参考文件（ai_9 至 ai_16）
 - `AGENTS.md` — 项目方向、产品红线和编码规范
 
 产品范围变更时，先更新 `spec/`。实现遵循 TDD：先写测试，再写生产代码。
@@ -177,4 +193,4 @@ docker compose up --build
 ## 关键依赖包
 
 - Python：`numpy`、`soundfile`（语音分析）
-- 前端：`react`、`vite`、`@livekit/components-react`、`livekit-client`、`@mediapipe/tasks-vision`
+- 前端：`react`、`vite`、`antd`、`recharts`、`@livekit/components-react`、`livekit-client`、`@mediapipe/tasks-vision`、`zustand`
