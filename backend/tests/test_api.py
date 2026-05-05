@@ -96,6 +96,11 @@ class ApiTest(unittest.TestCase):
                     "gaze_proxy": 0.61,
                     "head_pose_proxy": 0.31,
                     "blink_proxy": 0.1,
+                    "blink_count": 2,
+                    "blink_rate_per_minute": 18.4,
+                    "eye_contact_ratio": 0.72,
+                    "gaze_deviation_deg": 6.8,
+                    "eye_aspect_ratio": 0.26,
                     "nod_proxy": 0.0,
                     "hand_activity": 0.44,
                     "body_activity": 0.2,
@@ -111,6 +116,8 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(len(updated["keyframes"]), 1)
         self.assertEqual(updated["video_summary"]["event_count"], 1)
         self.assertIn("low_light", updated["video_summary"]["event_types"])
+        self.assertEqual(updated["video_events"][0]["metrics"]["blink_count"], 2)
+        self.assertAlmostEqual(updated["video_events"][0]["metrics"]["eye_contact_ratio"], 0.72)
 
     def test_report_includes_video_observations_without_hiring_language(self):
         created = self.request(
@@ -141,6 +148,7 @@ class ApiTest(unittest.TestCase):
         )
 
         self.assertIn("非语言观察", updated["report"])
+        self.assertIn("眼神接触占比", updated["report"])
         self.assertNotIn("录用", updated["report"])
         self.assertNotIn("不录用", updated["report"])
 

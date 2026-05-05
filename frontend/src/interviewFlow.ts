@@ -64,6 +64,11 @@ export type VideoMetrics = {
   gazeProxy?: number | null;
   headPoseProxy?: number | null;
   blinkProxy?: number | null;
+  blinkCount?: number | null;
+  blinkRatePerMinute?: number | null;
+  eyeContactRatio?: number | null;
+  gazeDeviationDeg?: number | null;
+  eyeAspectRatio?: number | null;
   nodProxy?: number | null;
   handActivity?: number | null;
   bodyActivity?: number | null;
@@ -328,7 +333,9 @@ function buildVideoObservations(session: InterviewSession): string[] {
   const latest = session.videoEvents.slice(-5).map((event) => {
     const brightness = typeof event.metrics.brightness === "number" ? event.metrics.brightness.toFixed(2) : "未知";
     const motion = typeof event.metrics.motion === "number" ? event.metrics.motion.toFixed(2) : "未知";
-    return `- ${event.timestamp.toFixed(1)}s：${event.eventType}，置信度 ${event.confidence.toFixed(2)}，亮度 ${brightness}，运动量 ${motion}。`;
+    const blinkRate = typeof event.metrics.blinkRatePerMinute === "number" ? `${event.metrics.blinkRatePerMinute.toFixed(1)} 次/分钟` : "未知";
+    const eyeContact = typeof event.metrics.eyeContactRatio === "number" ? `${(event.metrics.eyeContactRatio * 100).toFixed(0)}%` : "未知";
+    return `- ${event.timestamp.toFixed(1)}s：${event.eventType}，置信度 ${event.confidence.toFixed(2)}，亮度 ${brightness}，运动量 ${motion}，眨眼频率 ${blinkRate}，眼神接触占比 ${eyeContact}。`;
   });
   return [
     `- 共记录 ${session.videoEvents.length} 条观察、${session.keyframes.length} 张关键帧。以下内容仅作为观察信号，不代表能力结论。`,
