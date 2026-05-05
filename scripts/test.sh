@@ -9,6 +9,9 @@ export INTERVIEW_DISABLE_DOTENV=1
 echo "Running Python unit tests..."
 (cd "$ROOT_DIR" && uv run python -m unittest discover -s backend/tests)
 
+echo "Running script unit tests..."
+(cd "$ROOT_DIR" && bash scripts/tests/test_dev_ports.sh)
+
 if [[ ! -d "$ROOT_DIR/frontend/node_modules" ]]; then
   echo "Installing frontend dependencies..."
   (cd "$ROOT_DIR/frontend" && pnpm install)
