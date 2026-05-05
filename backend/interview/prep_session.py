@@ -31,9 +31,10 @@ class PrepSession:
     ready: bool
     ready_summary: ReadySummary | None
     llm_status: str
+    user_id: str = ""  # 所属用户 ID
 
 
-def create_prep_session(candidate_name: str, resume_markdown: str) -> PrepSession:
+def create_prep_session(candidate_name: str, resume_markdown: str, user_id: str = "") -> PrepSession:
     return PrepSession(
         id=f"prep_{int(time.time() * 1000)}",
         candidate_name=candidate_name or "候选人",
@@ -43,6 +44,7 @@ def create_prep_session(candidate_name: str, resume_markdown: str) -> PrepSessio
         ready=False,
         ready_summary=None,
         llm_status="fallback",
+        user_id=user_id,
     )
 
 

@@ -9,6 +9,12 @@ DEFAULT_DOTENV_PATH = PROJECT_ROOT / ".env"
 DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_FILLER_WORDS: list[str] = []
 
+# Supabase 默认配置
+DEFAULT_SUPABASE_URL = ""
+DEFAULT_SUPABASE_ANON_KEY = ""
+DEFAULT_SUPABASE_JWT_SECRET = ""
+DEFAULT_DATABASE_URL = ""
+
 
 def load_dotenv(path: str | Path = DEFAULT_DOTENV_PATH, *, override: bool = False) -> None:
     env_path = Path(path)
@@ -46,3 +52,22 @@ def _strip_quotes(value: str) -> str:
     if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
         return value[1:-1]
     return value
+
+
+def get_supabase_config() -> dict[str, str]:
+    """获取 Supabase 配置"""
+    return {
+        "url": get_env("SUPABASE_URL", DEFAULT_SUPABASE_URL),
+        "anon_key": get_env("SUPABASE_ANON_KEY", DEFAULT_SUPABASE_ANON_KEY),
+        "jwt_secret": get_env("SUPABASE_JWT_SECRET", DEFAULT_SUPABASE_JWT_SECRET),
+    }
+
+
+def get_database_url() -> str:
+    """获取数据库连接 URL"""
+    return get_env("DATABASE_URL", DEFAULT_DATABASE_URL)
+
+
+def is_auth_required() -> bool:
+    """检查是否需要认证（开发模式可关闭）"""
+    return get_env("REQUIRE_AUTH", "false").lower() == "true"

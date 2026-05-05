@@ -36,3 +36,5 @@ export const useAppStore = create<AppState>()(
     }
   )
 );
+
+export { useThemeStore, type ThemeMode } from "./themeStore";
