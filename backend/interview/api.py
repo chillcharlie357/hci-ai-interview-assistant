@@ -10,7 +10,20 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+from backend.auth import (
+    AuthContext,
+    AuthMiddleware,
+    register,
+    login,
+    logout,
+    refresh_session,
+    AuthError,
+    InvalidCredentialsError,
+    EmailAlreadyRegisteredError,
+    WeakPasswordError,
+)
 from backend.interview.answer_analysis import analyze_answer_text
+from backend.interview.config import is_auth_required
 from backend.interview.document_extractor import DocumentExtractionError, extract_resume_markdown
 from backend.interview.livekit_token import LiveKitConfigError, create_livekit_token
 from backend.interview.llm_client import LlmClient
@@ -31,6 +44,7 @@ from backend.speech_analysis.aggregate import (
     merge_chunk_metrics,
     summarize_cumulative_metrics,
 )
+from backend.database.session_repo import SessionRepository
 
 
 class SessionStore:
@@ -38,8 +52,18 @@ class SessionStore:
         self.sessions: dict[str, InterviewSession] = {}
         self.prep_sessions: dict[str, PrepSession] = {}
         self.speech_aggregates: dict[str, SpeechAggregateState] = {}
+        self._repo: SessionRepository | None = None
 
-    def create(self, payload: dict[str, Any]) -> InterviewSession:
+    def set_auth(self, auth: AuthContext, access_token: str) -> None:
+        """设置认证上下文，启用数据库持久化"""
+        self._repo = SessionRepository.from_auth_context(auth, access_token)
+
+    def _save_to_db(self, session: InterviewSession) -> None:
+        """保存 session 到数据库（如果已启用持久化）"""
+        if self._repo:
+            self._repo.save_session(session)
+
+    def create(self, payload: dict[str, Any], user_id: str = "") -> InterviewSession:
         llm_status = "fallback"
         question_set = generate_interview_questions(
             resume=str(payload.get("resume", "")),
@@ -68,12 +92,14 @@ class SessionStore:
             candidate_name=str(payload.get("candidate_name", "候选人")),
             role=question_set.role,
             questions=question_set.questions,
+            user_id=user_id,
         )
         session = replace(session, llm_status=llm_status)
         self.sessions[session.id] = session
+        self._save_to_db(session)  # 持久化到数据库
         return session
 
-    def create_prep(self, payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+    def create_prep(self, payload: dict[str, Any], user_id: str = "") -> tuple[int, dict[str, Any]]:
         try:
             extracted = extract_resume_markdown(
                 file_name=str(payload.get("file_name", "")),
@@ -85,6 +111,7 @@ class SessionStore:
         prep = create_prep_session(
             candidate_name=str(payload.get("candidate_name", "候选人")),
             resume_markdown=extracted.markdown,
+            user_id=user_id,
         )
         self.prep_sessions[prep.id] = prep
         return HTTPStatus.CREATED, serialize_prep_session(prep)
@@ -97,7 +124,7 @@ class SessionStore:
         self.prep_sessions[prep_session_id] = updated
         return updated
 
-    def create_from_prep(self, prep_session_id: str, payload: dict[str, Any]) -> InterviewSession | None:
+    def create_from_prep(self, prep_session_id: str, payload: dict[str, Any], user_id: str = "") -> InterviewSession | None:
         prep = self.prep_sessions.get(prep_session_id)
         if prep is None:
             return None
@@ -133,10 +160,12 @@ class SessionStore:
             questions=question_set.questions,
             report_visibility=str(payload.get("report_visibility", "recruiter_only")),
             enable_video_observation=bool(payload.get("enable_video_observation", True)),
+            user_id=user_id,
         )
         session = replace(session, llm_status=llm_status)
         self.sessions[session.id] = session
         self.speech_aggregates[session.id] = SpeechAggregateState()
+        self._save_to_db(session)  # 持久化到数据库
         return session
 
     def get(self, session_id: str) -> InterviewSession | None:
@@ -156,6 +185,7 @@ class SessionStore:
         if answer_analysis.llm_status == "ok":
             updated = replace(updated, llm_status="ok")
         self.sessions[session_id] = updated
+        self._save_to_db(updated)  # 持久化到数据库
         return updated
 
     def record_video_event(self, session_id: str, payload: dict[str, Any]) -> InterviewSession | None:
@@ -171,6 +201,7 @@ class SessionStore:
             keyframe=payload.get("keyframe") if isinstance(payload.get("keyframe"), dict) else None,
         )
         self.sessions[session_id] = updated
+        self._save_to_db(updated)  # 持久化到数据库
         return updated
 
     def record_speech_chunk(self, session_id: str, payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -211,11 +242,39 @@ def handle_api_request(
     method: str,
     path: str,
     payload: dict[str, Any] | None = None,
+    auth: AuthContext | None = None,
 ) -> tuple[int, dict[str, Any]]:
     parsed_url = urlparse(path)
     path_parts = [part for part in parsed_url.path.split("/") if part]
     query = parse_qs(parsed_url.query)
     body = payload or {}
+
+    # 获取 user_id 用于关联数据
+    user_id = auth.user_id if auth else ""
+
+    # 认证路由
+    if method == "POST" and path_parts == ["api", "auth", "login"]:
+        return _handle_login(body)
+
+    if method == "POST" and path_parts == ["api", "auth", "register"]:
+        return _handle_register(body)
+
+    if method == "POST" and path_parts == ["api", "auth", "refresh"]:
+        return _handle_refresh(body)
+
+    if method == "POST" and path_parts == ["api", "auth", "logout"]:
+        return _handle_logout(auth)
+
+    if method == "GET" and path_parts == ["api", "auth", "me"]:
+        if auth is None:
+            return HTTPStatus.UNAUTHORIZED, {"error": "authentication_required"}
+        return HTTPStatus.OK, {
+            "user": {
+                "id": auth.user_id,
+                "email": auth.email,
+                "full_name": auth.full_name or "",
+            }
+        }
 
     if method == "GET" and len(path_parts) == 3 and path_parts[:2] == ["api", "sessions"]:
         session = store.get(path_parts[2])
@@ -239,11 +298,11 @@ def handle_api_request(
         return HTTPStatus.OK, {"report": report, "llm_status": report_llm_status if report_llm_status == "ok" else session.llm_status}
 
     if method == "POST" and path_parts == ["api", "sessions"]:
-        session = store.create(body)
+        session = store.create(body, user_id=user_id)
         return HTTPStatus.CREATED, serialize_session(session)
 
     if method == "POST" and path_parts == ["api", "prep-sessions", "resume"]:
-        return store.create_prep(body)
+        return store.create_prep(body, user_id=user_id)
 
     if (
         method == "POST"
@@ -262,7 +321,7 @@ def handle_api_request(
         and path_parts[:2] == ["api", "prep-sessions"]
         and path_parts[3] == "interview-session"
     ):
-        session = store.create_from_prep(path_parts[2], body)
+        session = store.create_from_prep(path_parts[2], body, user_id=user_id)
         if session is None:
             return HTTPStatus.NOT_FOUND, {"error": "prep_session_not_found"}
         return HTTPStatus.CREATED, serialize_session(session)
@@ -322,7 +381,7 @@ def handle_api_request(
 
     # Mock session creation - 快速创建测试面试
     if method == "POST" and path_parts == ["api", "mock-session"]:
-        return _create_mock_session(store, body)
+        return _create_mock_session(store, body, user_id=user_id)
 
     return HTTPStatus.NOT_FOUND, {"error": "not_found"}
 
@@ -387,7 +446,101 @@ MOCK_JOB_DESCRIPTIONS = {
 }
 
 
-def _create_mock_session(store: SessionStore, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+def _handle_login(body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+    """处理登录请求"""
+    email = str(body.get("email", "")).strip()
+    password = str(body.get("password", "")).strip()
+
+    if not email or not password:
+        return HTTPStatus.BAD_REQUEST, {
+            "error": "missing_fields",
+            "message": "请提供邮箱和密码",
+        }
+
+    try:
+        result = login(email, password)
+        return HTTPStatus.OK, result
+    except InvalidCredentialsError as e:
+        return HTTPStatus.UNAUTHORIZED, {
+            "error": e.code,
+            "message": e.message,
+        }
+    except AuthError as e:
+        return HTTPStatus.BAD_REQUEST, {
+            "error": e.code,
+            "message": e.message,
+        }
+
+
+def _handle_register(body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+    """处理注册请求"""
+    email = str(body.get("email", "")).strip()
+    password = str(body.get("password", "")).strip()
+    full_name = str(body.get("full_name", "")).strip()
+
+    if not email or not password:
+        return HTTPStatus.BAD_REQUEST, {
+            "error": "missing_fields",
+            "message": "请提供邮箱和密码",
+        }
+
+    if len(password) < 6:
+        return HTTPStatus.BAD_REQUEST, {
+            "error": "weak_password",
+            "message": "密码至少需要 6 个字符",
+        }
+
+    try:
+        result = register(email, password, full_name)
+        return HTTPStatus.CREATED, result
+    except EmailAlreadyRegisteredError as e:
+        return HTTPStatus.CONFLICT, {
+            "error": e.code,
+            "message": e.message,
+        }
+    except WeakPasswordError as e:
+        return HTTPStatus.BAD_REQUEST, {
+            "error": e.code,
+            "message": e.message,
+        }
+    except AuthError as e:
+        return HTTPStatus.BAD_REQUEST, {
+            "error": e.code,
+            "message": e.message,
+        }
+
+
+def _handle_refresh(body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+    """处理刷新 token 请求"""
+    refresh_token = str(body.get("refresh_token", "")).strip()
+
+    if not refresh_token:
+        return HTTPStatus.BAD_REQUEST, {
+            "error": "missing_fields",
+            "message": "请提供 refresh_token",
+        }
+
+    result = refresh_session(refresh_token)
+    if result is None:
+        return HTTPStatus.UNAUTHORIZED, {
+            "error": "refresh_failed",
+            "message": "刷新失败，请重新登录",
+        }
+
+    return HTTPStatus.OK, result
+
+
+def _handle_logout(auth: AuthContext | None) -> tuple[int, dict[str, Any]]:
+    """处理退出登录请求"""
+    if auth is None:
+        return HTTPStatus.OK, {"message": "已退出"}
+
+    # Supabase 的 sign_out 需要 token，但前端已经清除了
+    # 这里主要返回成功响应，前端会清除本地存储
+    return HTTPStatus.OK, {"message": "已退出登录"}
+
+
+def _create_mock_session(store: SessionStore, body: dict[str, Any], user_id: str = "") -> tuple[int, dict[str, Any]]:
     """使用 mock 数据快速创建面试 session，跳过简历解析"""
     template = body.get("template", "frontend")
     candidate_name = body.get("candidate_name", "测试候选人")
@@ -407,6 +560,7 @@ def _create_mock_session(store: SessionStore, body: dict[str, Any]) -> tuple[int
         questions=question_set.questions,
         report_visibility=str(body.get("report_visibility", "recruiter_only")),
         enable_video_observation=bool(body.get("enable_video_observation", True)),
+        user_id=user_id,
     )
     session = replace(session, llm_status="fallback")
     store.sessions[session.id] = session
@@ -417,19 +571,64 @@ def _create_mock_session(store: SessionStore, body: dict[str, Any]) -> tuple[int
 
 def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPServer:
     store = SessionStore()
+    auth_middleware = AuthMiddleware(require_auth=is_auth_required())
 
     class InterviewApiHandler(BaseHTTPRequestHandler):
         def do_OPTIONS(self) -> None:
             self._send_json({}, HTTPStatus.NO_CONTENT)
 
         def do_GET(self) -> None:
-            status, body = handle_api_request(store, "GET", self.path)
+            auth = self._authenticate()
+            if auth is None and auth_middleware.require_auth:
+                self._send_json({"error": "authentication_required"}, HTTPStatus.UNAUTHORIZED)
+                return
+            # 设置数据库持久化上下文
+            if auth:
+                token = self._extract_token()
+                if token:
+                    store.set_auth(auth, token)
+            status, body = handle_api_request(store, "GET", self.path, auth=auth)
             self._send_json(body, HTTPStatus(status))
 
         def do_POST(self) -> None:
+            # 检查是否是公开的认证路由（不需要认证）
+            is_public_auth_route = self._is_public_auth_route()
+
+            # 非公开路由需要认证
+            if not is_public_auth_route:
+                auth = self._authenticate()
+                if auth is None and auth_middleware.require_auth:
+                    self._send_json({"error": "authentication_required"}, HTTPStatus.UNAUTHORIZED)
+                    return
+                # 设置数据库持久化上下文
+                if auth:
+                    token = self._extract_token()
+                    if token:
+                        store.set_auth(auth, token)
+            else:
+                auth = None
+
             payload = self._read_json()
-            status, body = handle_api_request(store, "POST", self.path, payload)
+            status, body = handle_api_request(store, "POST", self.path, payload, auth=auth)
             self._send_json(body, HTTPStatus(status))
+
+        def _extract_token(self) -> str | None:
+            """从请求头中提取 JWT token"""
+            auth_header = self.headers.get("Authorization", "")
+            if auth_header.startswith("Bearer "):
+                return auth_header[7:]
+            return None
+
+        def _is_public_auth_route(self) -> bool:
+            """检查是否是公开的认证路由"""
+            path = self.path.split("?")[0]  # 去掉查询参数
+            public_routes = ["/api/auth/login", "/api/auth/register", "/api/auth/refresh", "/api/auth/logout"]
+            return path in public_routes
+
+        def _authenticate(self) -> AuthContext | None:
+            """从请求头中提取并验证认证信息"""
+            headers = dict(self.headers)
+            return auth_middleware.authenticate(headers)
 
         def log_message(self, format: str, *args: Any) -> None:
             return
@@ -448,7 +647,7 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-                self.send_header("Access-Control-Allow-Headers", "Content-Type")
+                self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
                 self.send_header("Content-Length", str(len(raw)))
                 self.end_headers()
                 if status != HTTPStatus.NO_CONTENT:

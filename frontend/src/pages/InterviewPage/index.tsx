@@ -14,8 +14,6 @@ import {
   ForwardOutlined,
   EyeOutlined,
   SoundOutlined,
-  AudioMutedOutlined,
-  StopFilled,
 } from "@ant-design/icons";
 import { LiveKitRoom, ControlBar, GridLayout, ParticipantTile, RoomAudioRenderer, useTracks } from "@livekit/components-react";
 import "@livekit/components-styles";
@@ -82,10 +80,6 @@ export function InterviewPage() {
   const [cumulativeMetrics, setCumulativeMetrics] = useState<SpeechChunkResponse["cumulative"] | null>(null);
   const [faceMetrics, setFaceMetrics] = useState<FaceAnalysisMetrics | null>(null);
   const [videoObservationStatus, setVideoObservationStatus] = useState("未启动");
-
-  // 摄像头和麦克风状态
-  const [cameraEnabled, setCameraEnabled] = useState(true);
-  const [micEnabled, setMicEnabled] = useState(true);
 
   const transcriberRef = useRef<ReturnType<typeof createSpeechTranscriber> | null>(null);
   const pcmRecorderRef = useRef<PcmRecorderHandle | null>(null);
@@ -477,36 +471,6 @@ export function InterviewPage() {
     }
   }
 
-  // 切换摄像头
-  const toggleCamera = () => {
-    setCameraEnabled(prev => !prev);
-    // TODO: 实际控制 LiveKit 摄像头
-  };
-
-  // 切换麦克风
-  const toggleMic = () => {
-    setMicEnabled(prev => !prev);
-    // TODO: 实际控制 LiveKit 麦克风
-  };
-
-  // 结束面试
-  const handleEndInterview = () => {
-    Modal.confirm({
-      title: "确认结束面试？",
-      content: "结束后将无法继续回答问题。",
-      okText: "结束面试",
-      cancelText: "取消",
-      okButtonProps: { danger: true },
-      onOk: () => {
-        // 如果正在回答，先提交
-        if (isAnswering) {
-          void finishCandidateAnswer();
-        }
-        message.success("面试已结束");
-      },
-    });
-  };
-
   const captions = useMemo(() => (session ? buildConversationCaptions(session, answerText) : []), [session, answerText]);
 
   // 自动滚动到底部
@@ -642,35 +606,6 @@ export function InterviewPage() {
                 </Button>
               </>
             )}
-          </div>
-
-          {/* 工具栏：摄像头、麦克风、结束面试 */}
-          <div className="interview-toolbar">
-            <Button
-              type={cameraEnabled ? "primary" : "default"}
-              icon={<VideoCameraOutlined />}
-              onClick={toggleCamera}
-              className={`toolbar-btn ${cameraEnabled ? "" : "disabled"}`}
-            >
-              {cameraEnabled ? "摄像头" : "已关闭"}
-            </Button>
-            <Button
-              type={micEnabled ? "primary" : "default"}
-              icon={micEnabled ? <SoundOutlined /> : <AudioMutedOutlined />}
-              onClick={toggleMic}
-              className={`toolbar-btn ${micEnabled ? "" : "disabled"}`}
-            >
-              {micEnabled ? "麦克风" : "已静音"}
-            </Button>
-            <Button
-              type="primary"
-              danger
-              icon={<StopFilled />}
-              onClick={handleEndInterview}
-              className="toolbar-btn end-btn"
-            >
-              结束面试
-            </Button>
           </div>
         </div>
       </section>
@@ -1070,26 +1005,6 @@ export function InterviewPage() {
           padding: var(--space-md) 0 0;
           border-top: 1px solid rgba(0, 0, 0, 0.06);
           margin-top: var(--space-md);
-        }
-
-        .toolbar-btn {
-          min-width: 100px;
-          border-radius: var(--radius-full);
-          font-weight: 500;
-        }
-
-        .toolbar-btn.disabled {
-          opacity: 0.5;
-        }
-
-        .toolbar-btn.end-btn {
-          background: #ff4d4f;
-          border-color: #ff4d4f;
-        }
-
-        .toolbar-btn.end-btn:hover {
-          background: #ff7875;
-          border-color: #ff7875;
         }
 
         @keyframes captionSlideUp {

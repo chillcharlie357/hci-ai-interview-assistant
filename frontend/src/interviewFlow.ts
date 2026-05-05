@@ -96,6 +96,7 @@ export type VideoSummary = {
 
 export type InterviewSession = {
   id: string;
+  userId?: string;
   candidateName: string;
   role: string;
   questions: InterviewQuestion[];
