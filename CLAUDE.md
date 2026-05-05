@@ -17,6 +17,8 @@ AI 辅助面试 MVP，包含两条用户流程：
 
 - **后端**：Python 3.12，标准库 HTTP 服务器，由 `uv` 管理。无框架，使用 `http.server.ThreadingHTTPServer`。
 - **前端**：TypeScript + React + Vite + Ant Design，由 `pnpm` 管理。
+- **认证**：Supabase Auth（邮箱注册/登录，JWT token 验证）。
+- **数据库**：Supabase PostgreSQL（RLS 行级安全策略）。
 - **图表**：Recharts（雷达图等可视化）。
 - **LLM**：OpenAI 兼容的 Chat Completions 格式（通过 `.env` 配置）。
 - **浏览器视频**：`getUserMedia`、Canvas 指标，可选 MediaPipe Tasks Vision。
@@ -87,7 +89,16 @@ docker compose up --build
 
 ### 后端 (`backend/`)
 
-- `interview/api.py` — HTTP API 服务器。所有路由由 `BaseHTTPRequestHandler` 处理。内存中的 `SessionStore` 持有 `InterviewSession` 和 `PrepSession` 对象。
+- `auth/` — 用户认证模块：
+  - `service.py` — 认证服务（注册、登录、退出、token 验证）
+  - `middleware.py` — 认证中间件，验证 JWT token
+  - `supabase_client.py` — Supabase 客户端封装
+  - `models.py` — AuthContext 数据模型
+  - `exceptions.py` — 认证异常类型
+- `database/` — 数据持久化模块：
+  - `session_repo.py` — Session 数据仓库，负责数据库 CRUD
+  - `migrations/` — SQL 迁移脚本
+- `interview/api.py` — HTTP API 服务器。所有路由由 `BaseHTTPRequestHandler` 处理。`SessionStore` 持有 `InterviewSession` 和 `PrepSession` 对象，支持数据库持久化。
 - `interview/session.py` — 核心领域：`InterviewSession`、`InterviewEvent`、`AnswerRecord`、`VideoMetrics`。包含创建会话、记录答案、记录视频事件、生成 Markdown 报告的函数。
 - `interview/question_engine.py` — 从简历/岗位描述/面试目标生成问题。`InterviewQuestion` 数据类包含维度、提问、追问字段。
 - `interview/prep_session.py` — 招聘端准备流程：简历上传、LLM 追问、会话创建。
@@ -100,15 +111,22 @@ docker compose up --build
 
 ### 前端 (`frontend/src/`)
 
-- `main.tsx` — React 应用入口，招聘端和面试端路由。
+- `main.tsx` — React 应用入口，包含路由配置和认证守卫。
+- `auth/` — 认证模块：
+  - `LoginPage.tsx` — 登录页面（Ant Design Pro LoginFormPage）
+  - `RegisterPage.tsx` — 注册页面
+  - `ProtectedRoute.tsx` — 路由守卫，检查认证状态
+  - `authStore.ts` — 认证状态管理（Zustand + persist）
+  - `index.ts` — 模块导出
 - `pages/` — 页面组件：
   - `DashboardPage/` — 控制面板（统计数据、最近面试、快捷入口）
   - `RecruiterPage/` — 面试配置页（简历上传、岗位配置、Mock 模式）
-  - `InterviewPage/` — 面试间（数字人、视频、弹幕字幕、工具栏）
+  - `InterviewPage/` — 面试间（数字人、视频、弹幕字幕）
   - `ReportPage/` — 评价报告（雷达图、问答时间线、完整报告）
   - `NoSessionPage/` — 无会话提示页
-- `components/layout/` — 布局组件（TopNavBar、SideNavBar、AppLayout）
-- `apiClient.ts` — 后端 API 客户端函数，包含 Mock session 创建。
+- `components/layout/` — 布局组件（TopNavBar 含用户菜单和主题切换、SideNavBar、AppLayout）
+- `apiClient.ts` — 后端 API 客户端函数，包含 Mock session 创建和认证 header。
+- `config.ts` — 前端配置（API 基础 URL、认证开关等）。
 - `interviewFlow.ts` — 面试状态机/流程逻辑。
 - `digitalInterviewer.ts` — 数字人面试官提示处理（TTS 集成）。
 - `speechRecognition.ts` — 浏览器语音转文字封装。
@@ -116,26 +134,40 @@ docker compose up --build
 - `pcmRecorder.ts` — 语音分析的音频录制。
 - `questionPreview.ts` — 题目预览展示逻辑。
 - `reportDownload.ts` — 报告下载/导出。
-- `store/` — Zustand 全局状态管理。
-- `theme/` — Ant Design 主题配置。
+- `store/` — Zustand 全局状态管理（含 themeStore）。
+- `theme/` — Ant Design 主题配置（含 illustrationTheme 插画风格）。
 - `styles/` — CSS 变量、动画、全局样式。
 
 ### 数据流
 
-1. 招聘官上传简历 → MinerU 提取文本 → 创建 `PrepSession`。
-2. LLM 生成关于岗位的追问 → 招聘官回答。
-3. 通过 `question_engine` 创建包含结构化问题的 `InterviewSession`。
-4. 候选人加入面试房间 → 答案记录为 `AnswerRecord` 并附带指标。
-5. 视频事件记录为 `VideoMetrics`（仅作为观察信号）。
-6. `generate_markdown_report()` 生成可审计报告，并执行可见性控制（`viewer=recruiter|candidate`）。
+1. 用户注册/登录 → Supabase Auth 验证 → 前端存储 JWT token。
+2. 招聘官上传简历 → MinerU 提取文本 → 创建 `PrepSession`（关联 user_id）。
+3. LLM 生成关于岗位的追问 → 招聘官回答。
+4. 通过 `question_engine` 创建包含结构化问题的 `InterviewSession`（关联 user_id）。
+5. Session 数据自动持久化到 Supabase PostgreSQL。
+6. 候选人加入面试房间 → 答案记录为 `AnswerRecord` 并附带指标。
+7. 视频事件记录为 `VideoMetrics`（仅作为观察信号）。
+8. `generate_markdown_report()` 生成可审计报告，并执行可见性控制（`viewer=recruiter|candidate`）。
 
 ## 环境变量
 
 复制 `.env.example` 为 `.env`。关键变量：
 
-- `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL` — LLM 配置（可选；缺失时应用使用降级逻辑）
+### Supabase 认证（必填）
+
+- `SUPABASE_URL` — Supabase 项目 URL
+- `SUPABASE_ANON_KEY` — Supabase 匿名公钥
+- `REQUIRE_AUTH` — 后端认证开关（`true`/`false`，默认 `false`）
+- `VITE_REQUIRE_AUTH` — 前端认证开关（`true`/`false`，默认 `false`）
+
+### LLM 配置（可选）
+
+- `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL` — LLM 配置（缺失时应用使用降级逻辑）
+
+### 其他工具（可选）
+
 - `MINERU_COMMAND` — 简历解析工具命令
-- `LIVEKIT_URL`、`LIVEKIT_API_KEY`、`LIVEKIT_API_SECRET` — 视频会议配置（可选）
+- `LIVEKIT_URL`、`LIVEKIT_API_KEY`、`LIVEKIT_API_SECRET` — 视频会议配置
 - `VITE_API_BASE_URL` — 前端 API 端点（默认 `http://127.0.0.1:8000`）
 - `VITE_INTERVIEW_FILLER_WORDS` — 逗号分隔的填充词列表，用于语音分析
 
@@ -177,11 +209,18 @@ docker compose up --build
 
 关键领域对象（均为 frozen dataclass，定义在 `backend/interview/session.py` 和 `question_engine.py` 中）：
 
+- `AuthContext` — user_id、email、full_name（定义在 `backend/auth/models.py`）
 - `InterviewQuestion` — id、dimension、prompt、followUps、evidenceHints
 - `AnswerRecord` — question_id、dimension、prompt、text、duration_sec、word_count、filler_word_count
 - `InterviewEvent` — type、timestamp、message、question_id
 - `VideoMetrics` — face_present、brightness、blur、motion、gaze_proxy、head_pose_proxy、blink_proxy、nod_proxy、hand_activity、body_activity
-- `InterviewSession` — 持有问题、答案、事件、video_events、keyframes、llm_status、报告可见性
+- `InterviewSession` — 持有问题、答案、事件、video_events、keyframes、llm_status、报告可见性、user_id
+
+### 数据库表
+
+- `profiles` — 用户资料（id、email、full_name、avatar_url、preferences）
+- `interview_sessions` — 面试会话（含 JSON 字段：questions、answers、events、video_events、keyframes）
+- `prep_sessions` — 准备会话（含 JSON 字段：turns、ready_summary）
 
 ## 产品红线
 
@@ -192,5 +231,5 @@ docker compose up --build
 
 ## 关键依赖包
 
-- Python：`numpy`、`soundfile`（语音分析）
-- 前端：`react`、`vite`、`antd`、`recharts`、`@livekit/components-react`、`livekit-client`、`@mediapipe/tasks-vision`、`zustand`
+- Python：`numpy`、`soundfile`（语音分析）、`supabase`（认证和数据库）
+- 前端：`react`、`vite`、`antd`、`@ant-design/pro-components`、`recharts`、`@livekit/components-react`、`livekit-client`、`@mediapipe/tasks-vision`、`zustand`、`antd-style`

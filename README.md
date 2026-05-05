@@ -32,14 +32,32 @@ The script starts:
 - API: `http://127.0.0.1:8000`
 - Frontend: `http://localhost:5173`
 
-Optional OpenAI-compatible LLM configuration lives in `.env`:
+Configuration lives in `.env`:
 
 ```bash
 cp .env.example .env
 ```
 
-Fill in `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and `OPENAI_MODEL` in `.env`. Do not commit `.env`.
-For resume extraction and video meetings, also configure:
+### Required: Supabase Authentication
+
+```bash
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=eyJ...
+REQUIRE_AUTH=true
+VITE_REQUIRE_AUTH=true
+```
+
+Get these values from Supabase Dashboard → Settings → API.
+
+### Optional: LLM Configuration
+
+```bash
+OPENAI_API_KEY=sk-...
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-4
+```
+
+### Optional: Other Services
 
 ```bash
 UV_DEFAULT_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
@@ -70,15 +88,30 @@ uv run python -m backend.interview.api --host 127.0.0.1 --port 8000
 
 Useful API endpoints:
 
+### Authentication (public)
+
+- `POST /api/auth/register`: register a new user (email, password, full_name).
+- `POST /api/auth/login`: login with email and password.
+- `POST /api/auth/refresh`: refresh access token.
+- `POST /api/auth/logout`: logout (clears server session).
+
+### Authentication (protected)
+
+- `GET /api/auth/me`: get current user info.
+
+### Interview Sessions (protected)
+
 - `POST /api/sessions`: create an interview session from candidate, resume, JD, and goal inputs.
 - `POST /api/prep-sessions/resume`: upload a PDF/DOCX/image resume for MinerU extraction.
 - `POST /api/prep-sessions/{id}/followups`: submit recruiter answers to LLM role follow-up questions.
 - `POST /api/prep-sessions/{id}/interview-session`: generate the candidate interview session.
-- `GET /api/sessions/{id}`: fetch an in-memory session.
+- `GET /api/sessions/{id}`: fetch a session.
 - `POST /api/sessions/{id}/livekit-token`: create a LiveKit participant token.
 - `GET /api/sessions/{id}/report?viewer=recruiter|candidate`: fetch report with visibility enforcement.
 - `POST /api/sessions/{id}/video-events`: record a browser-side camera observation event and optional in-memory keyframe.
 - `POST /api/sessions/{id}/answers`: record the current answer and return the updated session plus Markdown report.
+
+Note: When `REQUIRE_AUTH=true`, all session endpoints require a valid JWT token in the `Authorization: Bearer <token>` header.
 
 ## Run Frontend
 
