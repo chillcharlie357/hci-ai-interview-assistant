@@ -55,6 +55,11 @@ type ApiVideoMetrics = {
   gaze_proxy?: number | null;
   head_pose_proxy?: number | null;
   blink_proxy?: number | null;
+  blink_count?: number | null;
+  blink_rate_per_minute?: number | null;
+  eye_contact_ratio?: number | null;
+  gaze_deviation_deg?: number | null;
+  eye_aspect_ratio?: number | null;
   nod_proxy?: number | null;
   hand_activity?: number | null;
   body_activity?: number | null;
@@ -468,6 +473,11 @@ function mapVideoMetrics(metrics: ApiVideoMetrics): VideoMetrics {
     gazeProxy: metrics.gaze_proxy,
     headPoseProxy: metrics.head_pose_proxy,
     blinkProxy: metrics.blink_proxy,
+    blinkCount: metrics.blink_count,
+    blinkRatePerMinute: metrics.blink_rate_per_minute,
+    eyeContactRatio: metrics.eye_contact_ratio,
+    gazeDeviationDeg: metrics.gaze_deviation_deg,
+    eyeAspectRatio: metrics.eye_aspect_ratio,
     nodProxy: metrics.nod_proxy,
     handActivity: metrics.hand_activity,
     bodyActivity: metrics.body_activity
@@ -483,6 +493,11 @@ function toApiVideoMetrics(metrics: VideoMetrics): ApiVideoMetrics {
     gaze_proxy: metrics.gazeProxy,
     head_pose_proxy: metrics.headPoseProxy,
     blink_proxy: metrics.blinkProxy,
+    blink_count: metrics.blinkCount,
+    blink_rate_per_minute: metrics.blinkRatePerMinute,
+    eye_contact_ratio: metrics.eyeContactRatio,
+    gaze_deviation_deg: metrics.gazeDeviationDeg,
+    eye_aspect_ratio: metrics.eyeAspectRatio,
     nod_proxy: metrics.nodProxy,
     hand_activity: metrics.handActivity,
     body_activity: metrics.bodyActivity
