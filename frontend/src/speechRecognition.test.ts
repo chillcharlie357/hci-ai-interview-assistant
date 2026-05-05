@@ -21,7 +21,7 @@ describe("speechRecognition", () => {
     const transcriber = createSpeechTranscriber(fakeWindow, onTranscript);
 
     transcriber.start();
-    transcriber.recognition?.onresult?.({ results: [{ 0: { transcript: "我负责问题生成" } }] });
+    transcriber.recognition?.onresult?.({ results: [{ 0: { transcript: "我负责问题生成" }, isFinal: true }] });
     transcriber.stop();
 
     expect(transcriber.supported).toBe(true);

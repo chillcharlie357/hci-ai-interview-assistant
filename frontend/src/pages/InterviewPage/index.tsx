@@ -36,6 +36,7 @@ import { createSpeechTranscriber } from "../../speechRecognition";
 import { startPcmRecorder, type PcmRecorderHandle } from "../../pcmRecorder";
 import { buildReportFilename, downloadMarkdownReport } from "../../reportDownload";
 import { useAppStore } from "../../store";
+import { shouldRequestLiveKitToken } from "./liveKitState";
 
 const { TextArea } = Input;
 
@@ -70,11 +71,17 @@ export function InterviewPage() {
   const chunkUploadQueueRef = useRef<Promise<void>>(Promise.resolve());
   const lastAutoSpokenQuestionIdRef = useRef<string | null>(null);
   const danmakuScrollRef = useRef<HTMLDivElement | null>(null);
+  const liveKitRequestedSessionIdRef = useRef<string | null>(null);
 
   // 加载会话
   useEffect(() => {
     if (!sessionId) return;
     if (globalSession && globalSession.id === sessionId) {
+      if (session?.id !== globalSession.id) {
+        setLiveKit(null);
+        setMeetingError("");
+        liveKitRequestedSessionIdRef.current = null;
+      }
       setSession(globalSession);
       setLoading(false);
       return;
@@ -88,6 +95,24 @@ export function InterviewPage() {
       setGlobalSession(session);
     }
   }, [session, setGlobalSession]);
+
+  // LiveKit token is independent from session loading. This keeps video working
+  // when the session was already present in the frontend store.
+  useEffect(() => {
+    if (
+      !shouldRequestLiveKitToken({
+        routeSessionId: sessionId,
+        loadedSessionId: session?.id,
+        candidateName: session?.candidateName,
+        liveKitConnected: Boolean(liveKit),
+        tokenRequestAttempted: liveKitRequestedSessionIdRef.current === session?.id
+      })
+    ) {
+      return;
+    }
+    liveKitRequestedSessionIdRef.current = session!.id;
+    void loadLiveKitToken(session!);
+  }, [sessionId, session?.id, session?.candidateName, liveKit]);
 
   // 自动播放问题
   useEffect(() => {
@@ -123,20 +148,28 @@ export function InterviewPage() {
     setLoading(true);
     try {
       const loaded = await getSession(sessionId);
-      setSession(loaded);
-      try {
-        setLiveKit(await requestLiveKitToken(sessionId, {
-          participantName: loaded.candidateName,
-          participantRole: "candidate",
-        }));
+      if (session?.id !== loaded.id) {
+        setLiveKit(null);
         setMeetingError("");
-      } catch (error) {
-        setMeetingError(error instanceof Error ? error.message : "会议服务未配置");
+        liveKitRequestedSessionIdRef.current = null;
       }
+      setSession(loaded);
     } catch (error) {
       message.error(error instanceof Error ? error.message : "加载面试失败");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadLiveKitToken(loaded: InterviewSession) {
+    try {
+      setLiveKit(await requestLiveKitToken(loaded.id, {
+        participantName: loaded.candidateName,
+        participantRole: "candidate",
+      }));
+      setMeetingError("");
+    } catch (error) {
+      setMeetingError(error instanceof Error ? error.message : "会议服务未配置");
     }
   }
 
