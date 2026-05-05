@@ -56,6 +56,11 @@ if [[ "${INTERVIEW_DISABLE_DOTENV:-0}" != "1" ]]; then
   load_env_file
 fi
 
+if [[ "${INTERVIEW_STOP_OLD_SERVICES:-1}" != "0" ]]; then
+  stop_port_listeners "$API_PORT" "API" || true
+  stop_port_listeners "$FRONTEND_PORT" "Frontend" || true
+fi
+
 PORT_CHECK_STATUS=0
 require_port_available "$API_PORT" "API" || PORT_CHECK_STATUS=1
 require_port_available "$FRONTEND_PORT" "Frontend" || PORT_CHECK_STATUS=1
