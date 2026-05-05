@@ -13,6 +13,7 @@ import type {
   VideoSummary
 } from "./interviewFlow";
 import { getApiBaseUrl } from "./config";
+import { useAuthStore } from "./auth/authStore";
 
 type Fetcher = typeof fetch;
 
@@ -82,6 +83,7 @@ type ApiVideoSummary = {
 
 type ApiSession = {
   id: string;
+  user_id?: string;
   candidate_name: string;
   role: string;
   questions: ApiQuestion[];
@@ -336,11 +338,31 @@ export async function createMockSession(
 async function request<T>(path: string, payload: unknown, expectedStatus: number, options: ClientOptions): Promise<T> {
   const baseUrl = options.baseUrl ?? getApiBaseUrl();
   const fetcher = options.fetcher ?? fetch;
+
+  // 获取认证 token
+  const accessToken = useAuthStore.getState().accessToken;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  // 添加认证头（有 token 时才添加）
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
+
   const response = await fetcher(`${baseUrl}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(payload)
   });
+
+  // 处理 401 未授权响应
+  if (response.status === 401) {
+    useAuthStore.getState().logout();
+    window.location.href = "/login";
+    throw new Error("认证已过期，请重新登录");
+  }
 
   if (response.status !== expectedStatus) {
     throw new Error(`API request failed with ${response.status}: ${await response.text()}`);
@@ -352,7 +374,24 @@ async function request<T>(path: string, payload: unknown, expectedStatus: number
 async function getRequest<T>(path: string, expectedStatus: number, options: ClientOptions): Promise<T> {
   const baseUrl = options.baseUrl ?? getApiBaseUrl();
   const fetcher = options.fetcher ?? fetch;
-  const response = await fetcher(`${baseUrl}${path}`, { method: "GET" });
+
+  // 获取认证 token
+  const accessToken = useAuthStore.getState().accessToken;
+
+  const headers: Record<string, string> = {};
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
+
+  const response = await fetcher(`${baseUrl}${path}`, { method: "GET", headers });
+
+  // 处理 401 未授权响应
+  if (response.status === 401) {
+    useAuthStore.getState().logout();
+    window.location.href = "/login";
+    throw new Error("认证已过期，请重新登录");
+  }
+
   if (response.status !== expectedStatus) {
     throw new Error(`API request failed with ${response.status}: ${await response.text()}`);
   }
@@ -363,6 +402,7 @@ function mapSession(session: ApiSession): InterviewSession {
   const questions = session.questions.map(mapQuestion);
   return {
     id: session.id,
+    userId: session.user_id,
     candidateName: session.candidate_name,
     role: session.role,
     questions,

@@ -68,6 +68,7 @@ class InterviewSession:
     current_index: int
     answers: list[AnswerRecord]
     events: list[InterviewEvent]
+    user_id: str = ""  # 所属用户 ID
     llm_status: str = "fallback"
     video_events: list[VideoEvent] | None = None
     keyframes: list[KeyframeRecord] | None = None
@@ -88,6 +89,7 @@ def create_interview_session(
     questions: list[InterviewQuestion] | None = None,
     report_visibility: str = "recruiter_only",
     enable_video_observation: bool = True,
+    user_id: str = "",
 ) -> InterviewSession:
     question_list = questions or []
     session_id = f"session_{int(time.time() * 1000)}"
@@ -98,6 +100,7 @@ def create_interview_session(
         questions=question_list,
         current_index=0,
         answers=[],
+        user_id=user_id,
         llm_status="fallback",
         video_events=[],
         keyframes=[],
