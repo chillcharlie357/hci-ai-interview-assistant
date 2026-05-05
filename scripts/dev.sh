@@ -7,6 +7,8 @@ FRONTEND_PORT="${FRONTEND_PORT:-5173}"
 export UV_CACHE_DIR="${UV_CACHE_DIR:-$ROOT_DIR/.uv-cache}"
 export UV_DEFAULT_INDEX="${UV_DEFAULT_INDEX:-https://pypi.tuna.tsinghua.edu.cn/simple}"
 
+source "$ROOT_DIR/scripts/lib/dev_ports.sh"
+
 command -v uv >/dev/null 2>&1 || {
   echo "uv is required. Install it from https://docs.astral.sh/uv/ before starting the backend." >&2
   exit 1
@@ -52,6 +54,13 @@ trap cleanup EXIT INT TERM
 
 if [[ "${INTERVIEW_DISABLE_DOTENV:-0}" != "1" ]]; then
   load_env_file
+fi
+
+PORT_CHECK_STATUS=0
+require_port_available "$API_PORT" "API" || PORT_CHECK_STATUS=1
+require_port_available "$FRONTEND_PORT" "Frontend" || PORT_CHECK_STATUS=1
+if [[ "$PORT_CHECK_STATUS" -ne 0 ]]; then
+  exit "$PORT_CHECK_STATUS"
 fi
 
 if [[ ! -d "$ROOT_DIR/frontend/node_modules" ]]; then
