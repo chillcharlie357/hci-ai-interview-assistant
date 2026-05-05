@@ -80,6 +80,7 @@ export function InterviewPage() {
   const [cumulativeMetrics, setCumulativeMetrics] = useState<SpeechChunkResponse["cumulative"] | null>(null);
   const [faceMetrics, setFaceMetrics] = useState<FaceAnalysisMetrics | null>(null);
   const [videoObservationStatus, setVideoObservationStatus] = useState("未启动");
+  const [cameraEnabled] = useState(true);
 
   const transcriberRef = useRef<ReturnType<typeof createSpeechTranscriber> | null>(null);
   const pcmRecorderRef = useRef<PcmRecorderHandle | null>(null);
