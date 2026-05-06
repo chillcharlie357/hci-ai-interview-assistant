@@ -9,6 +9,8 @@ dependencies = [
     "soundfile>=0.13.1",
     "dashscope>=1.20.0",
     "websockets>=13.0",
+    # 认证系统依赖
+    "supabase>=2.29.0",
 ]
 
 [tool.uv]
