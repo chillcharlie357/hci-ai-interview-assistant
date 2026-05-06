@@ -5,8 +5,14 @@ description = "AI-assisted interview MVP with recruiter setup, LiveKit interview
 requires-python = ">=3.12"
 dependencies = [
     "numpy>=2.4.4",
+    "scipy>=1.17.1",
     "soundfile>=0.13.1",
 ]
 
 [tool.uv]
 package = false
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
