@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 API_PORT="${API_PORT:-8000}"
 FRONTEND_PORT="${FRONTEND_PORT:-5173}"
+ASR_WS_PORT="${ASR_WS_PORT:-8765}"
 export UV_CACHE_DIR="${UV_CACHE_DIR:-$ROOT_DIR/.uv-cache}"
 export UV_DEFAULT_INDEX="${UV_DEFAULT_INDEX:-https://pypi.tuna.tsinghua.edu.cn/simple}"
 

@@ -33,6 +33,11 @@ import type { InterviewSession } from "../../interviewFlow";
 import { generateMarkdownReport, buildAvatarPrompt } from "../../interviewFlow";
 import { buildConversationCaptions, describeDigitalInterviewerState, shouldAutoSpeakQuestion, type DigitalInterviewerState } from "../../digitalInterviewer";
 import { createSpeechTranscriber } from "../../speechRecognition";
+import {
+  createQwenAsrStream,
+  isQwenAsrSupported,
+  type QwenAsrStreamHandle,
+} from "../../qwenAsrStream";
 import { startPcmRecorder, type PcmRecorderHandle } from "../../pcmRecorder";
 import { buildReportFilename, downloadMarkdownReport } from "../../reportDownload";
 import { useAppStore } from "../../store";
@@ -56,6 +61,8 @@ export function InterviewPage() {
   const [loading, setLoading] = useState(true);
   const [audioChunkStatus, setAudioChunkStatus] = useState("未启动");
   const [cumulativeMetrics, setCumulativeMetrics] = useState<SpeechChunkResponse["cumulative"] | null>(null);
+  const [interimTranscript, setInterimTranscript] = useState("");
+  const [asrProvider, setAsrProvider] = useState<"qwen" | "webspeech" | "none">("none");
 
   // 模拟指标数据
   const [focusScore, setFocusScore] = useState(92);
@@ -195,27 +202,30 @@ export function InterviewPage() {
   function startCandidateAnswer() {
     if (!session?.currentQuestion || answerStartedAt !== null) return;
     setCumulativeMetrics(null);
+    setInterimTranscript("");
 
-    const transcriber = createSpeechTranscriber(
-      window as Parameters<typeof createSpeechTranscriber>[0],
-      (text) => setAnswerText((current) => (current ? `${current}${text}` : text)),
-      () => {},
-      () => {}
-    );
-    transcriberRef.current = transcriber;
-    transcriber.start();
-    void startAudioChunkUpload();
+    void startMediaStreamAndAsr();
     setAnswerStartedAt(Date.now());
   }
 
-  async function startAudioChunkUpload() {
+  async function startMediaStreamAndAsr() {
     if (!navigator.mediaDevices?.getUserMedia) {
       setAudioChunkStatus("当前浏览器不支持麦克风采集");
+      // 仍然允许用户手动输入答案
       return;
     }
+
+    let stream: MediaStream;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStreamRef.current = stream;
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (error) {
+      setAudioChunkStatus(error instanceof Error ? error.message : "麦克风不可用");
+      return;
+    }
+    mediaStreamRef.current = stream;
+
+    // 1) 起 PCM 采集，用于后端 speech_analysis（语速/停顿等特征）
+    try {
       const recorder = await startPcmRecorder(stream, (wavBlob) => {
         enqueueSpeechChunkUpload(wavBlob);
       });
@@ -223,6 +233,65 @@ export function InterviewPage() {
       setAudioChunkStatus("采集中");
     } catch (error) {
       setAudioChunkStatus(error instanceof Error ? error.message : "音频上传未启动");
+    }
+
+    // 2) 起实时 ASR：优先 Qwen3-ASR（后端 WebSocket），失败时降级 Web Speech
+    await startAsrWithFallback(stream);
+  }
+
+  async function startAsrWithFallback(stream: MediaStream) {
+    const preferQwen =
+      (import.meta as ImportMeta & { env?: Record<string, string | undefined> })
+        .env?.VITE_ASR_PROVIDER !== "webspeech";
+
+    if (preferQwen && isQwenAsrSupported()) {
+      const qwen = createQwenAsrStream(stream, {
+        onReady: () => setAsrProvider("qwen"),
+        onInterim: (text) => setInterimTranscript(text),
+        onFinal: (text) => {
+          setInterimTranscript("");
+          setAnswerText((current) => (current ? `${current}${text}` : text));
+        },
+        onError: (msg) => {
+          // 如果 qwen 起不来（例如后端没配 KEY / 网络不通），自动降级到 webspeech
+          if (asrProvider !== "webspeech") {
+            message.warning(`实时字幕不可用，已切换到浏览器识别：${msg}`);
+            void qwen.stop();
+            startWebSpeechTranscriber();
+          }
+        },
+        onClosed: () => {
+          // 正常 stop 关闭不报错
+        },
+      });
+      try {
+        await qwen.start();
+        qwenAsrRef.current = qwen;
+        return;
+      } catch {
+        // 继续降级
+      }
+    }
+
+    startWebSpeechTranscriber();
+  }
+
+  function startWebSpeechTranscriber() {
+    const transcriber = createSpeechTranscriber(
+      window as Parameters<typeof createSpeechTranscriber>[0],
+      (text) => {
+        setInterimTranscript("");
+        setAnswerText((current) => (current ? `${current}${text}` : text));
+      },
+      () => {},
+      (text) => setInterimTranscript(text)
+    );
+    if (transcriber.supported) {
+      transcriberRef.current = transcriber;
+      transcriber.start();
+      setAsrProvider("webspeech");
+    } else {
+      setAsrProvider("none");
     }
   }
 
@@ -246,6 +315,12 @@ export function InterviewPage() {
     setFinishingAnswer(true);
 
     transcriberRef.current?.stop();
+    transcriberRef.current = null;
+    if (qwenAsrRef.current) {
+      await qwenAsrRef.current.stop();
+      qwenAsrRef.current = null;
+    }
+    setInterimTranscript("");
     const recorder = pcmRecorderRef.current;
     if (recorder) {
       await recorder.stop();
@@ -393,6 +468,14 @@ export function InterviewPage() {
 
           {/* 输入区 */}
           <div className="caption-input">
+            {isAnswering && (interimTranscript || asrProvider !== "none") && (
+              <div className="asr-interim-hint">
+                {asrProvider === "qwen" && <Tag color="green">Qwen3-ASR 实时字幕</Tag>}
+                {asrProvider === "webspeech" && <Tag color="orange">浏览器识别（降级）</Tag>}
+                {asrProvider === "none" && <Tag>仅手动输入</Tag>}
+                {interimTranscript && <span className="asr-interim-text">{interimTranscript}</span>}
+              </div>
+            )}
             <TextArea
               value={answerText}
               onChange={(e) => setAnswerText(e.target.value)}

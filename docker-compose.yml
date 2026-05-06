@@ -15,6 +15,19 @@ services:
     ports:
       - "8000:8000"
 
+  asr:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    environment:
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      ASR_WS_HOST: 0.0.0.0
+      ASR_WS_PORT: "8765"
+      ASR_LOG_LEVEL: ${ASR_LOG_LEVEL:-INFO}
+    command: ["uv", "run", "python", "-m", "backend.asr.qwen_realtime", "--host", "0.0.0.0", "--port", "8765"]
+    ports:
+      - "8765:8765"
+
   frontend:
     build:
       context: .
@@ -22,7 +35,10 @@ services:
     environment:
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:8000}
       VITE_INTERVIEW_FILLER_WORDS: ${VITE_INTERVIEW_FILLER_WORDS:-嗯,啊,呃,额,那个,就是}
+      VITE_ASR_WS_URL: ${VITE_ASR_WS_URL:-ws://127.0.0.1:8765/}
+      VITE_ASR_PROVIDER: ${VITE_ASR_PROVIDER:-qwen}
     depends_on:
       - backend
+      - asr
     ports:
       - "5173:5173"

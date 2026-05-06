@@ -603,6 +603,27 @@ textarea {
   margin-top: 12px;
 }
 
+.asr-interim-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  margin-bottom: 6px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  color: #e0e0e0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.asr-interim-text {
+  flex: 1;
+  font-style: italic;
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .speech-metrics-box {
   border-top: 1px solid #d8e0ec;
   display: grid;
