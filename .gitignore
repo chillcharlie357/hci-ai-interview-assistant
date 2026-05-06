@@ -27,3 +27,4 @@ frontend/public/mediapipe/wasm/
 # Claude Code local config
 .claude/
 
+.workbuddy/
