@@ -95,7 +95,6 @@ export function InterviewPage() {
   const [micEnabled, setMicEnabled] = useState(true);
   const [faceMetrics, setFaceMetrics] = useState<FaceAnalysisMetrics | null>(null);
   const [videoObservationStatus, setVideoObservationStatus] = useState("未启动");
-  const [cameraEnabled] = useState(true);
 
   const transcriberRef = useRef<ReturnType<typeof createSpeechTranscriber> | null>(null);
   const pcmRecorderRef = useRef<PcmRecorderHandle | null>(null);
