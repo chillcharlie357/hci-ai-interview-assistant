@@ -29,10 +29,27 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: "ai-interview-storage",
+      version: 2,
       partialize: (state) => ({
         prepSession: state.prepSession,
-        interviewSession: state.interviewSession,
+        sidebarCollapsed: state.sidebarCollapsed,
       }),
+      migrate: (persistedState) => {
+        if (!persistedState || typeof persistedState !== "object") {
+          return {
+            prepSession: null,
+            interviewSession: null,
+            sidebarCollapsed: false,
+          } satisfies Pick<AppState, "prepSession" | "interviewSession" | "sidebarCollapsed">;
+        }
+
+        const state = persistedState as Partial<AppState>;
+        return {
+          prepSession: state.prepSession ?? null,
+          interviewSession: null,
+          sidebarCollapsed: state.sidebarCollapsed ?? false,
+        } satisfies Pick<AppState, "prepSession" | "interviewSession" | "sidebarCollapsed">;
+      },
     }
   )
 );

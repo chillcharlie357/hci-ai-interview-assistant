@@ -21,8 +21,10 @@ presentations/*.pptx
 presentations/*.key
 presentations/project-intro/
 scripts/resource/
+frontend/public/models/
+frontend/public/mediapipe/wasm/
 
 # Claude Code local config
 .claude/
 
-
+.workbuddy/

@@ -16,6 +16,7 @@ import {
   Tag,
   Divider,
   App,
+  Space,
 } from "antd";
 import {
   UploadOutlined,
@@ -415,12 +416,12 @@ export function RecruiterPage() {
           <Card className="recruiter-page-card glass-card">
             <div className="interview-link-section">
               <h3>面试已创建</h3>
-              <Input.Group compact>
+              <Space.Compact block>
                 <Input style={{ width: "calc(100% - 100px)" }} readOnly value={interviewUrl} />
                 <Button type="primary" icon={<CopyOutlined />} onClick={handleCopyLink}>
                   复制
                 </Button>
-              </Input.Group>
+              </Space.Compact>
               <div className="interview-link-actions">
                 <Button type="primary" onClick={() => navigate(`/interview/${session.id}`)}>
                   进入面试间

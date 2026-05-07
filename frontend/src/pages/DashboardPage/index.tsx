@@ -85,7 +85,7 @@ export function DashboardPage() {
               title="本周面试"
               value={stats.thisWeek}
               prefix={<ClockCircleOutlined />}
-              valueStyle={{ color: "#1677ff" }}
+              styles={{ content: { color: "#1677ff" } }}
             />
           </Card>
         </Col>
@@ -95,7 +95,7 @@ export function DashboardPage() {
               title="平均时长(分钟)"
               value={stats.avgDuration}
               prefix={<RiseOutlined />}
-              valueStyle={{ color: "#52c41a" }}
+              styles={{ content: { color: "#52c41a" } }}
             />
           </Card>
         </Col>
@@ -105,7 +105,7 @@ export function DashboardPage() {
               title="候选人数"
               value={stats.candidates}
               prefix={<UserOutlined />}
-              valueStyle={{ color: "#722ed1" }}
+              styles={{ content: { color: "#722ed1" } }}
             />
           </Card>
         </Col>

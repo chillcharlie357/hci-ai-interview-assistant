@@ -38,6 +38,11 @@ class VideoMetrics:
     gaze_proxy: float | None = None
     head_pose_proxy: float | None = None
     blink_proxy: float | None = None
+    blink_count: int | None = None
+    blink_rate_per_minute: float | None = None
+    eye_contact_ratio: float | None = None
+    gaze_deviation_deg: float | None = None
+    eye_aspect_ratio: float | None = None
     nod_proxy: float | None = None
     hand_activity: float | None = None
     body_activity: float | None = None
@@ -285,13 +290,21 @@ def _build_video_observations(video_events: list[VideoEvent], keyframes: list[Ke
     ]
     for event in video_events[-5:]:
         observations.append(
-            f"- {event.timestamp:.1f}s：{event.event_type}（置信度 {event.confidence:.2f}，亮度 {format_metric(event.metrics.brightness)}，运动量 {format_metric(event.metrics.motion)}）。"
+            f"- {event.timestamp:.1f}s：{event.event_type}（置信度 {event.confidence:.2f}，亮度 {format_metric(event.metrics.brightness)}，运动量 {format_metric(event.metrics.motion)}，眨眼频率 {format_rate(event.metrics.blink_rate_per_minute)}，眼神接触占比 {format_ratio(event.metrics.eye_contact_ratio)}）。"
         )
     return observations
 
 
 def format_metric(value: float | None) -> str:
     return "未知" if value is None else f"{value:.2f}"
+
+
+def format_rate(value: float | None) -> str:
+    return "未知" if value is None else f"{value:.1f} 次/分钟"
+
+
+def format_ratio(value: float | None) -> str:
+    return "未知" if value is None else f"{value * 100:.0f}%"
 
 
 def _filter_metric_fields(metrics: dict[str, object]) -> dict[str, object]:
