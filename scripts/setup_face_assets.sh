@@ -2,7 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FRONTEND_DIR="$ROOT_DIR/frontend"
+FRONTEND_DIR="${FRONTEND_DIR:-$ROOT_DIR/frontend}"
+if [[ ! -d "$FRONTEND_DIR" && -d "$ROOT_DIR" && -f "$ROOT_DIR/package.json" ]]; then
+  FRONTEND_DIR="$ROOT_DIR"
+fi
 MODEL_DIR="$FRONTEND_DIR/public/models"
 WASM_DIR="$FRONTEND_DIR/public/mediapipe/wasm"
 MODEL_URL="https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
