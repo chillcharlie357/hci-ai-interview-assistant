@@ -43,11 +43,12 @@ cp .env.example .env
 ```bash
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=eyJ...
+SUPABASE_SERVICE_ROLE_KEY=eyJ...   # 用于后端直接操作数据库，绕过 RLS
 REQUIRE_AUTH=true
 VITE_REQUIRE_AUTH=true
 ```
 
-Get these values from Supabase Dashboard → Settings → API.
+Get these values from Supabase Dashboard → Settings → API. Service role key 让后端用单一权限客户端操作数据库，应用层做 user_id 隔离。
 
 ### Optional: LLM Configuration
 
@@ -67,6 +68,17 @@ LIVEKIT_API_KEY=...
 LIVEKIT_API_SECRET=...
 ```
 
+### Optional: ASR (语音识别)
+
+```bash
+VITE_ASR_WS_URL=ws://127.0.0.1:8765/
+VITE_ASR_PROVIDER=qwen          # qwen 或 webspeech
+ASR_WS_HOST=0.0.0.0
+ASR_WS_PORT=8765
+```
+
+ASR 服务使用阿里云 DashScope（qwen）实时语音识别，通过 WebSocket 与后端通信。未配置时前端自动降级到浏览器内置 Web Speech API。
+
 If the API key or model is missing, the app uses fallback logic and returns `llm_status: "fallback"`.
 
 ## Docker Compose
@@ -79,6 +91,7 @@ Exposed ports:
 
 - API: `http://localhost:8000`
 - Frontend: `http://localhost:5173`
+- ASR WebSocket: `ws://localhost:8765`
 
 ## Run Backend API Manually
 
@@ -110,6 +123,9 @@ Useful API endpoints:
 - `GET /api/sessions/{id}/report?viewer=recruiter|candidate`: fetch report with visibility enforcement.
 - `POST /api/sessions/{id}/video-events`: record a browser-side camera observation event and optional in-memory keyframe.
 - `POST /api/sessions/{id}/answers`: record the current answer and return the updated session plus Markdown report.
+- `POST /api/sessions/{id}/speech-chunks`: submit an audio chunk for server-side speech analysis.
+- `DELETE /api/sessions/{id}`: delete an interview session.
+- `POST /api/mock-session`: quickly create a test interview with pre-built mock data (templates: frontend/backend/ai/pm).
 
 Note: When `REQUIRE_AUTH=true`, all session endpoints require a valid JWT token in the `Authorization: Bearer <token>` header.
 

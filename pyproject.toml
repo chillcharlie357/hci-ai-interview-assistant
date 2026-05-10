@@ -11,6 +11,8 @@ dependencies = [
     "websockets>=13.0",
     # 认证系统依赖
     "supabase>=2.29.0",
+    # 开发热重载
+    "watchfiles>=0.21",
 ]
 
 [tool.uv]

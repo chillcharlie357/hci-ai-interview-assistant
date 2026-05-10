@@ -97,6 +97,7 @@ docker compose up --build
   - `exceptions.py` — 认证异常类型
 - `database/` — 数据持久化模块：
   - `session_repo.py` — Session 数据仓库，负责数据库 CRUD
+  - `prep_session_repo.py` — PrepSession 数据仓库
   - `migrations/` — SQL 迁移脚本
 - `interview/api.py` — HTTP API 服务器。所有路由由 `BaseHTTPRequestHandler` 处理。`SessionStore` 持有 `InterviewSession` 和 `PrepSession` 对象，支持数据库持久化。
 - `interview/session.py` — 核心领域：`InterviewSession`、`InterviewEvent`、`AnswerRecord`、`VideoMetrics`。包含创建会话、记录答案、记录视频事件、生成 Markdown 报告的函数。
@@ -107,6 +108,7 @@ docker compose up --build
 - `interview/document_extractor.py` — 通过 MinerU CLI 解析简历。
 - `interview/livekit_token.py` — LiveKit 参与者令牌生成。
 - `interview/config.py` — 集中式环境变量配置。
+- `interview/exceptions.py` — 业务异常类型（PersistenceError）。
 - `speech_analysis/` — 音频语音分析模块（特征、分析器、聚合）。
 
 ### 前端 (`frontend/src/`)
@@ -157,6 +159,7 @@ docker compose up --build
 
 - `SUPABASE_URL` — Supabase 项目 URL
 - `SUPABASE_ANON_KEY` — Supabase 匿名公钥
+- `SUPABASE_SERVICE_ROLE_KEY` — Supabase service_role 密钥（后端绕过 RLS，自己做 user_id 过滤）
 - `REQUIRE_AUTH` — 后端认证开关（`true`/`false`，默认 `false`）
 - `VITE_REQUIRE_AUTH` — 前端认证开关（`true`/`false`，默认 `false`）
 
@@ -168,8 +171,15 @@ docker compose up --build
 
 - `MINERU_COMMAND` — 简历解析工具命令
 - `LIVEKIT_URL`、`LIVEKIT_API_KEY`、`LIVEKIT_API_SECRET` — 视频会议配置
+- `DATABASE_URL` — 数据库直连 URL（可选，现有代码通过 Supabase API 操作）
 - `VITE_API_BASE_URL` — 前端 API 端点（默认 `http://127.0.0.1:8000`）
 - `VITE_INTERVIEW_FILLER_WORDS` — 逗号分隔的填充词列表，用于语音分析
+
+### ASR 语音识别（可选）
+
+- `VITE_ASR_WS_URL` — 前端 ASR WebSocket 地址（默认 `ws://127.0.0.1:8765/`）
+- `VITE_ASR_PROVIDER` — ASR 提供商（`qwen` 或 `webspeech`，默认 `qwen`）
+- `ASR_WS_HOST` / `ASR_WS_PORT` — 后端 ASR 服务监听地址/端口
 
 ## Git 工作流
 
@@ -214,13 +224,14 @@ docker compose up --build
 - `AnswerRecord` — question_id、dimension、prompt、text、duration_sec、word_count、filler_word_count
 - `InterviewEvent` — type、timestamp、message、question_id
 - `VideoMetrics` — face_present、brightness、blur、motion、gaze_proxy、head_pose_proxy、blink_proxy、nod_proxy、hand_activity、body_activity
-- `InterviewSession` — 持有问题、答案、事件、video_events、keyframes、llm_status、报告可见性、user_id
+- `InterviewSession` — 持有问题、答案、事件、video_events、keyframes、llm_status、user_id
 
 ### 数据库表
 
 - `profiles` — 用户资料（id、email、full_name、avatar_url、preferences）
 - `interview_sessions` — 面试会话（含 JSON 字段：questions、answers、events、video_events、keyframes）
 - `prep_sessions` — 准备会话（含 JSON 字段：turns、ready_summary）
+- `speech_aggregates` — 语音聚合数据（chunk_count、基频统计等）
 
 ## 产品红线
 
@@ -231,5 +242,5 @@ docker compose up --build
 
 ## 关键依赖包
 
-- Python：`numpy`、`soundfile`（语音分析）、`supabase`（认证和数据库）
+- Python：`numpy`、`soundfile`（语音分析）、`supabase`（认证和数据库）、`dashscope`（阿里云 ASR）、`websockets`
 - 前端：`react`、`vite`、`antd`、`@ant-design/pro-components`、`recharts`、`@livekit/components-react`、`livekit-client`、`@mediapipe/tasks-vision`、`zustand`、`antd-style`

@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Space, Tooltip, Dropdown, Modal, Input, message } from "antd";
+import { App as AntApp, Button, Space, Tooltip, Dropdown, Input } from "antd";
 import {
   BellOutlined,
   SettingOutlined,
@@ -33,7 +33,7 @@ export function TopNavBar({ title = "AI 智能面试系统", showActions = true 
   const setThemeMode = useThemeStore((s) => s.setMode);
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
-  const [messageApi, contextHolder] = message.useMessage();
+  const { modal, message: messageApi } = AntApp.useApp();
 
   const nextMode: ThemeMode = themeMode === "default" ? "illustration" : "default";
   const themeLabels: Record<ThemeMode, string> = {
@@ -51,7 +51,7 @@ export function TopNavBar({ title = "AI 智能面试系统", showActions = true 
   };
 
   const handleLogout = () => {
-    Modal.confirm({
+    modal.confirm({
       title: "确认退出登录？",
       content: "退出后需要重新登录才能访问系统。",
       okText: "退出",
@@ -108,7 +108,7 @@ export function TopNavBar({ title = "AI 智能面试系统", showActions = true 
       icon: <KeyOutlined />,
       label: "修改密码",
       onClick: () => {
-        Modal.info({
+        modal.info({
           title: "修改密码",
           content: (
             <div>
@@ -134,7 +134,6 @@ export function TopNavBar({ title = "AI 智能面试系统", showActions = true 
 
   return (
     <header className="top-nav-bar">
-      {contextHolder}
       <div className="top-nav-bar-left">
         <span className="top-nav-bar-logo">{title}</span>
       </div>

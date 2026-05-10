@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Button, Tag, Input, Spin, App, Modal } from "antd";
 import {
   VideoCameraOutlined,
@@ -69,6 +69,7 @@ const VIDEO_EVENT_LABELS: Record<string, string> = {
 
 export function InterviewPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
+  const navigate = useNavigate();
   const { message } = App.useApp();
   const globalSession = useAppStore((state) => state.interviewSession);
   const setGlobalSession = useAppStore((state) => state.setInterviewSession);
@@ -112,6 +113,7 @@ export function InterviewPage() {
   const previousAnalysisPixelsRef = useRef<Uint8ClampedArray | null>(null);
   const faceAnalysisStateRef = useRef<FaceAnalysisState>(createFaceAnalysisState());
   const faceLandmarkerRef = useRef<{ detectForVideo: (video: HTMLVideoElement, timestamp: number) => { faceLandmarks: FaceLandmarkPoint[][] }; close?: () => void } | null>(null);
+  const qwenAsrRef = useRef<QwenAsrStreamHandle | null>(null);
 
   // 加载会话
   useEffect(() => {
@@ -160,7 +162,7 @@ export function InterviewPage() {
     void loadLiveKitToken(session!);
   }, [sessionId, session?.id, session?.candidateName, liveKit]);
 
-  // 自动播放问题
+  // 自动播放问题 / 面试完成自动跳转
   useEffect(() => {
     if (!session) {
       setInterviewerState("preparing");
@@ -168,6 +170,10 @@ export function InterviewPage() {
     }
     if (!session.currentQuestion) {
       setInterviewerState("finished");
+      // 面试已完成，自动跳转报告页
+      if (session.answers.length > 0) {
+        setTimeout(() => navigate(`/report/${session.id}`), 1500);
+      }
       return;
     }
     if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
@@ -541,8 +547,14 @@ export function InterviewPage() {
       setAnswerText("");
       setAnswerStartedAt(null);
 
+      // 最后一题回答完毕，1.5 秒后自动跳转报告页
+      if (!result.session.currentQuestion) {
+        message.success("所有问题已回答完毕，即将跳转到面试报告");
+        setTimeout(() => navigate(`/report/${session.id}`), 1500);
+      }
+
       try {
-        const visibleReport = await fetchReport(session.id, "candidate");
+        const visibleReport = await fetchReport(session.id);
         setReport(visibleReport.report);
       } catch {
         setReport("招聘端尚未开放候选人查看面试分析报告。");
@@ -858,16 +870,14 @@ export function InterviewPage() {
           <div className="report-panel">
             <h3>面试报告</h3>
             <pre className="report-preview">{report}</pre>
-            {session.reportVisibility === "shared_with_candidate" && (
-              <Button
-                block
-                onClick={() => {
-                  downloadMarkdownReport(buildReportFilename(session.candidateName, session.id), report);
-                }}
-              >
-                下载报告
-              </Button>
-            )}
+            <Button
+              block
+              onClick={() => {
+                downloadMarkdownReport(buildReportFilename(session.candidateName, session.id), report);
+              }}
+            >
+              下载报告
+            </Button>
           </div>
         )}
       </section>

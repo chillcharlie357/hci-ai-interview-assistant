@@ -35,7 +35,7 @@ import {
   submitResume,
   fetchReport,
 } from "../../apiClient";
-import type { PrepSession, InterviewSession, ReportVisibility } from "../../interviewFlow";
+import type { PrepSession, InterviewSession } from "../../interviewFlow";
 import { buildQuestionPreviewItems } from "../../questionPreview";
 import { buildReportFilename, downloadMarkdownReport } from "../../reportDownload";
 import { useAppStore } from "../../store";
@@ -99,7 +99,6 @@ export function RecruiterPage() {
   const [jobDescription, setJobDescription] = useState("");
   const [interviewGoal, setInterviewGoal] = useState("");
 
-  const [reportVisibility, setReportVisibility] = useState<ReportVisibility>("recruiter_only");
   const [useLlmQuestions, setUseLlmQuestions] = useState(true);
   const [enableVideoObservation, setEnableVideoObservation] = useState(true);
   const [report, setReport] = useState("");
@@ -160,7 +159,6 @@ export function RecruiterPage() {
 
       // 创建面试
       const result = await createInterviewSessionFromPrep(updatedPrep.id, {
-        reportVisibility,
         useLlmQuestions,
         enableVideoObservation,
       });
@@ -180,7 +178,6 @@ export function RecruiterPage() {
       const result = await createMockSession({
         template,
         candidateName: candidateName || "测试候选人",
-        reportVisibility,
         enableVideoObservation,
       });
       setSession(result);
@@ -375,18 +372,6 @@ export function RecruiterPage() {
             {/* 面试配置 */}
             <div className="setup-section">
               <label className="setup-label">面试配置</label>
-              <div className="config-item">
-                <span>报告可见性</span>
-                <Select
-                  value={reportVisibility}
-                  onChange={(v) => setReportVisibility(v)}
-                  style={{ width: 180 }}
-                  options={[
-                    { value: "recruiter_only", label: "仅招聘端可见" },
-                    { value: "shared_with_candidate", label: "双方可见" },
-                  ]}
-                />
-              </div>
               <div className="config-item">
                 <span>使用 LLM 生成面试问题</span>
                 <Switch checked={useLlmQuestions} onChange={setUseLlmQuestions} />

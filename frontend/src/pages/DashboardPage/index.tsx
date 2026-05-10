@@ -3,44 +3,58 @@
  * 仪表盘，展示统计数据和快速入口
  */
 
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, Button, Empty, Tag, Statistic, Row, Col } from "antd";
+import { Card, Button, Empty, Tag, Statistic, Row, Col, Spin } from "antd";
 import {
   PlusOutlined,
   VideoCameraOutlined,
-  FileTextOutlined,
   ClockCircleOutlined,
   UserOutlined,
-  TeamOutlined,
-  RiseOutlined,
 } from "@ant-design/icons";
-import { useAppStore } from "../../store";
+import { listSessions } from "../../apiClient";
+
+type SessionSummary = {
+  id: string;
+  candidate_name: string;
+  role: string;
+  created_at: string;
+  current_index: number;
+  llm_status: string;
+};
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const session = useAppStore((state) => state.interviewSession);
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // 模拟统计数据
+  useEffect(() => {
+    setLoading(true);
+    listSessions()
+      .then((res) => setSessions(res.sessions))
+      .catch(() => setSessions([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const now = new Date();
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - now.getDay());
+  weekStart.setHours(0, 0, 0, 0);
+
+  const thisWeekSessions = sessions.filter(
+    (s) => new Date(s.created_at) >= weekStart
+  );
+
+  const uniqueCandidates = new Set(
+    sessions.map((s) => s.candidate_name).filter(Boolean)
+  ).size;
+
   const stats = {
-    totalInterviews: 12,
-    thisWeek: 3,
-    avgDuration: 45,
-    candidates: 8,
+    totalInterviews: sessions.length,
+    thisWeek: thisWeekSessions.length,
+    activeSessions: sessions.filter((s) => s.current_index > 0 && s.llm_status !== "completed").length,
+    candidates: uniqueCandidates,
   };
-
-  // 最近面试记录（模拟）
-  const recentInterviews = session
-    ? [
-        {
-          id: session.id,
-          candidateName: session.candidateName,
-          role: session.role,
-          status: session.currentQuestion ? "进行中" : "已完成",
-          questionCount: session.questions.length,
-          answeredCount: session.answers.length,
-        },
-      ]
-    : [];
 
   return (
     <div className="dashboard-page">
@@ -92,9 +106,9 @@ export function DashboardPage() {
         <Col span={6}>
           <Card className="stats-card">
             <Statistic
-              title="平均时长(分钟)"
-              value={stats.avgDuration}
-              prefix={<RiseOutlined />}
+              title="活跃面试"
+              value={stats.activeSessions}
+              prefix={<VideoCameraOutlined />}
               styles={{ content: { color: "#52c41a" } }}
             />
           </Card>
@@ -112,50 +126,52 @@ export function DashboardPage() {
       </Row>
 
       {/* 最近面试 */}
-      <Card
-        className="dashboard-card"
-        title="最近面试"
-        extra={<Button type="link">查看全部</Button>}
-      >
-        {recentInterviews.length > 0 ? (
-          <div className="interview-list">
-            {recentInterviews.map((interview) => (
-              <div
-                key={interview.id}
-                className="interview-item"
-                onClick={() => navigate(`/report/${interview.id}`)}
-              >
-                <div className="interview-item-left">
-                  <div className="interview-avatar">
-                    <UserOutlined />
+      <Spin spinning={loading}>
+        <Card
+          className="dashboard-card"
+          title="最近面试"
+          extra={sessions.length > 0 ? <Button type="link" onClick={() => navigate("/recruiter/setup")}>创建新面试</Button> : null}
+        >
+          {sessions.length > 0 ? (
+            <div className="interview-list">
+              {sessions.slice(0, 10).map((s) => (
+                <div
+                  key={s.id}
+                  className="interview-item"
+                  onClick={() => navigate(`/report/${s.id}`)}
+                >
+                  <div className="interview-item-left">
+                    <div className="interview-avatar">
+                      <UserOutlined />
+                    </div>
+                    <div className="interview-info">
+                      <h4>{s.candidate_name}</h4>
+                      <p>
+                        {s.role}
+                        {s.created_at ? ` · ${new Date(s.created_at).toLocaleDateString("zh-CN")}` : ""}
+                      </p>
+                    </div>
                   </div>
-                  <div className="interview-info">
-                    <h4>{interview.candidateName}</h4>
-                    <p>{interview.role}</p>
+                  <div className="interview-item-right">
+                    <Tag color={s.current_index > 0 ? "processing" : "default"}>
+                      {s.current_index > 0 ? "进行中" : "待面试"}
+                    </Tag>
                   </div>
                 </div>
-                <div className="interview-item-right">
-                  <Tag color={interview.status === "进行中" ? "processing" : "success"}>
-                    {interview.status}
-                  </Tag>
-                  <span className="interview-progress">
-                    {interview.answeredCount}/{interview.questionCount} 题
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <Empty
-            description="暂无面试记录"
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-          >
-            <Button type="primary" onClick={() => navigate("/recruiter/setup")}>
-              创建第一场面试
-            </Button>
-          </Empty>
-        )}
-      </Card>
+              ))}
+            </div>
+          ) : (
+            <Empty
+              description="暂无面试记录"
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+            >
+              <Button type="primary" onClick={() => navigate("/recruiter/setup")}>
+                创建第一场面试
+              </Button>
+            </Empty>
+          )}
+        </Card>
+      </Spin>
 
       {/* 快捷入口 */}
       <Row gutter={16}>
@@ -180,7 +196,7 @@ export function DashboardPage() {
           <Card
             className="dashboard-card shortcut-card"
             hoverable
-            onClick={() => session ? navigate(`/interview/${session.id}`) : navigate("/interview")}
+            onClick={() => navigate("/recruiter/setup")}
           >
             <div className="shortcut-content">
               <div className="shortcut-icon" style={{ background: "rgba(82, 196, 26, 0.1)" }}>

@@ -52,7 +52,7 @@ export function ReportPage() {
   async function loadReportOnly(id: string) {
     setLoading(true);
     try {
-      const reportData = await fetchReport(id, "recruiter");
+      const reportData = await fetchReport(id);
       setReport(reportData.report);
     } catch (error) {
       console.error("加载报告失败:", error);
@@ -67,7 +67,7 @@ export function ReportPage() {
     try {
       const [sessionData, reportData] = await Promise.all([
         getSession(sessionId),
-        fetchReport(sessionId, "recruiter"),
+        fetchReport(sessionId),
       ]);
       setSession(sessionData);
       setReport(reportData.report);
