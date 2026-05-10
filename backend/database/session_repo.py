@@ -10,7 +10,8 @@ from supabase import Client
 
 from backend.database.utils import is_valid_uuid
 from backend.interview.config import is_debug
-from backend.interview.session import InterviewSession
+from backend.interview.question_engine import InterviewQuestion
+from backend.interview.session import AnswerRecord, InterviewEvent, InterviewSession, KeyframeRecord, VideoEvent, VideoMetrics
 from backend.speech_analysis.aggregate import SpeechAggregateState
 
 
@@ -79,16 +80,32 @@ class SessionRepository:
             return []
         try:
             result = self.client.table('interview_sessions') \
-                .select('id, candidate_name, role, created_at, current_index, llm_status') \
+                .select('id, candidate_name, role, created_at, current_index, llm_status, questions') \
                 .eq('user_id', user_id) \
                 .order('created_at', desc=True) \
                 .limit(limit) \
                 .execute()
 
-            return result.data or []
+            return [self._enrich_session_summary(row) for row in (result.data or [])]
         except Exception as e:
             print(f"Failed to list sessions: {e}")
             return []
+
+    def _enrich_session_summary(self, row: dict[str, Any]) -> dict[str, Any]:
+        """为列表返回补充 total_questions，并移除原始 questions JSON"""
+        questions_raw = row.get("questions")
+        if isinstance(questions_raw, str):
+            try:
+                questions = json.loads(questions_raw)
+                row["total_questions"] = len(questions) if isinstance(questions, list) else 0
+            except (json.JSONDecodeError, TypeError):
+                row["total_questions"] = 0
+        elif isinstance(questions_raw, list):
+            row["total_questions"] = len(questions_raw)
+        else:
+            row["total_questions"] = 0
+        row.pop("questions", None)
+        return row
 
     def delete_session(self, session_id: str, user_id: str) -> bool:
         """删除面试会话"""
@@ -157,18 +174,33 @@ class SessionRepository:
             if isinstance(data.get(field), str):
                 data[field] = json.loads(data[field])
 
+        questions = [InterviewQuestion(**q) for q in (data.get('questions') or [])]
+        answers = [AnswerRecord(**a) for a in (data.get('answers') or [])]
+        events = [InterviewEvent(**e) for e in (data.get('events') or [])]
+        keyframes = [KeyframeRecord(**k) for k in (data.get('keyframes') or [])]
+        video_events = [
+            VideoEvent(
+                timestamp=ve.get('timestamp', 0),
+                event_type=ve.get('event_type', ''),
+                confidence=ve.get('confidence', 0),
+                metrics=VideoMetrics(**ve['metrics']) if ve.get('metrics') else VideoMetrics(),
+                keyframe_index=ve.get('keyframe_index'),
+            )
+            for ve in (data.get('video_events') or [])
+        ]
+
         return InterviewSession(**{
             'id': data['id'],
             'candidate_name': data['candidate_name'],
             'role': data['role'],
-            'questions': data.get('questions', []),
+            'questions': questions,
             'current_index': data.get('current_index', 0),
-            'answers': data.get('answers', []),
-            'events': data.get('events', []),
+            'answers': answers,
+            'events': events,
             'user_id': data.get('user_id', ''),
             'llm_status': data.get('llm_status', 'fallback'),
-            'video_events': data.get('video_events'),
-            'keyframes': data.get('keyframes'),
+            'video_events': video_events if video_events else None,
+            'keyframes': keyframes if keyframes else None,
             'meeting_room': data.get('meeting_room', ''),
             'enable_video_observation': data.get('enable_video_observation', True),
         })

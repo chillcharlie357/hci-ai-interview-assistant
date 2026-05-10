@@ -114,6 +114,7 @@ type ApiSessionSummary = {
   created_at: string;
   current_index: number;
   llm_status: string;
+  total_questions: number;
 };
 
 type ApiReadySummary = {

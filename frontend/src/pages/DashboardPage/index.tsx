@@ -21,7 +21,14 @@ type SessionSummary = {
   created_at: string;
   current_index: number;
   llm_status: string;
+  total_questions: number;
 };
+
+function sessionStatus(s: SessionSummary): "pending" | "active" | "completed" {
+  if (s.total_questions === 0 || s.current_index === 0) return "pending";
+  if (s.current_index >= s.total_questions) return "completed";
+  return "active";
+}
 
 export function DashboardPage() {
   const navigate = useNavigate();
@@ -52,7 +59,7 @@ export function DashboardPage() {
   const stats = {
     totalInterviews: sessions.length,
     thisWeek: thisWeekSessions.length,
-    activeSessions: sessions.filter((s) => s.current_index > 0 && s.llm_status !== "completed").length,
+    activeSessions: sessions.filter((s) => sessionStatus(s) === "active").length,
     candidates: uniqueCandidates,
   };
 
@@ -134,11 +141,13 @@ export function DashboardPage() {
         >
           {sessions.length > 0 ? (
             <div className="interview-list">
-              {sessions.slice(0, 10).map((s) => (
+              {sessions.slice(0, 10).map((s) => {
+                const status = sessionStatus(s);
+                return (
                 <div
                   key={s.id}
                   className="interview-item"
-                  onClick={() => navigate(`/report/${s.id}`)}
+                  onClick={() => navigate(status === "completed" ? `/report/${s.id}` : `/interview/${s.id}`)}
                 >
                   <div className="interview-item-left">
                     <div className="interview-avatar">
@@ -149,16 +158,18 @@ export function DashboardPage() {
                       <p>
                         {s.role}
                         {s.created_at ? ` · ${new Date(s.created_at).toLocaleDateString("zh-CN")}` : ""}
+                        {s.total_questions > 0 ? ` · ${s.current_index}/${s.total_questions} 题` : ""}
                       </p>
                     </div>
                   </div>
                   <div className="interview-item-right">
-                    <Tag color={s.current_index > 0 ? "processing" : "default"}>
-                      {s.current_index > 0 ? "进行中" : "待面试"}
+                    <Tag color={status === "completed" ? "success" : status === "active" ? "processing" : "default"}>
+                      {status === "completed" ? "已完成" : status === "active" ? "进行中" : "待面试"}
                     </Tag>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <Empty

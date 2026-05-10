@@ -230,6 +230,7 @@ class SessionStore:
                 "created_at": "",
                 "current_index": session.current_index,
                 "llm_status": session.llm_status,
+                "total_questions": len(session.questions),
             })
         return result[:limit]
 
@@ -260,7 +261,7 @@ class SessionStore:
                 raise PersistenceError(f"Failed to save session {session_id}")
         return updated
 
-    def record_video_event(self, session_id: str, payload: dict[str, Any], user_id: str = "") -> InterviewSession | None:
+    def record_video_event(self, session_id: str, payload: dict[str, Any]) -> InterviewSession | None:
         session = self.sessions.get(session_id)
         if session is None:
             return None
@@ -273,10 +274,7 @@ class SessionStore:
             keyframe=payload.get("keyframe") if isinstance(payload.get("keyframe"), dict) else None,
         )
         self.sessions[session_id] = updated
-        if self.repo:
-            if not self.repo.save_session(updated, user_id):
-                from backend.interview.exceptions import PersistenceError
-                raise PersistenceError(f"Failed to save session {session_id}")
+        # 视频事件仅更新内存，持久化在答题时一并进行，避免高频写入打爆数据库
         return updated
 
     def record_speech_chunk(self, session_id: str, payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -466,7 +464,7 @@ def handle_api_request(
         and path_parts[:2] == ["api", "sessions"]
         and path_parts[3] == "video-events"
     ):
-        session = store.record_video_event(path_parts[2], body, user_id)
+        session = store.record_video_event(path_parts[2], body)
         if session is None:
             return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
         return HTTPStatus.OK, serialize_session(session)
