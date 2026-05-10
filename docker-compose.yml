@@ -3,15 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
-    environment:
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
-      OPENAI_MODEL: ${OPENAI_MODEL:-}
-      MINERU_COMMAND: ${MINERU_COMMAND:-mineru-open-api}
-      MINERU_TIMEOUT_SEC: ${MINERU_TIMEOUT_SEC:-120}
-      LIVEKIT_URL: ${LIVEKIT_URL:-}
-      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
-      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+    env_file: .env
     ports:
       - "8000:8000"
 
@@ -19,11 +11,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
+    env_file: .env
     environment:
-      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
       ASR_WS_HOST: 0.0.0.0
       ASR_WS_PORT: "8765"
-      ASR_LOG_LEVEL: ${ASR_LOG_LEVEL:-INFO}
     command: ["uv", "run", "python", "-m", "backend.asr.qwen_realtime", "--host", "0.0.0.0", "--port", "8765"]
     ports:
       - "8765:8765"
@@ -32,13 +23,15 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+    env_file: .env
     environment:
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:8000}
-      VITE_INTERVIEW_FILLER_WORDS: ${VITE_INTERVIEW_FILLER_WORDS:-嗯,啊,呃,额,那个,就是}
       VITE_ASR_WS_URL: ${VITE_ASR_WS_URL:-ws://127.0.0.1:8765/}
       VITE_ASR_PROVIDER: ${VITE_ASR_PROVIDER:-qwen}
     depends_on:
       - backend
       - asr
+    volumes:
+      - ./frontend/src:/app/src
     ports:
       - "5173:5173"

@@ -634,7 +634,7 @@ export function InterviewPage() {
           </div>
         </div>
 
-        {/* 弹幕字幕区 - 透明背景，类似抖音直播评论 */}
+        {/* 字幕区 — 固定高度，内容上滑遮断 */}
         <div className="danmaku-captions">
           <div className="danmaku-scroll" ref={danmakuScrollRef}>
             {captions.map((caption) => (
@@ -649,8 +649,10 @@ export function InterviewPage() {
               </div>
             ))}
           </div>
+        </div>
 
-          {/* 输入区 */}
+        {/* 底部操作栏 */}
+        <div className="caption-bar">
           <div className="caption-input">
             {isAnswering && (interimTranscript || asrProvider !== "none") && (
               <div className="asr-interim-hint">
@@ -668,7 +670,6 @@ export function InterviewPage() {
             />
           </div>
 
-          {/* 底部操作按钮 */}
           <div className="caption-actions">
             {!isAnswering ? (
               <Button type="primary" size="large" onClick={startCandidateAnswer} disabled={!currentQuestion || interviewerState === "speaking"}>
@@ -895,10 +896,12 @@ export function InterviewPage() {
           padding: var(--space-md);
           gap: var(--space-sm);
           min-width: 0;
+          min-height: 0;
           overflow: hidden;
         }
 
         .interview-header {
+          flex-shrink: 0;
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -950,17 +953,20 @@ export function InterviewPage() {
         .video-grid {
           display: grid;
           grid-template-columns: repeat(2, 1fr);
+          grid-template-rows: 1fr;
           gap: var(--space-sm);
           flex: 1;
           min-height: 0;
+          overflow: hidden;
         }
 
         .candidate-video-tile {
           background: white;
-          border-radius: var(--radius-2xl);
+          border-radius: var(--radius-xl);
           overflow: hidden;
           border: 1px solid rgba(0, 0, 0, 0.1);
           box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+          min-height: 0;
         }
 
         .video-placeholder {
@@ -977,24 +983,34 @@ export function InterviewPage() {
           font-size: 48px;
         }
 
-        /* 弹幕字幕区 - 透明背景，类似抖音直播评论 */
+        /* 字幕区 — 固定高度，内容上滑自动遮断 */
         .danmaku-captions {
-          background: transparent;
-          padding: 0;
-          display: flex;
-          flex-direction: column;
-          gap: var(--space-sm);
           flex-shrink: 0;
+          height: 180px;
+          border-radius: var(--radius-lg);
+          overflow: hidden;
+          background: rgba(255, 255, 255, 0.4);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border: 0.5px solid rgba(255, 255, 255, 0.2);
+          box-shadow: 0 8px 32px 0 rgba(107, 56, 212, 0.1);
         }
 
         .danmaku-scroll {
-          max-height: 120px;
+          height: 100%;
           overflow-y: auto;
           display: flex;
           flex-direction: column;
           gap: var(--space-sm);
-          max-height: 180px;
-          padding: var(--space-xs);
+          padding: var(--space-sm);
+        }
+
+        /* 底部操作栏 */
+        .caption-bar {
+          flex-shrink: 0;
+          display: flex;
+          flex-direction: column;
+          gap: var(--space-sm);
         }
 
         /* 弹幕气泡 - 类似抖音直播评论 */
@@ -1384,29 +1400,78 @@ export function InterviewPage() {
           .interview-page {
             flex-direction: column;
             height: auto;
+            min-height: 100dvh;
             overflow: auto;
           }
 
-          .interview-left, .interview-right {
+          .interview-left,
+          .interview-right {
             flex: none;
             width: 100%;
           }
 
           .interview-left {
             overflow: visible;
+            padding-bottom: var(--space-lg);
           }
 
           .interview-right {
             border-left: none;
             border-top: 1px solid rgba(190, 199, 212, 0.2);
+            padding-top: var(--space-lg);
           }
 
           .video-grid {
-            min-height: 300px;
+            min-height: 280px;
+            max-height: 45vh;
           }
 
-          .danmaku-scroll {
-            max-height: 150px;
+          .digital-interviewer-tile {
+            padding: var(--space-lg) var(--space-md);
+          }
+
+          .digital-interviewer-tile p {
+            display: none;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .video-grid {
+            grid-template-columns: 1fr;
+            min-height: 220px;
+            max-height: 40vh;
+          }
+
+          .interview-header {
+            padding: var(--space-xs) var(--space-md);
+          }
+
+          .interview-header-left h1 {
+            font-size: 14px;
+          }
+
+          .interview-header-rec {
+            font-size: 12px;
+          }
+
+          .question-title {
+            font-size: 16px;
+          }
+
+          .caption-bubble {
+            max-width: 95%;
+          }
+
+          .caption-text {
+            font-size: 13px;
+          }
+
+          .metrics-panel {
+            padding: var(--space-md);
+          }
+
+          .question-panel {
+            padding: var(--space-md);
           }
         }
       `}</style>
@@ -1457,6 +1522,8 @@ function DigitalInterviewerTile({
           color: white;
           box-shadow: 0 0 30px rgba(0, 163, 255, 0.15);
           border: 2px solid rgba(0, 163, 255, 0.2);
+          min-height: 0;
+          overflow: hidden;
         }
 
         .digital-avatar {
@@ -1598,6 +1665,24 @@ function CandidateLiveKitConference() {
         .candidate-video-grid {
           flex: 1;
           min-height: 200px;
+        }
+
+        /* 隐藏设备选择菜单按钮，节省空间 */
+        .lk-button-group-menu {
+          display: none !important;
+        }
+
+        /* 控制栏样式优化 */
+        .lk-control-bar {
+          justify-content: center;
+          flex-wrap: wrap;
+          gap: 4px;
+          padding: 8px;
+        }
+
+        .lk-button {
+          font-size: 12px;
+          padding: 6px 10px;
         }
       `}</style>
     </div>
