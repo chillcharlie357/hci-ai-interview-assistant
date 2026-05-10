@@ -197,7 +197,6 @@ describe("apiClient", () => {
           current_question: null,
           answers: [],
           events: [],
-          report_visibility: "shared_with_candidate",
           meeting_room: "interview-session_1",
           enable_video_observation: true
         }),
@@ -208,16 +207,15 @@ describe("apiClient", () => {
     const prep = await submitPrepFollowup("prep_1", "岗位看 LLM 应用", { fetcher });
     const session = await createInterviewSessionFromPrep(
       "prep_1",
-      { reportVisibility: "shared_with_candidate", useLlmQuestions: true, enableVideoObservation: true },
+      { useLlmQuestions: true, enableVideoObservation: true },
       { fetcher }
     );
 
     expect(prep.readySummary?.role).toBe("AI 产品全栈工程师");
-    expect(session.reportVisibility).toBe("shared_with_candidate");
     expect(session.meetingRoom).toBe("interview-session_1");
   });
 
-  it("requests LiveKit tokens and report visibility", async () => {
+  it("requests LiveKit tokens and report", async () => {
     const fetcher = async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes("livekit-token")) {
@@ -227,7 +225,7 @@ describe("apiClient", () => {
     };
 
     const token = await requestLiveKitToken("session_1", { participantName: "张三", participantRole: "candidate" }, { fetcher });
-    const report = await fetchReport("session_1", "candidate", { fetcher });
+    const report = await fetchReport("session_1", { fetcher });
 
     expect(token.url).toBe("wss://livekit.test");
     expect(report.report).toContain("智能面试纪要");
@@ -283,7 +281,6 @@ describe("apiClient", () => {
           current_question: null,
           answers: [],
           events: [],
-          report_visibility: "recruiter_only",
           meeting_room: "interview-session_1",
           enable_video_observation: false
         }),

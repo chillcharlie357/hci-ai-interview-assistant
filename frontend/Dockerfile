@@ -9,7 +9,7 @@ RUN pnpm install --frozen-lockfile
 COPY frontend/ ./
 COPY scripts/setup_face_assets.sh /tmp/setup_face_assets.sh
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && apt-get install -y --no-install-recommends bash ca-certificates curl \
     && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && FRONTEND_DIR=/app bash /tmp/setup_face_assets.sh \

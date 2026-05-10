@@ -1,0 +1,136 @@
+"""准备会话数据仓库 - 负责数据持久化"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import asdict
+from typing import Any
+
+from supabase import Client
+
+from backend.database.utils import is_valid_uuid
+from backend.interview.config import is_debug
+from backend.interview.prep_session import FollowupTurn, PrepSession, ReadySummary
+
+
+def _dbg(*args, **kwargs) -> None:
+    if is_debug():
+        print(*args, **kwargs)
+
+
+class PrepSessionRepository:
+    """准备会话数据仓库，使用 service role client 操作，应用层做 user_id 过滤"""
+
+    def __init__(self, client: Client):
+        self.client = client
+
+    def _ensure_profile(self, user_id: str, email: str = "") -> None:
+        """确保 profiles 表中有该用户的记录（修复 trigger 未执行的情况）"""
+        existing = self.client.table('profiles').select('id').eq('id', user_id).execute()
+        if existing.data:
+            return
+        try:
+            self.client.table('profiles').upsert({
+                'id': user_id,
+                'email': email or f'{user_id}@placeholder.local',
+                'full_name': '',
+            }).execute()
+            _dbg(f"[ensure_profile] 为 {user_id} 补建了 profile 记录", flush=True)
+        except Exception as e:
+            print(f"[ensure_profile] 补建 profile 失败: {e}", flush=True)
+
+    def save_prep_session(self, session: PrepSession, user_id: str) -> bool:
+        if not is_valid_uuid(user_id):
+            print(f"[save_prep_session] WARNING: user_id={user_id!r} 不是合法 UUID，跳过数据库持久化", flush=True)
+            return True
+        try:
+            self._ensure_profile(user_id)
+            data = self._prep_to_dict(session, user_id)
+            result = self.client.table('prep_sessions').upsert(data).execute()
+            return len(result.data) > 0
+        except Exception as e:
+            print(f"Failed to save prep session: {e}")
+            return False
+
+    def get_prep_session(self, prep_session_id: str, user_id: str) -> PrepSession | None:
+        if not is_valid_uuid(user_id):
+            return None
+        try:
+            result = self.client.table('prep_sessions') \
+                .select('*') \
+                .eq('id', prep_session_id) \
+                .eq('user_id', user_id) \
+                .single() \
+                .execute()
+            if result.data:
+                return self._dict_to_prep(result.data)
+            return None
+        except Exception:
+            return None
+
+    def list_prep_sessions(self, user_id: str, limit: int = 50) -> list[dict[str, Any]]:
+        if not is_valid_uuid(user_id):
+            return []
+        try:
+            result = self.client.table('prep_sessions') \
+                .select('id, candidate_name, ready, created_at') \
+                .eq('user_id', user_id) \
+                .order('created_at', desc=True) \
+                .limit(limit) \
+                .execute()
+            return result.data or []
+        except Exception as e:
+            print(f"Failed to list prep sessions: {e}")
+            return []
+
+    # TODO: 添加 DELETE /api/prep-sessions/{id} 路由后启用此方法
+    def delete_prep_session(self, prep_session_id: str, user_id: str) -> bool:
+        if not is_valid_uuid(user_id):
+            return False
+        try:
+            self.client.table('prep_sessions') \
+                .delete() \
+                .eq('id', prep_session_id) \
+                .eq('user_id', user_id) \
+                .execute()
+            return True
+        except Exception as e:
+            print(f"Failed to delete prep session: {e}")
+            return False
+
+    def _prep_to_dict(self, session: PrepSession, user_id: str) -> dict[str, Any]:
+        data = asdict(session)
+        data['user_id'] = user_id
+        data['followup_questions'] = json.dumps(data['followup_questions'], ensure_ascii=False)
+        data['turns'] = json.dumps(data['turns'], ensure_ascii=False)
+        if data.get('ready_summary'):
+            data['ready_summary'] = json.dumps(data['ready_summary'], ensure_ascii=False)
+        return data
+
+    def _dict_to_prep(self, data: dict[str, Any]) -> PrepSession:
+        for field in ['followup_questions', 'turns', 'ready_summary']:
+            if isinstance(data.get(field), str):
+                data[field] = json.loads(data[field])
+
+        ready_summary = None
+        if data.get('ready_summary') and isinstance(data['ready_summary'], dict):
+            ready_summary = ReadySummary(**data['ready_summary'])
+
+        turns = []
+        for turn in (data.get('turns') or []):
+            if isinstance(turn, dict):
+                turns.append(FollowupTurn(**turn))
+            else:
+                turns.append(turn)
+
+        return PrepSession(
+            id=data['id'],
+            candidate_name=data['candidate_name'],
+            resume_markdown=data.get('resume_markdown', ''),
+            followup_questions=data.get('followup_questions', []),
+            turns=turns,
+            ready=data.get('ready', False),
+            ready_summary=ready_summary,
+            llm_status=data.get('llm_status', 'fallback'),
+            user_id=data.get('user_id', ''),
+        )

@@ -60,6 +60,7 @@ def get_supabase_config() -> dict[str, str]:
         "url": get_env("SUPABASE_URL", DEFAULT_SUPABASE_URL),
         "anon_key": get_env("SUPABASE_ANON_KEY", DEFAULT_SUPABASE_ANON_KEY),
         "jwt_secret": get_env("SUPABASE_JWT_SECRET", DEFAULT_SUPABASE_JWT_SECRET),
+        "service_role_key": get_env("SUPABASE_SERVICE_ROLE_KEY", ""),
     }
 
 
@@ -71,3 +72,8 @@ def get_database_url() -> str:
 def is_auth_required() -> bool:
     """检查是否需要认证（开发模式可关闭）"""
     return get_env("REQUIRE_AUTH", "false").lower() == "true"
+
+
+def is_debug() -> bool:
+    """检查是否开启调试日志"""
+    return get_env("DEBUG", "").lower() in ("1", "true", "yes")

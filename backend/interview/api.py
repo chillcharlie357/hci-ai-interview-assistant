@@ -23,7 +23,8 @@ from backend.auth import (
     WeakPasswordError,
 )
 from backend.interview.answer_analysis import analyze_answer_text
-from backend.interview.config import is_auth_required
+from backend.interview.config import is_auth_required, is_debug
+from backend.interview.exceptions import PersistenceError
 from backend.interview.document_extractor import DocumentExtractionError, extract_resume_markdown
 from backend.interview.livekit_token import LiveKitConfigError, create_livekit_token
 from backend.interview.llm_client import LlmClient
@@ -44,26 +45,26 @@ from backend.speech_analysis.aggregate import (
     merge_chunk_metrics,
     summarize_cumulative_metrics,
 )
+from backend.database.prep_session_repo import PrepSessionRepository
 from backend.database.session_repo import SessionRepository
 
 
+def _dbg(*args, **kwargs) -> None:
+    """调试日志，仅在 DEBUG 环境变量为 true/1/yes 时输出"""
+    if is_debug():
+        print(*args, **kwargs)
+
+
 class SessionStore:
-    def __init__(self) -> None:
+    def __init__(self, repo: SessionRepository | None = None, prep_repo: PrepSessionRepository | None = None) -> None:
         self.sessions: dict[str, InterviewSession] = {}
         self.prep_sessions: dict[str, PrepSession] = {}
         self.speech_aggregates: dict[str, SpeechAggregateState] = {}
-        self._repo: SessionRepository | None = None
-
-    def set_auth(self, auth: AuthContext, access_token: str) -> None:
-        """设置认证上下文，启用数据库持久化"""
-        self._repo = SessionRepository.from_auth_context(auth, access_token)
-
-    def _save_to_db(self, session: InterviewSession) -> None:
-        """保存 session 到数据库（如果已启用持久化）"""
-        if self._repo:
-            self._repo.save_session(session)
+        self.repo = repo
+        self.prep_repo = prep_repo
 
     def create(self, payload: dict[str, Any], user_id: str = "") -> InterviewSession:
+        _dbg(f"[create] user_id={user_id!r}", flush=True)
         llm_status = "fallback"
         question_set = generate_interview_questions(
             resume=str(payload.get("resume", "")),
@@ -96,16 +97,21 @@ class SessionStore:
         )
         session = replace(session, llm_status=llm_status)
         self.sessions[session.id] = session
-        self._save_to_db(session)  # 持久化到数据库
+        if self.repo:
+            if not self.repo.save_session(session, user_id):
+                from backend.interview.exceptions import PersistenceError
+                raise PersistenceError(f"Failed to save session {session.id}")
         return session
 
     def create_prep(self, payload: dict[str, Any], user_id: str = "") -> tuple[int, dict[str, Any]]:
+        _dbg(f"[create_prep] user_id={user_id!r}", flush=True)
         try:
             extracted = extract_resume_markdown(
                 file_name=str(payload.get("file_name", "")),
                 data_base64=str(payload.get("data_base64", "")),
             )
         except DocumentExtractionError as error:
+            print(f"[create_prep] extraction failed: {error.code}", flush=True)
             return HTTPStatus.BAD_REQUEST, {"error": error.code, "message": error.message}
 
         prep = create_prep_session(
@@ -114,19 +120,45 @@ class SessionStore:
             user_id=user_id,
         )
         self.prep_sessions[prep.id] = prep
+        if self.prep_repo:
+            _dbg(f"[create_prep] saving prep session to DB...", flush=True)
+            ok = self.prep_repo.save_prep_session(prep, user_id)
+            _dbg(f"[create_prep] save_prep_session returned {ok}", flush=True)
+            if not ok:
+                from backend.interview.exceptions import PersistenceError
+                raise PersistenceError(f"Failed to save prep session {prep.id}")
         return HTTPStatus.CREATED, serialize_prep_session(prep)
 
-    def record_followup(self, prep_session_id: str, payload: dict[str, Any]) -> PrepSession | None:
+    def record_followup(self, prep_session_id: str, payload: dict[str, Any], user_id: str = "") -> PrepSession | None:
+        _dbg(f"[record_followup] id={prep_session_id} user_id={user_id!r}", flush=True)
         prep = self.prep_sessions.get(prep_session_id)
+        if prep is None and self.prep_repo:
+            prep = self.prep_repo.get_prep_session(prep_session_id, user_id)
+            if prep is not None:
+                self.prep_sessions[prep_session_id] = prep
         if prep is None:
             return None
         updated = advance_followup(prep, str(payload.get("answer", "")))
         self.prep_sessions[prep_session_id] = updated
+        if self.prep_repo:
+            _dbg(f"[record_followup] saving to DB...", flush=True)
+            ok = self.prep_repo.save_prep_session(updated, user_id)
+            _dbg(f"[record_followup] save_prep_session returned {ok}", flush=True)
+            if not ok:
+                from backend.interview.exceptions import PersistenceError
+                raise PersistenceError(f"Failed to save prep session {prep_session_id}")
         return updated
 
     def create_from_prep(self, prep_session_id: str, payload: dict[str, Any], user_id: str = "") -> InterviewSession | None:
+        _dbg(f"[create_from_prep] prep_id={prep_session_id} user_id={user_id!r}", flush=True)
         prep = self.prep_sessions.get(prep_session_id)
+        if prep is None and self.prep_repo:
+            _dbg(f"[create_from_prep] not in memory, querying DB...", flush=True)
+            prep = self.prep_repo.get_prep_session(prep_session_id, user_id)
+            if prep is not None:
+                self.prep_sessions[prep_session_id] = prep
         if prep is None:
+            _dbg(f"[create_from_prep] prep not found", flush=True)
             return None
         summary = prep.ready_summary
         job_description = summary.job_description if summary else " ".join(turn.answer for turn in prep.turns)
@@ -158,20 +190,57 @@ class SessionStore:
             candidate_name=prep.candidate_name,
             role=summary.role if summary else question_set.role,
             questions=question_set.questions,
-            report_visibility=str(payload.get("report_visibility", "recruiter_only")),
             enable_video_observation=bool(payload.get("enable_video_observation", True)),
             user_id=user_id,
         )
         session = replace(session, llm_status=llm_status)
         self.sessions[session.id] = session
         self.speech_aggregates[session.id] = SpeechAggregateState()
-        self._save_to_db(session)  # 持久化到数据库
+        if self.repo:
+            _dbg(f"[create_from_prep] saving interview session to DB...", flush=True)
+            ok = self.repo.save_session(session, user_id)
+            _dbg(f"[create_from_prep] save_session returned {ok}", flush=True)
+            if not ok:
+                from backend.interview.exceptions import PersistenceError
+                raise PersistenceError(f"Failed to save session {session.id}")
         return session
 
-    def get(self, session_id: str) -> InterviewSession | None:
-        return self.sessions.get(session_id)
+    def get(self, session_id: str, user_id: str = "") -> InterviewSession | None:
+        session = self.sessions.get(session_id)
+        if session is not None:
+            return session
+        if self.repo:
+            session = self.repo.get_session(session_id, user_id)
+            if session is not None:
+                self.sessions[session_id] = session
+                if session_id not in self.speech_aggregates:
+                    agg = self.repo.get_speech_aggregate(session_id)
+                    self.speech_aggregates[session_id] = agg if agg is not None else SpeechAggregateState()
+        return session
 
-    def record_answer(self, session_id: str, payload: dict[str, Any]) -> InterviewSession | None:
+    def list_sessions(self, user_id: str = "", limit: int = 50) -> list[dict[str, Any]]:
+        if self.repo:
+            return self.repo.list_sessions(user_id, limit)
+        result = []
+        for session in self.sessions.values():
+            result.append({
+                "id": session.id,
+                "candidate_name": session.candidate_name,
+                "role": session.role,
+                "created_at": "",
+                "current_index": session.current_index,
+                "llm_status": session.llm_status,
+            })
+        return result[:limit]
+
+    def delete_session(self, session_id: str, user_id: str = "") -> bool:
+        self.sessions.pop(session_id, None)
+        self.speech_aggregates.pop(session_id, None)
+        if self.repo:
+            return self.repo.delete_session(session_id, user_id)
+        return True
+
+    def record_answer(self, session_id: str, payload: dict[str, Any], user_id: str = "") -> InterviewSession | None:
         session = self.sessions.get(session_id)
         if session is None:
             return None
@@ -185,10 +254,13 @@ class SessionStore:
         if answer_analysis.llm_status == "ok":
             updated = replace(updated, llm_status="ok")
         self.sessions[session_id] = updated
-        self._save_to_db(updated)  # 持久化到数据库
+        if self.repo:
+            if not self.repo.save_session(updated, user_id):
+                from backend.interview.exceptions import PersistenceError
+                raise PersistenceError(f"Failed to save session {session_id}")
         return updated
 
-    def record_video_event(self, session_id: str, payload: dict[str, Any]) -> InterviewSession | None:
+    def record_video_event(self, session_id: str, payload: dict[str, Any], user_id: str = "") -> InterviewSession | None:
         session = self.sessions.get(session_id)
         if session is None:
             return None
@@ -201,7 +273,10 @@ class SessionStore:
             keyframe=payload.get("keyframe") if isinstance(payload.get("keyframe"), dict) else None,
         )
         self.sessions[session_id] = updated
-        self._save_to_db(updated)  # 持久化到数据库
+        if self.repo:
+            if not self.repo.save_session(updated, user_id):
+                from backend.interview.exceptions import PersistenceError
+                raise PersistenceError(f"Failed to save session {session_id}")
         return updated
 
     def record_speech_chunk(self, session_id: str, payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -231,6 +306,9 @@ class SessionStore:
         next_state = merge_chunk_metrics(current_state, chunk_metrics)
         self.speech_aggregates[session_id] = next_state
 
+        if self.repo:
+            self.repo.save_speech_aggregate(session_id, next_state)
+
         return HTTPStatus.OK, {
             "chunk": chunk_metrics.to_dict(),
             "cumulative": summarize_cumulative_metrics(next_state).to_dict(),
@@ -242,15 +320,12 @@ def handle_api_request(
     method: str,
     path: str,
     payload: dict[str, Any] | None = None,
+    user_id: str = "",
     auth: AuthContext | None = None,
 ) -> tuple[int, dict[str, Any]]:
     parsed_url = urlparse(path)
     path_parts = [part for part in parsed_url.path.split("/") if part]
-    query = parse_qs(parsed_url.query)
     body = payload or {}
-
-    # 获取 user_id 用于关联数据
-    user_id = auth.user_id if auth else ""
 
     # 认证路由
     if method == "POST" and path_parts == ["api", "auth", "login"]:
@@ -276,8 +351,28 @@ def handle_api_request(
             }
         }
 
+    if method == "GET" and path_parts == ["api", "sessions"]:
+        sessions = store.list_sessions(user_id)
+        return HTTPStatus.OK, {"sessions": sessions}
+
+    if method == "GET" and path_parts == ["api", "prep-sessions"]:
+        if store.prep_repo:
+            prep_sessions = store.prep_repo.list_prep_sessions(user_id)
+        else:
+            prep_sessions = [
+                {"id": pid, "candidate_name": p.candidate_name, "ready": p.ready, "created_at": ""}
+                for pid, p in store.prep_sessions.items()
+            ]
+        return HTTPStatus.OK, {"prep_sessions": prep_sessions}
+
+    if method == "DELETE" and len(path_parts) == 3 and path_parts[:2] == ["api", "sessions"]:
+        success = store.delete_session(path_parts[2], user_id)
+        if not success:
+            return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
+        return HTTPStatus.OK, {"message": "session_deleted"}
+
     if method == "GET" and len(path_parts) == 3 and path_parts[:2] == ["api", "sessions"]:
-        session = store.get(path_parts[2])
+        session = store.get(path_parts[2], user_id)
         if session is None:
             return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
         return HTTPStatus.OK, serialize_session(session)
@@ -288,12 +383,9 @@ def handle_api_request(
         and path_parts[:2] == ["api", "sessions"]
         and path_parts[3] == "report"
     ):
-        session = store.get(path_parts[2])
+        session = store.get(path_parts[2], user_id)
         if session is None:
             return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
-        viewer = query.get("viewer", ["recruiter"])[0]
-        if viewer == "candidate" and session.report_visibility != "shared_with_candidate":
-            return HTTPStatus.FORBIDDEN, {"error": "report_not_shared"}
         report, report_llm_status = generate_report(session)
         return HTTPStatus.OK, {"report": report, "llm_status": report_llm_status if report_llm_status == "ok" else session.llm_status}
 
@@ -310,7 +402,7 @@ def handle_api_request(
         and path_parts[:2] == ["api", "prep-sessions"]
         and path_parts[3] == "followups"
     ):
-        prep = store.record_followup(path_parts[2], body)
+        prep = store.record_followup(path_parts[2], body, user_id)
         if prep is None:
             return HTTPStatus.NOT_FOUND, {"error": "prep_session_not_found"}
         return HTTPStatus.OK, serialize_prep_session(prep)
@@ -332,7 +424,7 @@ def handle_api_request(
         and path_parts[:2] == ["api", "sessions"]
         and path_parts[3] == "answers"
     ):
-        session = store.record_answer(path_parts[2], body)
+        session = store.record_answer(path_parts[2], body, user_id)
         if session is None:
             return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
         response = serialize_session(session)
@@ -347,7 +439,7 @@ def handle_api_request(
         and path_parts[:2] == ["api", "sessions"]
         and path_parts[3] == "livekit-token"
     ):
-        session = store.get(path_parts[2])
+        session = store.get(path_parts[2], user_id)
         if session is None:
             return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
         try:
@@ -374,15 +466,17 @@ def handle_api_request(
         and path_parts[:2] == ["api", "sessions"]
         and path_parts[3] == "video-events"
     ):
-        session = store.record_video_event(path_parts[2], body)
+        session = store.record_video_event(path_parts[2], body, user_id)
         if session is None:
             return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
         return HTTPStatus.OK, serialize_session(session)
 
     # Mock session creation - 快速创建测试面试
     if method == "POST" and path_parts == ["api", "mock-session"]:
+        _dbg(f"[ROUTE] mock-session user_id={user_id!r}", flush=True)
         return _create_mock_session(store, body, user_id=user_id)
 
+    print(f"[ROUTE] 404 NOT FOUND: {method} {path} path_parts={path_parts}", flush=True)
     return HTTPStatus.NOT_FOUND, {"error": "not_found"}
 
 
@@ -438,13 +532,12 @@ MOCK_RESUMES = {
 """,
 }
 
-MOCK_JOB_DESCRIPTIONS = {
-    "frontend": "负责 Web 前端开发，熟悉 React/Vue 框架，有良好的工程化实践。要求有架构设计经验，能推动团队技术规范落地。",
-    "backend": "负责服务端开发，熟悉 Python/Java/Go，有分布式系统经验。要求有高并发系统设计能力，熟悉微服务架构。",
-    "ai": "负责 LLM 应用开发，熟悉 RAG、Agent、Prompt Engineering。要求有模型落地经验，能独立完成从训练到部署的全流程。",
-    "pm": "负责产品规划和迭代，有用户研究、数据分析和跨团队协作经验。要求有 AI 产品经验，能独立推动产品从 0 到 1。",
+MOCK_FOLLOWUP_ANSWERS = {
+    "frontend": "岗位：高级前端工程师\n岗位描述：负责 Web 前端开发，熟悉 React/Vue 框架，有良好的工程化实践。要求有架构设计经验，能推动团队技术规范落地。\n面试目标：评估前端架构能力、工程化实践、性能优化和团队协作经验。",
+    "backend": "岗位：后端平台工程师\n岗位描述：负责服务端开发，熟悉 Python/Java/Go，有分布式系统经验。要求有高并发系统设计能力，熟悉微服务架构。\n面试目标：评估后端系统设计、数据库优化、异步任务处理和故障排查能力。",
+    "ai": "岗位：机器学习工程师\n岗位描述：负责 LLM 应用开发，熟悉 RAG、Agent、Prompt Engineering。要求有模型落地经验，能独立完成从训练到部署的全流程。\n面试目标：评估模型落地能力、多模态应用、数据工程和工程化实践。",
+    "pm": "岗位：AI 产品经理\n岗位描述：负责产品规划和迭代，有用户研究、数据分析和跨团队协作经验。要求有 AI 产品经验，能独立推动产品从 0 到 1。\n面试目标：评估产品思维、数据驱动决策、跨团队推进和 AI 应用理解。",
 }
-
 
 def _handle_login(body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
     """处理登录请求"""
@@ -541,83 +634,132 @@ def _handle_logout(auth: AuthContext | None) -> tuple[int, dict[str, Any]]:
 
 
 def _create_mock_session(store: SessionStore, body: dict[str, Any], user_id: str = "") -> tuple[int, dict[str, Any]]:
-    """使用 mock 数据快速创建面试 session，跳过简历解析"""
-    template = body.get("template", "frontend")
-    candidate_name = body.get("candidate_name", "测试候选人")
+    """使用 mock 数据快速创建面试 session，走完整 PrepSession 流程"""
+    _dbg(f"[_create_mock_session] repo={store.repo is not None} prep_repo={store.prep_repo is not None} user_id={user_id!r}", flush=True)
+    template = str(body.get("template", "frontend"))
+    candidate_name = str(body.get("candidate_name", "测试候选人"))
+    enable_video_observation = bool(body.get("enable_video_observation", True))
 
     resume = MOCK_RESUMES.get(template, MOCK_RESUMES["frontend"])
-    job_description = MOCK_JOB_DESCRIPTIONS.get(template, MOCK_JOB_DESCRIPTIONS["frontend"])
+    answer = MOCK_FOLLOWUP_ANSWERS.get(template, MOCK_FOLLOWUP_ANSWERS["frontend"])
 
-    question_set = generate_interview_questions(
-        resume=resume,
-        job_description=job_description,
-        interview_goal="评估技术能力、项目经验和表达能力。",
-    )
-
-    session = create_interview_session(
+    # 1. 创建 PrepSession（与正常流程一致）
+    prep = create_prep_session(
         candidate_name=candidate_name,
-        role=template.replace("frontend", "前端工程师").replace("backend", "后端工程师").replace("ai", "AI工程师").replace("pm", "产品经理"),
-        questions=question_set.questions,
-        report_visibility=str(body.get("report_visibility", "recruiter_only")),
-        enable_video_observation=bool(body.get("enable_video_observation", True)),
+        resume_markdown=resume,
         user_id=user_id,
     )
-    session = replace(session, llm_status="fallback")
-    store.sessions[session.id] = session
-    store.speech_aggregates[session.id] = SpeechAggregateState()
+
+    # 2. 用预设回答完成追问，标记 ready
+    prep = advance_followup(prep, answer)
+    store.prep_sessions[prep.id] = prep
+    if store.prep_repo:
+        if not store.prep_repo.save_prep_session(prep, user_id):
+            raise PersistenceError(f"Failed to save prep session {prep.id}")
+
+    # 3. 从 PrepSession 创建 InterviewSession（与正常流程一致）
+    session = store.create_from_prep(
+        prep.id,
+        {
+            "enable_video_observation": enable_video_observation,
+        },
+        user_id=user_id,
+    )
+    if session is None:
+        return HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "mock_session_creation_failed"}
 
     return HTTPStatus.CREATED, serialize_session(session)
 
 
 def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPServer:
-    store = SessionStore()
+    from backend.auth.supabase_client import get_service_client
+    from backend.interview.config import get_supabase_config
+    service_client = get_service_client()
+    if service_client:
+        print("[startup] Supabase service client initialized, DB persistence enabled", flush=True)
+    else:
+        supabase_cfg = get_supabase_config()
+        if supabase_cfg.get("url") and supabase_cfg.get("anon_key") and not supabase_cfg.get("service_role_key"):
+            print("[startup] WARNING: SUPABASE_SERVICE_ROLE_KEY 未配置！", flush=True)
+            print("[startup]   请在 .env 中添加 SUPABASE_SERVICE_ROLE_KEY（从 Supabase Dashboard → Settings → API → service_role 获取）", flush=True)
+            print("[startup]   当前 database 持久化已禁用，session 仅保存在内存中，服务重启后将丢失。", flush=True)
+        else:
+            print("[startup] WARNING: Supabase service client NOT available, DB persistence disabled", flush=True)
+    repo = SessionRepository(service_client) if service_client else None
+    prep_repo = PrepSessionRepository(service_client) if service_client else None
+    store = SessionStore(repo, prep_repo)
     auth_middleware = AuthMiddleware(require_auth=is_auth_required())
 
     class InterviewApiHandler(BaseHTTPRequestHandler):
         def do_OPTIONS(self) -> None:
+            _dbg(f"[REQ] OPTIONS {self.path}", flush=True)
             self._send_json({}, HTTPStatus.NO_CONTENT)
 
         def do_GET(self) -> None:
-            auth = self._authenticate()
-            if auth is None and auth_middleware.require_auth:
-                self._send_json({"error": "authentication_required"}, HTTPStatus.UNAUTHORIZED)
-                return
-            # 设置数据库持久化上下文
-            if auth:
-                token = self._extract_token()
-                if token:
-                    store.set_auth(auth, token)
-            status, body = handle_api_request(store, "GET", self.path, auth=auth)
-            self._send_json(body, HTTPStatus(status))
-
-        def do_POST(self) -> None:
-            # 检查是否是公开的认证路由（不需要认证）
-            is_public_auth_route = self._is_public_auth_route()
-
-            # 非公开路由需要认证
-            if not is_public_auth_route:
+            try:
+                _dbg(f"[REQ] GET {self.path}", flush=True)
                 auth = self._authenticate()
                 if auth is None and auth_middleware.require_auth:
                     self._send_json({"error": "authentication_required"}, HTTPStatus.UNAUTHORIZED)
                     return
-                # 设置数据库持久化上下文
-                if auth:
-                    token = self._extract_token()
-                    if token:
-                        store.set_auth(auth, token)
-            else:
-                auth = None
+                user_id = auth.user_id if auth else ""
+                status, body = handle_api_request(store, "GET", self.path, user_id=user_id, auth=auth)
+                _dbg(f"[RES] GET {self.path} -> {status} user_id={user_id!r}", flush=True)
+                self._send_json(body, HTTPStatus(status))
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                try:
+                    self._send_json({"error": "internal_error", "message": str(e)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+                except Exception:
+                    pass
 
-            payload = self._read_json()
-            status, body = handle_api_request(store, "POST", self.path, payload, auth=auth)
-            self._send_json(body, HTTPStatus(status))
+        def do_POST(self) -> None:
+            try:
+                _dbg(f"[REQ] POST {self.path}", flush=True)
+                if self._is_public_auth_route():
+                    auth = None
+                else:
+                    auth = self._authenticate()
+                    if auth is None and auth_middleware.require_auth:
+                        self._send_json({"error": "authentication_required"}, HTTPStatus.UNAUTHORIZED)
+                        return
 
-        def _extract_token(self) -> str | None:
-            """从请求头中提取 JWT token"""
-            auth_header = self.headers.get("Authorization", "")
-            if auth_header.startswith("Bearer "):
-                return auth_header[7:]
-            return None
+                payload = self._read_json()
+                user_id = auth.user_id if auth else ""
+                _dbg(f"[REQ] POST {self.path} user_id={user_id!r} auth={auth is not None}", flush=True)
+                status, body = handle_api_request(store, "POST", self.path, payload, user_id=user_id, auth=auth)
+                _dbg(f"[RES] POST {self.path} -> {status}", flush=True)
+                self._send_json(body, HTTPStatus(status))
+            except PersistenceError as e:
+                try:
+                    self._send_json({"error": "persistence_failed", "message": str(e)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+                except Exception:
+                    pass
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                try:
+                    self._send_json({"error": "internal_error", "message": str(e)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+                except Exception:
+                    pass
+
+        def do_DELETE(self) -> None:
+            try:
+                auth = self._authenticate()
+                if auth is None and auth_middleware.require_auth:
+                    self._send_json({"error": "authentication_required"}, HTTPStatus.UNAUTHORIZED)
+                    return
+                user_id = auth.user_id if auth else ""
+                status, body = handle_api_request(store, "DELETE", self.path, user_id=user_id, auth=auth)
+                self._send_json(body, HTTPStatus(status))
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                try:
+                    self._send_json({"error": "internal_error", "message": str(e)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+                except Exception:
+                    pass
 
         def _is_public_auth_route(self) -> bool:
             """检查是否是公开的认证路由"""
@@ -646,7 +788,7 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
                 self.send_response(status)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Access-Control-Allow-Origin", "*")
-                self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+                self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
                 self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
                 self.send_header("Content-Length", str(len(raw)))
                 self.end_headers()

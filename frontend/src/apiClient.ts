@@ -7,7 +7,6 @@ import type {
   KeyframeRecord,
   PrepSession,
   ReadySummary,
-  ReportVisibility,
   VideoMetrics,
   VideoSignalEvent,
   VideoSummary
@@ -100,13 +99,21 @@ type ApiSession = {
   video_events?: ApiVideoEvent[];
   keyframes?: ApiKeyframe[];
   video_summary?: ApiVideoSummary;
-  report_visibility?: ReportVisibility;
   meeting_room?: string;
   enable_video_observation?: boolean;
 };
 
 type ApiSessionWithReport = ApiSession & {
   report: string;
+};
+
+type ApiSessionSummary = {
+  id: string;
+  candidate_name: string;
+  role: string;
+  created_at: string;
+  current_index: number;
+  llm_status: string;
 };
 
 type ApiReadySummary = {
@@ -209,13 +216,12 @@ export async function submitPrepFollowup(prepSessionId: string, answer: string, 
 
 export async function createInterviewSessionFromPrep(
   prepSessionId: string,
-  config: { reportVisibility: ReportVisibility; useLlmQuestions?: boolean; enableVideoObservation?: boolean },
+  config: { useLlmQuestions?: boolean; enableVideoObservation?: boolean },
   options: ClientOptions = {}
 ): Promise<InterviewSession> {
   const response = await request<ApiSession>(
     `/api/prep-sessions/${prepSessionId}/interview-session`,
     {
-      report_visibility: config.reportVisibility,
       use_llm_questions: Boolean(config.useLlmQuestions),
       enable_video_observation: config.enableVideoObservation ?? true
     },
@@ -305,11 +311,10 @@ export async function submitSpeechChunk(
 
 export async function fetchReport(
   sessionId: string,
-  viewer: "recruiter" | "candidate",
   options: ClientOptions = {}
 ): Promise<{ report: string; llmStatus: string }> {
   const response = await getRequest<{ report: string; llm_status: string }>(
-    `/api/sessions/${sessionId}/report?viewer=${viewer}`,
+    `/api/sessions/${sessionId}/report`,
     200,
     options
   );
@@ -317,11 +322,19 @@ export async function fetchReport(
 }
 
 /** 快速创建 mock 面试，用于调试 */
+export async function listSessions(options: ClientOptions = {}): Promise<{ sessions: ApiSessionSummary[] }> {
+  return await getRequest<{ sessions: ApiSessionSummary[] }>("/api/sessions", 200, options);
+}
+
+export async function deleteSession(sessionId: string, options: ClientOptions = {}): Promise<void> {
+  await deleteRequest(`/api/sessions/${sessionId}`, 200, options);
+}
+
+/** 快速创建 mock 面试，用于调试 */
 export async function createMockSession(
   config: {
     template?: "frontend" | "backend" | "ai" | "pm";
     candidateName?: string;
-    reportVisibility?: ReportVisibility;
     enableVideoObservation?: boolean;
   } = {},
   options: ClientOptions = {}
@@ -331,7 +344,6 @@ export async function createMockSession(
     {
       template: config.template ?? "frontend",
       candidate_name: config.candidateName ?? "测试候选人",
-      report_visibility: config.reportVisibility ?? "recruiter_only",
       enable_video_observation: config.enableVideoObservation ?? true
     },
     201,
@@ -403,6 +415,36 @@ async function getRequest<T>(path: string, expectedStatus: number, options: Clie
   return (await response.json()) as T;
 }
 
+async function deleteRequest<T>(path: string, expectedStatus: number, options: ClientOptions): Promise<T> {
+  const baseUrl = options.baseUrl ?? getApiBaseUrl();
+  const fetcher = options.fetcher ?? fetch;
+
+  const accessToken = useAuthStore.getState().accessToken;
+
+  const headers: Record<string, string> = {};
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
+
+  const response = await fetcher(`${baseUrl}${path}`, { method: "DELETE", headers });
+
+  if (response.status === 401) {
+    useAuthStore.getState().logout();
+    window.location.href = "/login";
+    throw new Error("认证已过期，请重新登录");
+  }
+
+  if (response.status !== expectedStatus) {
+    throw new Error(`API request failed with ${response.status}: ${await response.text()}`);
+  }
+
+  const text = await response.text();
+  if (!text) {
+    return {} as T;
+  }
+  return JSON.parse(text) as T;
+}
+
 function mapSession(session: ApiSession): InterviewSession {
   const questions = session.questions.map(mapQuestion);
   return {
@@ -419,7 +461,6 @@ function mapSession(session: ApiSession): InterviewSession {
     videoEvents: (session.video_events ?? []).map(mapVideoEvent),
     keyframes: (session.keyframes ?? []).map(mapKeyframe),
     videoSummary: mapVideoSummary(session.video_summary),
-    reportVisibility: session.report_visibility ?? "recruiter_only",
     meetingRoom: session.meeting_room ?? "",
     enableVideoObservation: session.enable_video_observation ?? true
   };

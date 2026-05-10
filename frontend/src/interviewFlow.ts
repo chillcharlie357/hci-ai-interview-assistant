@@ -11,8 +11,6 @@ export type DraftInput = {
   useLlmQuestions?: boolean;
 };
 
-export type ReportVisibility = "recruiter_only" | "shared_with_candidate";
-
 export type ReadySummary = {
   role: string;
   jobDescription: string;
@@ -108,7 +106,6 @@ export type InterviewSession = {
   videoEvents: VideoSignalEvent[];
   keyframes: KeyframeRecord[];
   videoSummary: VideoSummary;
-  reportVisibility: ReportVisibility;
   meetingRoom: string;
   enableVideoObservation: boolean;
 };
@@ -142,7 +139,6 @@ export function createSessionFromDraft(draft: DraftInput): InterviewSession {
       keyframeCount: 0,
       eventTypes: []
     },
-    reportVisibility: "recruiter_only",
     meetingRoom: "",
     enableVideoObservation: true,
     events: [

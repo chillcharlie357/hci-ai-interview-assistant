@@ -7,7 +7,7 @@ import { useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { LoginFormPage, ProFormText } from "@ant-design/pro-components";
 import { LockOutlined, UserOutlined } from "@ant-design/icons";
-import { theme, message } from "antd";
+import { App, theme } from "antd";
 import { useAuthStore } from "./authStore";
 import { getApiBaseUrl } from "../config";
 
@@ -16,6 +16,7 @@ export function LoginPage() {
   const location = useLocation();
   const [loading, setLoading] = useState(false);
   const { token } = theme.useToken();
+  const { message } = App.useApp();
   const setTokens = useAuthStore((s) => s.setTokens);
   const setUser = useAuthStore((s) => s.setUser);
 

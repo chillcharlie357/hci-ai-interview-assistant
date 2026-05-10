@@ -8,44 +8,62 @@ from typing import Any
 
 from supabase import Client
 
-from backend.auth.models import AuthContext
-from backend.auth.supabase_client import get_authenticated_client
+from backend.database.utils import is_valid_uuid
+from backend.interview.config import is_debug
 from backend.interview.session import InterviewSession
+from backend.speech_analysis.aggregate import SpeechAggregateState
+
+
+def _dbg(*args, **kwargs) -> None:
+    if is_debug():
+        print(*args, **kwargs)
 
 
 class SessionRepository:
-    """面试会话数据仓库"""
+    """面试会话数据仓库，使用 service role client 操作，应用层做 user_id 过滤"""
 
-    def __init__(self, client: Client, user: AuthContext):
+    def __init__(self, client: Client):
         self.client = client
-        self.user = user
 
-    @classmethod
-    def from_auth_context(cls, user: AuthContext, access_token: str) -> SessionRepository | None:
-        """从认证上下文创建数据仓库实例"""
-        client = get_authenticated_client(access_token)
-        if client is None:
-            return None
-        return cls(client, user)
-
-    def save_session(self, session: InterviewSession) -> bool:
-        """保存面试会话到数据库"""
+    def _ensure_profile(self, user_id: str, email: str = "") -> None:
+        """确保 profiles 表中有该用户的记录（修复 trigger 未执行的情况）"""
+        existing = self.client.table('profiles').select('id').eq('id', user_id).execute()
+        if existing.data:
+            return
         try:
-            data = self._session_to_dict(session)
-            # 使用 upsert 模式，如果存在则更新
+            self.client.table('profiles').upsert({
+                'id': user_id,
+                'email': email or f'{user_id}@placeholder.local',
+                'full_name': '',
+            }).execute()
+            _dbg(f"[ensure_profile] 为 {user_id} 补建了 profile 记录", flush=True)
+        except Exception as e:
+            print(f"[ensure_profile] 补建 profile 失败: {e}", flush=True)
+
+    def save_session(self, session: InterviewSession, user_id: str) -> bool:
+        """保存面试会话到数据库"""
+        if not is_valid_uuid(user_id):
+            print(f"[save_session] WARNING: user_id={user_id!r} 不是合法 UUID，跳过数据库持久化", flush=True)
+            return True
+        try:
+            self._ensure_profile(user_id)
+            data = self._session_to_dict(session, user_id)
+            _dbg(f"[save_session] id={session.id} user_id={user_id!r}", flush=True)
             result = self.client.table('interview_sessions').upsert(data).execute()
             return len(result.data) > 0
         except Exception as e:
-            print(f"Failed to save session: {e}")
+            print(f"[save_session] 数据库写入失败: {e}", flush=True)
             return False
 
-    def get_session(self, session_id: str) -> InterviewSession | None:
+    def get_session(self, session_id: str, user_id: str) -> InterviewSession | None:
         """从数据库获取面试会话"""
+        if not is_valid_uuid(user_id):
+            return None
         try:
             result = self.client.table('interview_sessions') \
                 .select('*') \
                 .eq('id', session_id) \
-                .eq('user_id', self.user.user_id) \
+                .eq('user_id', user_id) \
                 .single() \
                 .execute()
 
@@ -55,12 +73,14 @@ class SessionRepository:
         except Exception:
             return None
 
-    def list_sessions(self, limit: int = 50) -> list[dict[str, Any]]:
+    def list_sessions(self, user_id: str, limit: int = 50) -> list[dict[str, Any]]:
         """获取用户的面试会话列表"""
+        if not is_valid_uuid(user_id):
+            return []
         try:
             result = self.client.table('interview_sessions') \
                 .select('id, candidate_name, role, created_at, current_index, llm_status') \
-                .eq('user_id', self.user.user_id) \
+                .eq('user_id', user_id) \
                 .order('created_at', desc=True) \
                 .limit(limit) \
                 .execute()
@@ -70,26 +90,58 @@ class SessionRepository:
             print(f"Failed to list sessions: {e}")
             return []
 
-    def delete_session(self, session_id: str) -> bool:
+    def delete_session(self, session_id: str, user_id: str) -> bool:
         """删除面试会话"""
+        if not is_valid_uuid(user_id):
+            return False
         try:
-            result = self.client.table('interview_sessions') \
+            self.client.table('interview_sessions') \
                 .delete() \
                 .eq('id', session_id) \
-                .eq('user_id', self.user.user_id) \
+                .eq('user_id', user_id) \
                 .execute()
-
             return True
         except Exception as e:
             print(f"Failed to delete session: {e}")
             return False
 
-    def _session_to_dict(self, session: InterviewSession) -> dict[str, Any]:
+    def save_speech_aggregate(self, session_id: str, state: SpeechAggregateState) -> bool:
+        try:
+            data = asdict(state)
+            data['session_id'] = session_id
+            self.client.table('speech_aggregates').upsert(data).execute()
+            return True
+        except Exception as e:
+            print(f"Failed to save speech aggregate: {e}")
+            return False
+
+    def get_speech_aggregate(self, session_id: str) -> SpeechAggregateState | None:
+        try:
+            result = self.client.table('speech_aggregates') \
+                .select('*') \
+                .eq('session_id', session_id) \
+                .single() \
+                .execute()
+            if result.data:
+                return SpeechAggregateState(
+                    chunk_count=result.data.get('chunk_count', 0),
+                    analyzed_duration_sec=result.data.get('analyzed_duration_sec', 0.0),
+                    voiced_duration_sec=result.data.get('voiced_duration_sec', 0.0),
+                    speech_run_equivalent=result.data.get('speech_run_equivalent', 0.0),
+                    pitch_weight_sum=result.data.get('pitch_weight_sum', 0.0),
+                    pitch_weighted_mean_sum=result.data.get('pitch_weighted_mean_sum', 0.0),
+                    pitch_weighted_second_moment_sum=result.data.get('pitch_weighted_second_moment_sum', 0.0),
+                    f0_min_hz=result.data.get('f0_min_hz'),
+                    f0_max_hz=result.data.get('f0_max_hz'),
+                )
+            return None
+        except Exception:
+            return None
+
+    def _session_to_dict(self, session: InterviewSession, user_id: str) -> dict[str, Any]:
         """将 InterviewSession 转换为数据库字典"""
         data = asdict(session)
-        # 确保 user_id 是字符串格式
-        data['user_id'] = self.user.user_id
-        # 将复杂对象序列化为 JSON
+        data['user_id'] = user_id
         data['questions'] = json.dumps(data['questions'], ensure_ascii=False)
         data['answers'] = json.dumps(data['answers'], ensure_ascii=False)
         data['events'] = json.dumps(data['events'], ensure_ascii=False)
@@ -101,7 +153,6 @@ class SessionRepository:
 
     def _dict_to_session(self, data: dict[str, Any]) -> InterviewSession:
         """将数据库字典转换为 InterviewSession"""
-        # 解析 JSON 字段
         for field in ['questions', 'answers', 'events', 'video_events', 'keyframes']:
             if isinstance(data.get(field), str):
                 data[field] = json.loads(data[field])
@@ -118,7 +169,6 @@ class SessionRepository:
             'llm_status': data.get('llm_status', 'fallback'),
             'video_events': data.get('video_events'),
             'keyframes': data.get('keyframes'),
-            'report_visibility': data.get('report_visibility', 'recruiter_only'),
             'meeting_room': data.get('meeting_room', ''),
             'enable_video_observation': data.get('enable_video_observation', True),
         })

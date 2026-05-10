@@ -73,7 +73,7 @@ class PrepFlowTest(unittest.TestCase):
 
     @patch("backend.interview.document_extractor.subprocess.run")
     @patch("backend.interview.api.LlmClient.from_env")
-    def test_creates_interview_session_with_report_visibility(self, from_env_mock, run_mock):
+    def test_creates_interview_session(self, from_env_mock, run_mock):
         run_mock.return_value = FakeCompletedProcess()
         from_env_mock.return_value.complete_json.return_value = LlmResult(status="fallback", data=None)
         prep = self.create_prep()
@@ -87,14 +87,12 @@ class PrepFlowTest(unittest.TestCase):
             "POST",
             f"/api/prep-sessions/{prep['prep_session_id']}/interview-session",
             {
-                "report_visibility": "shared_with_candidate",
                 "use_llm_questions": False,
                 "enable_video_observation": True,
             },
             expected_status=201,
         )
 
-        self.assertEqual(created["report_visibility"], "shared_with_candidate")
         self.assertEqual(created["meeting_room"], f"interview-{created['id']}")
         self.assertTrue(created["enable_video_observation"])
         self.assertGreaterEqual(len(created["questions"]), 6)
@@ -138,28 +136,22 @@ class PrepFlowTest(unittest.TestCase):
         self.assertGreater(len(response["token"]), 40)
 
     @patch("backend.interview.document_extractor.subprocess.run")
-    def test_candidate_report_visibility_is_enforced(self, run_mock):
+    def test_report_is_always_accessible(self, run_mock):
         run_mock.return_value = FakeCompletedProcess()
-        session = self.create_interview_session(report_visibility="recruiter_only")
+        session = self.create_interview_session()
         self.request(
             "POST",
             f"/api/sessions/{session['id']}/answers",
             {"text": "我负责问题生成。", "duration_sec": 20},
         )
 
-        hidden = self.request(
+        result = self.request(
             "GET",
-            f"/api/sessions/{session['id']}/report?viewer=candidate",
-            expected_status=403,
-        )
-        visible = self.request(
-            "GET",
-            f"/api/sessions/{session['id']}/report?viewer=recruiter",
+            f"/api/sessions/{session['id']}/report",
             expected_status=200,
         )
 
-        self.assertEqual(hidden["error"], "report_not_shared")
-        self.assertIn("# 智能面试纪要", visible["report"])
+        self.assertIn("# 智能面试纪要", result["report"])
 
     def create_prep(self):
         return self.request(
@@ -174,7 +166,7 @@ class PrepFlowTest(unittest.TestCase):
             expected_status=201,
         )
 
-    def create_interview_session(self, report_visibility="recruiter_only"):
+    def create_interview_session(self):
         prep = self.create_prep()
         self.request(
             "POST",
@@ -184,7 +176,7 @@ class PrepFlowTest(unittest.TestCase):
         return self.request(
             "POST",
             f"/api/prep-sessions/{prep['prep_session_id']}/interview-session",
-            {"report_visibility": report_visibility},
+            {},
             expected_status=201,
         )
 

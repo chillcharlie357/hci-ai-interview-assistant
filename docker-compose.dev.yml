@@ -1,0 +1,14 @@
+# 开发模式覆盖：源码热重载 + 调试日志
+# 使用方式: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  backend:
+    volumes:
+      - ./backend:/app/backend
+    command: ["uv", "run", "watchfiles", "--filter", "python", "python -m backend.interview.api --host 0.0.0.0 --port 8000"]
+    environment:
+      DEBUG: "true"
+
+  frontend:
+    volumes:
+      - ./frontend/src:/app/src
