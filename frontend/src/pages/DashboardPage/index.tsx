@@ -14,6 +14,8 @@ import {
 } from "@ant-design/icons";
 import { listSessions } from "../../apiClient";
 
+import "./DashboardPage.css";
+
 type SessionSummary = {
   id: string;
   candidate_name: string;
@@ -147,7 +149,11 @@ export function DashboardPage() {
                 <div
                   key={s.id}
                   className="interview-item"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => navigate(status === "completed" ? `/report/${s.id}` : `/interview/${s.id}`)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate(status === "completed" ? `/report/${s.id}` : `/interview/${s.id}`); } }}
+                  aria-label={`${s.candidate_name} - ${status === "completed" ? "查看报告" : "进入面试"}`}
                 >
                   <div className="interview-item-left">
                     <div className="interview-avatar">
@@ -190,7 +196,11 @@ export function DashboardPage() {
           <Card
             className="dashboard-card shortcut-card"
             hoverable
+            role="button"
+            tabIndex={0}
             onClick={() => navigate("/recruiter/setup")}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate("/recruiter/setup"); } }}
+            aria-label="面试配置 - 创建和管理面试"
           >
             <div className="shortcut-content">
               <div className="shortcut-icon" style={{ background: "rgba(22, 119, 255, 0.1)" }}>
@@ -207,7 +217,11 @@ export function DashboardPage() {
           <Card
             className="dashboard-card shortcut-card"
             hoverable
+            role="button"
+            tabIndex={0}
             onClick={() => navigate("/recruiter/setup")}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate("/recruiter/setup"); } }}
+            aria-label="面试间 - 进入视频面试"
           >
             <div className="shortcut-content">
               <div className="shortcut-icon" style={{ background: "rgba(82, 196, 26, 0.1)" }}>
@@ -221,169 +235,6 @@ export function DashboardPage() {
           </Card>
         </Col>
       </Row>
-
-      <style>{`
-        .dashboard-page {
-          max-width: 1200px;
-          margin: 0 auto;
-          padding: var(--space-xl);
-        }
-
-        .dashboard-header {
-          margin-bottom: var(--space-xl);
-        }
-
-        .dashboard-title {
-          font-size: 32px;
-          font-weight: 700;
-          color: var(--color-text);
-          margin-bottom: var(--space-sm);
-        }
-
-        .dashboard-subtitle {
-          font-size: 16px;
-          color: var(--color-text-secondary);
-        }
-
-        .dashboard-card {
-          margin-bottom: var(--space-lg);
-          border-radius: var(--radius-xl);
-        }
-
-        /* 快速操作卡片 */
-        .quick-action-card {
-          background: linear-gradient(135deg, rgba(22, 119, 255, 0.05), rgba(82, 196, 26, 0.05));
-        }
-
-        .quick-action-content {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .quick-action-info h2 {
-          margin: 0 0 var(--space-xs);
-          font-size: 20px;
-          font-weight: 600;
-          color: var(--color-text);
-        }
-
-        .quick-action-info p {
-          margin: 0;
-          color: var(--color-text-secondary);
-        }
-
-        /* 统计卡片 */
-        .stats-row {
-          margin-bottom: var(--space-lg);
-        }
-
-        .stats-card {
-          border-radius: var(--radius-lg);
-        }
-
-        .stats-card .ant-statistic-title {
-          color: var(--color-text-secondary);
-        }
-
-        /* 面试列表 */
-        .interview-list {
-          display: flex;
-          flex-direction: column;
-          gap: var(--space-sm);
-        }
-
-        .interview-item {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: var(--space-md);
-          background: var(--color-bg-layout);
-          border-radius: var(--radius-lg);
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .interview-item:hover {
-          background: rgba(22, 119, 255, 0.05);
-        }
-
-        .interview-item-left {
-          display: flex;
-          align-items: center;
-          gap: var(--space-md);
-        }
-
-        .interview-avatar {
-          width: 48px;
-          height: 48px;
-          border-radius: 50%;
-          background: linear-gradient(135deg, #1677ff, #69b1ff);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          font-size: 20px;
-        }
-
-        .interview-info h4 {
-          margin: 0;
-          font-size: 16px;
-          font-weight: 600;
-          color: var(--color-text);
-        }
-
-        .interview-info p {
-          margin: 4px 0 0;
-          font-size: 13px;
-          color: var(--color-text-tertiary);
-        }
-
-        .interview-item-right {
-          display: flex;
-          align-items: center;
-          gap: var(--space-md);
-        }
-
-        .interview-progress {
-          font-size: 13px;
-          color: var(--color-text-tertiary);
-        }
-
-        /* 快捷入口 */
-        .shortcut-card {
-          border-radius: var(--radius-xl);
-        }
-
-        .shortcut-content {
-          display: flex;
-          align-items: center;
-          gap: var(--space-md);
-        }
-
-        .shortcut-icon {
-          width: 48px;
-          height: 48px;
-          border-radius: var(--radius-lg);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 24px;
-        }
-
-        .shortcut-info h3 {
-          margin: 0;
-          font-size: 16px;
-          font-weight: 600;
-          color: var(--color-text);
-        }
-
-        .shortcut-info p {
-          margin: 4px 0 0;
-          font-size: 13px;
-          color: var(--color-text-tertiary);
-        }
-      `}</style>
     </div>
   );
 }

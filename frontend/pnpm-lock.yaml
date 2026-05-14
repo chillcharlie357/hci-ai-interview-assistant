@@ -24,7 +24,7 @@ importers:
         specifier: ^0.10.35
         version: 0.10.35
       '@vitejs/plugin-react':
-        specifier: latest
+        specifier: ^6.0.1
         version: 6.0.1(vite@8.0.10)
       antd:
         specifier: ^6.3.7
@@ -36,10 +36,10 @@ importers:
         specifier: ^2.18.8
         version: 2.18.8(@types/dom-mediacapture-record@1.0.22)
       react:
-        specifier: latest
+        specifier: ^19.2.5
         version: 19.2.5
       react-dom:
-        specifier: latest
+        specifier: ^19.2.5
         version: 19.2.5(react@19.2.5)
       react-router-dom:
         specifier: ^7.14.2
@@ -48,23 +48,23 @@ importers:
         specifier: ^3.8.1
         version: 3.8.1(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react-is@18.3.1)(react@19.2.5)(redux@5.0.1)
       typescript:
-        specifier: latest
+        specifier: ^6.0.3
         version: 6.0.3
       vite:
-        specifier: latest
+        specifier: ^8.0.10
         version: 8.0.10
       zustand:
         specifier: ^5.0.12
         version: 5.0.12(@types/react@19.2.14)(immer@11.1.4)(react@19.2.5)(use-sync-external-store@1.6.0(react@19.2.5))
     devDependencies:
       '@types/react':
-        specifier: latest
+        specifier: ^19.2.14
         version: 19.2.14
       '@types/react-dom':
-        specifier: latest
+        specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.14)
       vitest:
-        specifier: latest
+        specifier: ^4.1.5
         version: 4.1.5(vite@8.0.10)
 
 packages:

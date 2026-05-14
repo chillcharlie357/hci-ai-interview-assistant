@@ -37,8 +37,11 @@ import {
 } from "../../apiClient";
 import type { PrepSession, InterviewSession } from "../../interviewFlow";
 import { buildQuestionPreviewItems } from "../../questionPreview";
+import { toBase64 } from "@/utils/file";
 import { buildReportFilename, downloadMarkdownReport } from "../../reportDownload";
 import { useAppStore } from "../../store";
+
+import "./RecruiterPage.css";
 
 const { Dragger } = Upload;
 const { TextArea } = Input;
@@ -123,7 +126,7 @@ export function RecruiterPage() {
     }
     setLoading(true);
     try {
-      const dataBase64 = await fileToBase64(resumeFile);
+      const dataBase64 = await toBase64(resumeFile);
       const result = await submitResume({
         candidateName,
         fileName: resumeFile.name,
@@ -194,7 +197,7 @@ export function RecruiterPage() {
     if (!session) return;
     setLoading(true);
     try {
-      const result = await fetchReport(session.id, "recruiter");
+      const result = await fetchReport(session.id);
       setReport(result.report);
     } catch (error) {
       message.error(error instanceof Error ? error.message : "获取报告失败");
@@ -207,7 +210,7 @@ export function RecruiterPage() {
   const handleDownloadReport = async () => {
     if (!session) return;
     try {
-      const result = report ? { report } : await fetchReport(session.id, "recruiter");
+      const result = report ? { report } : await fetchReport(session.id);
       if (!report) {
         setReport(result.report);
       }
@@ -464,237 +467,8 @@ export function RecruiterPage() {
           </Card>
         )}
       </div>
-
-      <style>{`
-        .recruiter-page {
-          max-width: 1200px;
-          margin: 0 auto;
-          padding: var(--space-xl);
-        }
-
-        .recruiter-page-header {
-          text-align: center;
-          margin-bottom: var(--space-xl);
-        }
-
-        .recruiter-page-title {
-          font-size: 32px;
-          font-weight: 700;
-          color: var(--color-text);
-          margin-bottom: var(--space-sm);
-        }
-
-        .recruiter-page-subtitle {
-          font-size: 16px;
-          color: var(--color-text-secondary);
-        }
-
-        /* 快速开始卡片 */
-        .quick-start-card {
-          margin-bottom: var(--space-lg);
-          background: linear-gradient(135deg, rgba(22, 119, 255, 0.05), rgba(82, 196, 26, 0.05));
-          border: 1px dashed rgba(22, 119, 255, 0.3);
-        }
-
-        .quick-start-header {
-          display: flex;
-          align-items: center;
-          gap: var(--space-md);
-          margin-bottom: var(--space-md);
-        }
-
-        .quick-start-icon {
-          font-size: 32px;
-          color: var(--color-primary);
-        }
-
-        .quick-start-header h3 {
-          margin: 0;
-          font-size: 16px;
-          font-weight: 600;
-          color: var(--color-text);
-        }
-
-        .quick-start-header p {
-          margin: 4px 0 0;
-          font-size: 13px;
-          color: var(--color-text-tertiary);
-        }
-
-        .quick-start-buttons {
-          display: flex;
-          gap: var(--space-sm);
-          flex-wrap: wrap;
-        }
-
-        .quick-start-buttons .ant-btn {
-          border-radius: var(--radius-md);
-        }
-
-        .recruiter-cards-row {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: var(--space-lg);
-          margin-bottom: var(--space-lg);
-        }
-
-        @media (max-width: 900px) {
-          .recruiter-cards-row {
-            grid-template-columns: 1fr;
-          }
-        }
-
-        .recruiter-page-card {
-          margin-bottom: 0;
-        }
-
-        .setup-section {
-          margin-bottom: var(--space-md);
-        }
-
-        .setup-label {
-          display: block;
-          font-size: 14px;
-          font-weight: 600;
-          color: var(--color-text);
-          margin-bottom: var(--space-xs);
-        }
-
-        .required {
-          color: var(--color-error);
-        }
-
-        .setup-uploader {
-          border-radius: var(--radius-lg);
-          background: rgba(22, 119, 255, 0.02);
-          border-color: rgba(22, 119, 255, 0.3);
-        }
-
-        .setup-uploader:hover {
-          border-color: var(--color-primary);
-        }
-
-        .setup-uploader .ant-upload-text {
-          color: var(--color-primary);
-          font-weight: 500;
-        }
-
-        .resume-preview {
-          margin-top: var(--space-md);
-          padding: var(--space-md);
-          background: var(--color-bg-layout);
-          border-radius: var(--radius);
-          max-height: 200px;
-          overflow: auto;
-        }
-
-        .resume-preview pre {
-          margin: 0;
-          white-space: pre-wrap;
-          font-size: 12px;
-          line-height: 1.5;
-        }
-
-        .config-item {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: var(--space-sm) 0;
-          border-bottom: 1px solid var(--color-border-secondary);
-        }
-
-        .config-item:last-child {
-          border-bottom: none;
-        }
-
-        .create-interview-btn {
-          margin-top: var(--space-md);
-          background: linear-gradient(135deg, var(--color-primary), #69b1ff);
-          border: none;
-          border-radius: var(--radius-md);
-          box-shadow: var(--shadow-glow-primary);
-        }
-
-        .interview-link-section h3 {
-          margin-bottom: var(--space-md);
-        }
-
-        .interview-link-actions {
-          margin-top: var(--space-md);
-          display: flex;
-          gap: var(--space-sm);
-        }
-
-        .question-list {
-          display: flex;
-          flex-direction: column;
-          gap: var(--space-md);
-        }
-
-        .question-item {
-          padding: var(--space-md);
-          background: var(--color-bg-layout);
-          border-radius: var(--radius);
-        }
-
-        .question-item-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: var(--space-sm);
-        }
-
-        .question-item-index {
-          font-weight: 600;
-          color: var(--color-text-tertiary);
-        }
-
-        .question-item-prompt {
-          font-size: 16px;
-          font-weight: 500;
-          margin-bottom: var(--space-sm);
-        }
-
-        .question-item-meta {
-          padding: var(--space-sm);
-          background: white;
-          border-radius: var(--radius);
-          font-size: 13px;
-        }
-
-        .question-item-meta div {
-          margin-bottom: var(--space-xs);
-        }
-
-        .question-item-meta strong {
-          color: var(--color-text);
-        }
-
-        .report-preview {
-          background: var(--color-bg-layout);
-          padding: var(--space-md);
-          border-radius: var(--radius);
-          max-height: 500px;
-          overflow: auto;
-          white-space: pre-wrap;
-          font-size: 13px;
-          line-height: 1.5;
-        }
-      `}</style>
     </Spin>
   );
-}
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("读取文件失败"));
-    reader.onload = () => {
-      const value = String(reader.result ?? "");
-      resolve(value.includes(",") ? value.split(",")[1] : value);
-    };
-    reader.readAsDataURL(file);
-  });
 }
 
 export default RecruiterPage;

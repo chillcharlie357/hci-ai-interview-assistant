@@ -1,0 +1,515 @@
+/* ReportPage 样式 */
+
+.report-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-xl);
+}
+
+.report-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  gap: var(--space-md);
+}
+
+/* 玻璃卡片 */
+.report-page .glass-card {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 8px 32px rgba(0, 71, 255, 0.1);
+}
+
+/* 头部 */
+.report-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: var(--space-xl);
+}
+
+.report-header h1 {
+  font-size: 40px;
+  font-weight: 800;
+  color: var(--color-text);
+  margin: 0 0 var(--space-sm);
+  letter-spacing: -0.02em;
+}
+
+.report-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--color-text-secondary);
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.meta-divider {
+  color: var(--color-border);
+}
+
+.download-btn {
+  border-radius: var(--radius-full);
+  box-shadow: 0 4px 15px rgba(22, 119, 255, 0.3);
+}
+
+/* 两列布局 */
+.report-grid {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-lg);
+}
+
+/* 左列：评分 */
+.rating-card {
+  padding: var(--space-xl);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  height: 100%;
+}
+
+.rating-card h3 {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: var(--space-md);
+  color: var(--color-text);
+}
+
+.rating-score {
+  margin: var(--space-md) 0;
+}
+
+.score-value {
+  font-size: 80px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #00629d, #00a3ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+}
+
+.score-label {
+  font-size: 14px;
+  color: var(--color-text-tertiary);
+  margin-bottom: var(--space-md);
+}
+
+.rating-summary {
+  color: var(--color-text-secondary);
+  text-align: left;
+  line-height: 1.8;
+  margin-top: auto;
+}
+
+/* 右列 */
+.report-right {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+/* 软技能 */
+.skills-card {
+  padding: var(--space-lg);
+}
+
+.skills-card h3 {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: var(--space-md);
+  color: var(--color-text);
+}
+
+.skills-content {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xl);
+}
+
+/* 雷达图 */
+.radar-chart {
+  width: 220px;
+  height: 200px;
+  flex-shrink: 0;
+}
+
+.radar-empty {
+  width: 100%;
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-tertiary);
+  font-size: 14px;
+  background: var(--color-bg-layout);
+  border-radius: var(--radius);
+}
+
+/* 技能条 */
+.skill-bars {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.skill-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.skill-bar-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.skill-bar-percent {
+  color: var(--color-primary);
+}
+
+.skill-bar-track {
+  height: 8px;
+  background: var(--color-bg-layout);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.skill-bar-fill {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: var(--radius-full);
+  position: relative;
+}
+
+.skill-bar-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.2);
+  filter: blur(2px);
+}
+
+/* 关键帧 */
+.keyframes-card {
+  padding: var(--space-lg);
+}
+
+.keyframes-card h3 {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: var(--space-md);
+  color: var(--color-text);
+}
+
+.keyframes-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-sm);
+}
+
+.keyframe-item {
+  position: relative;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  aspect-ratio: 16/9;
+  background: linear-gradient(135deg, #e6f4ff, #f0f5ff);
+}
+
+.keyframe-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.keyframe-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.6), transparent);
+  padding: var(--space-sm);
+}
+
+.keyframe-overlay span {
+  font-size: 12px;
+  color: white;
+}
+
+/* ===== 语音观察信号 ===== */
+.speech-metrics {
+  margin-top: var(--space-lg);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--color-border-secondary);
+}
+
+.speech-metrics-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0 0 var(--space-md);
+}
+
+.speech-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-md);
+}
+
+.speech-metric-card {
+  text-align: center;
+  padding: var(--space-md);
+  background: #f7f9fb;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(190, 199, 212, 0.2);
+}
+
+.speech-metric-label {
+  display: block;
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  margin-bottom: var(--space-xs);
+}
+
+.speech-metric-value {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: var(--space-sm);
+}
+
+.speech-metric-bar-track {
+  height: 6px;
+  background: #e6e8ea;
+  border-radius: 9999px;
+  overflow: hidden;
+  margin-bottom: var(--space-xs);
+}
+
+.speech-metric-bar-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.6s ease-out;
+}
+
+.speech-metric-card.ok .speech-metric-bar-fill {
+  background: var(--color-success);
+  box-shadow: 0 0 8px rgba(82, 196, 26, 0.4);
+}
+
+.speech-metric-card.low .speech-metric-bar-fill {
+  background: var(--color-warning);
+  box-shadow: 0 0 8px rgba(250, 173, 20, 0.4);
+}
+
+.speech-metric-card.high .speech-metric-bar-fill {
+  background: var(--color-primary);
+  box-shadow: 0 0 8px rgba(22, 119, 255, 0.4);
+}
+
+.speech-metric-level {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 9999px;
+}
+
+.speech-metric-level.ok {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.speech-metric-level.low {
+  background: var(--color-warning-bg);
+  color: #b45309;
+}
+
+.speech-metric-level.high {
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+}
+
+.speech-metrics-footnote {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  line-height: 1.5;
+  margin-top: var(--space-sm);
+}
+
+/* ===== 关键帧占位提示 ===== */
+.keyframes-footnote {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  margin-top: var(--space-sm);
+}
+
+/* 问答追踪 */
+.qa-card {
+  padding: var(--space-lg);
+  margin-bottom: var(--space-lg);
+}
+
+.qa-card h3 {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: var(--space-lg);
+  color: var(--color-text);
+}
+
+.qa-timeline {
+  position: relative;
+  padding-left: var(--space-xl);
+}
+
+.qa-timeline::before {
+  content: "";
+  position: absolute;
+  left: 19px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--color-border-secondary);
+}
+
+.qa-item {
+  position: relative;
+  margin-bottom: var(--space-lg);
+}
+
+.qa-marker {
+  position: absolute;
+  left: calc(-1 * var(--space-xl));
+  top: 4px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #cfe5ff;
+  border: 4px solid white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary);
+  font-size: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.qa-content {
+  background: var(--color-bg-layout);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  border: 1px solid var(--color-border-secondary);
+}
+
+.qa-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-sm);
+}
+
+.qa-header h4 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  flex: 1;
+  color: var(--color-text);
+}
+
+.qa-description {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: var(--space-sm);
+}
+
+.qa-meta {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+/* 完整报告 */
+.full-report-card {
+  padding: var(--space-lg);
+}
+
+.full-report-card h3 {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: var(--space-md);
+  color: var(--color-text);
+}
+
+.full-report-content {
+  background: var(--color-bg-layout);
+  padding: var(--space-md);
+  border-radius: var(--radius);
+  max-height: 400px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* 响应式 */
+@media (max-width: 1024px) {
+  .report-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .keyframes-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 800px) {
+  .report-page {
+    padding: var(--space-md);
+  }
+
+  .report-header {
+    flex-direction: column;
+    gap: var(--space-md);
+    align-items: flex-start;
+  }
+
+  .report-header h1 {
+    font-size: 28px;
+  }
+
+  .skills-content {
+    flex-direction: column;
+  }
+
+  .radar-chart {
+    margin-bottom: var(--space-md);
+  }
+
+  .keyframes-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .score-value {
+    font-size: 60px;
+  }
+
+  .speech-metrics-grid {
+    grid-template-columns: 1fr;
+  }
+}
