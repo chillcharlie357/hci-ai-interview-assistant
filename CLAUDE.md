@@ -79,11 +79,19 @@ pnpm test
 scripts/e2e.sh
 ```
 
-### Docker Compose
+### Docker Compose（生产模式）
 
 ```bash
 docker compose up --build
 ```
+
+### Docker Compose（开发模式，热重载）
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+```
+
+Dev 覆盖：后端挂载 `./backend` 源码 + `watchfiles` 热重载 + `DEBUG=true`；前端挂载 `./frontend/src`，Vite HMR 生效。
 
 ## 架构
 
@@ -199,6 +207,9 @@ docker compose up --build
 - `spec/digital-interviewer-meeting-experience.md` — 数字人面试官 UX 规范
 - `spec/execution-process.md` — 分支策略、TDD 流程、模块边界、Mock E2E 边界
 - `spec/FRONTEND_DESIGN.md` — 前端设计规范（设计语言、色彩、组件、布局）
+- `spec/evaluation-metrics.md` — 面试评估指标规范（维度、参考范围、数据流、实现状态）
+- `spec/frontend-quality-plan.md` — 前端质量改进计划（已完成，保留作为设计参考）
+- `spec/video-recording-mvp-plan.md` — 视频录制 MVP 计划
 - `spec/stitch_elite_digital_presence/` — 设计参考文件（ai_9 至 ai_16）
 - `AGENTS.md` — 项目方向、产品红线和编码规范
 
@@ -221,17 +232,17 @@ docker compose up --build
 
 - `AuthContext` — user_id、email、full_name（定义在 `backend/auth/models.py`）
 - `InterviewQuestion` — id、dimension、prompt、followUps、evidenceHints
-- `AnswerRecord` — question_id、dimension、prompt、text、duration_sec、word_count、filler_word_count
+- `AnswerRecord` — question_id、dimension、prompt、text、duration_sec、word_count、filler_word_count、speech_rate_wpm、audio_f0_std_semitones
 - `InterviewEvent` — type、timestamp、message、question_id
-- `VideoMetrics` — face_present、brightness、blur、motion、gaze_proxy、head_pose_proxy、blink_proxy、nod_proxy、hand_activity、body_activity
-- `InterviewSession` — 持有问题、答案、事件、video_events、keyframes、llm_status、user_id
+- `VideoMetrics` — face_present、brightness、blur、motion、gaze_proxy、head_pose_proxy、blink_proxy、blink_count、blink_rate_per_minute、nod_proxy、nod_count、nod_rate_per_minute、hand_activity、body_activity
+- `InterviewSession` — 持有问题、答案、事件、video_events、keyframes、llm_status、user_id（API 响应中注入 speech_summary）
 
 ### 数据库表
 
 - `profiles` — 用户资料（id、email、full_name、avatar_url、preferences）
 - `interview_sessions` — 面试会话（含 JSON 字段：questions、answers、events、video_events、keyframes）
 - `prep_sessions` — 准备会话（含 JSON 字段：turns、ready_summary）
-- `speech_aggregates` — 语音聚合数据（chunk_count、基频统计等）
+- `speech_aggregates` — 语音聚合数据（chunk_count、基频统计、半音标准差累积等）
 
 ## 产品红线
 
