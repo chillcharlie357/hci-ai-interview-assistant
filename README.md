@@ -83,15 +83,27 @@ If the API key or model is missing, the app uses fallback logic and returns `llm
 
 ## Docker Compose
 
+### Production Mode
+
 ```bash
 docker compose up --build
 ```
 
+### Development Mode (Hot Reload)
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+```
+
+Dev mode overrides:
+- **Backend**: mounts `./backend` into the container and uses `watchfiles` for auto-reload on Python changes; sets `DEBUG=true`.
+- **Frontend**: mounts `./frontend/src` into the container; Vite HMR handles live updates.
+
 Exposed ports:
 
-- API: `http://localhost:8000`
+- API: `http://localhost:8100`
 - Frontend: `http://localhost:5173`
-- ASR WebSocket: `ws://localhost:8765`
+- ASR WebSocket: `ws://localhost:9785`
 
 ## Run Backend API Manually
 
@@ -171,8 +183,10 @@ MINERU_COMMAND="$PWD/scripts/mock_mineru_open_api.py" scripts/dev.sh
 
 Read the spec documents before changing product scope:
 
-- `spec/prd.md`
-- `spec/goals.md`
-- `spec/implementation-plan.md`
-- `spec/problem-related-work-solution.md`
-- `AGENTS.md`
+- `spec/prd.md` — product requirements, data structures, acceptance criteria
+- `spec/goals.md` — MVP goals, scope boundaries, non-goals
+- `spec/implementation-plan.md` — phased implementation plan
+- `spec/problem-related-work-solution.md` — problem analysis, competitive landscape, design principles
+- `spec/evaluation-metrics.md` — evaluation dimensions, metric reference ranges, data flow design
+- `spec/frontend-quality-plan.md` — frontend quality improvement plan (completed)
+- `AGENTS.md` — project direction, product guardrails, coding conventions
