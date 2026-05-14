@@ -12,6 +12,8 @@ export type VideoMetrics = {
   gazeDeviationDeg?: number;
   eyeAspectRatio?: number;
   nodProxy?: number;
+  nodCount?: number;
+  nodRatePerMinute?: number;
   handActivity?: number;
   bodyActivity?: number;
 };
@@ -32,6 +34,11 @@ export type FaceAnalysisState = {
   consecutiveClosedFrames: number;
   startedAtMs: number | null;
   lastTimestampMs: number | null;
+  nodCount: number;
+  nodPhase: "idle" | "down";
+  nodStartMs: number | null;
+  nodBaselineY: number | null;
+  nodPeakY: number | null;
 };
 
 export type FaceAnalysisMetrics = {
@@ -48,6 +55,10 @@ export type FaceAnalysisMetrics = {
   gazeProxy: number;
   headPoseProxy: number;
   blinkProxy: number;
+  nodDetected: boolean;
+  nodAmplitude: number;
+  nodCount: number;
+  nodRatePerMinute: number;
 };
 
 export type VideoEventClassification = {
@@ -70,6 +81,9 @@ const EYE_CONTACT_THRESHOLD_DEG = 10;
 const YAW_ASYMMETRY_THRESHOLD = 0.18;
 const ROLL_THRESHOLD_DEG = 12;
 const STABLE_FRAME_COUNT = 2;
+const NOD_MIN_AMPLITUDE = 0.03;
+const NOD_MAX_DURATION_MS = 1200;
+const NOD_RECOVERY_AMPLITUDE = 0.015;
 
 export function computeBrightness(pixels: Uint8ClampedArray): number {
   if (pixels.length === 0) {
@@ -166,6 +180,7 @@ export function buildVideoMetrics(current: Uint8ClampedArray, previous?: Uint8Cl
   const brightness = computeBrightness(current);
   const motion = computeMotionAmount(current, previous);
   const blur = computeBlurProxy(current);
+  const { topMotion, midMotion, bottomMotion } = computeRegionalMotion(current, previous);
   return {
     facePresent: brightness > 0.06,
     brightness,
@@ -175,8 +190,8 @@ export function buildVideoMetrics(current: Uint8ClampedArray, previous?: Uint8Cl
     headPoseProxy: clamp01(motion * 1.2),
     blinkProxy: brightness < 0.16 ? 0.35 : 0.05,
     nodProxy: clamp01(motion),
-    handActivity: clamp01(motion * 1.4),
-    bodyActivity: clamp01(motion * 1.1)
+    handActivity: clamp01(midMotion * 2.5),
+    bodyActivity: clamp01(bottomMotion * 2.5)
   };
 }
 
@@ -190,7 +205,12 @@ export function createFaceAnalysisState(): FaceAnalysisState {
     consecutiveOpenFrames: 0,
     consecutiveClosedFrames: 0,
     startedAtMs: null,
-    lastTimestampMs: null
+    lastTimestampMs: null,
+    nodCount: 0,
+    nodPhase: "idle",
+    nodStartMs: null,
+    nodBaselineY: null,
+    nodPeakY: null
   };
 }
 
@@ -215,7 +235,11 @@ export function analyzeFaceLandmarks(
         eyeAspectRatio: null,
         gazeProxy: 0,
         headPoseProxy: previousState.analyzedFrames > 0 ? 1 - ratio(previousState.eyeContactFrames, previousState.analyzedFrames) : 0,
-        blinkProxy: 0
+        blinkProxy: 0,
+        nodDetected: false,
+        nodAmplitude: 0,
+        nodCount: previousState.nodCount,
+        nodRatePerMinute: computeNodRate(previousState.nodCount, previousState.startedAtMs, timestampMs)
       }
     };
   }
@@ -276,6 +300,10 @@ export function analyzeFaceLandmarks(
     }
   }
 
+  const noseTipY = landmarks[NOSE_TIP_INDEX].y;
+  const nodResult = detectNod(previousState, noseTipY, timestampMs);
+  nextState = { ...nextState, ...nodResult.state };
+
   return {
     state: nextState,
     metrics: {
@@ -291,7 +319,11 @@ export function analyzeFaceLandmarks(
       eyeAspectRatio: averageEar,
       gazeProxy: typeof gazeDeviationDeg === "number" ? clamp01(1 - gazeDeviationDeg / 18) : 0,
       headPoseProxy: typeof gazeDeviationDeg === "number" ? clamp01(gazeDeviationDeg / 22) : 0,
-      blinkProxy: blinkDetected ? 1 : bothEyesClosed ? 0.8 : 0.05
+      blinkProxy: blinkDetected ? 1 : bothEyesClosed ? 0.8 : 0.05,
+      nodDetected: nodResult.detected,
+      nodAmplitude: nodResult.amplitude,
+      nodCount: nextState.nodCount,
+      nodRatePerMinute: computeNodRate(nextState.nodCount, nextState.startedAtMs, timestampMs)
     }
   };
 }
@@ -305,9 +337,12 @@ export function mergeFaceMetrics(videoMetrics: VideoMetrics, faceMetrics: FaceAn
     blinkProxy: faceMetrics.blinkProxy,
     blinkCount: faceMetrics.blinkCount,
     blinkRatePerMinute: faceMetrics.blinkRatePerMinute,
-    eyeContactRatio: faceMetrics.eyeContactRatio,
-    gazeDeviationDeg: faceMetrics.gazeDeviationDeg,
-    eyeAspectRatio: faceMetrics.eyeAspectRatio
+    eyeContactRatio: faceMetrics.eyeContactRatio ?? undefined,
+    gazeDeviationDeg: faceMetrics.gazeDeviationDeg ?? undefined,
+    eyeAspectRatio: faceMetrics.eyeAspectRatio ?? undefined,
+    nodProxy: faceMetrics.nodDetected ? clamp01(faceMetrics.nodAmplitude / 0.08) : 0,
+    nodCount: faceMetrics.nodCount,
+    nodRatePerMinute: faceMetrics.nodRatePerMinute
   };
 }
 
@@ -435,4 +470,112 @@ function ratio(numerator: number, denominator: number): number {
 
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0));
+}
+
+function computeRegionalMotion(
+  current: Uint8ClampedArray,
+  previous?: Uint8ClampedArray | null
+): { topMotion: number; midMotion: number; bottomMotion: number } {
+  if (!previous || previous.length === 0 || previous.length !== current.length) {
+    return { topMotion: 0, midMotion: 0, bottomMotion: 0 };
+  }
+
+  const totalPixels = current.length / 4;
+  const topEnd = Math.floor(totalPixels * (1 / 3)) * 4;
+  const midEnd = Math.floor(totalPixels * (2 / 3)) * 4;
+
+  let topDiff = 0, topCount = 0;
+  let midDiff = 0, midCount = 0;
+  let bottomDiff = 0, bottomCount = 0;
+
+  for (let index = 0; index < current.length; index += 4) {
+    const diff = Math.abs(current[index] - previous[index])
+      + Math.abs(current[index + 1] - previous[index + 1])
+      + Math.abs(current[index + 2] - previous[index + 2]);
+
+    if (index < topEnd) {
+      topDiff += diff;
+      topCount += 3;
+    } else if (index < midEnd) {
+      midDiff += diff;
+      midCount += 3;
+    } else {
+      bottomDiff += diff;
+      bottomCount += 3;
+    }
+  }
+
+  return {
+    topMotion: topCount > 0 ? clamp01(topDiff / (topCount * 255)) : 0,
+    midMotion: midCount > 0 ? clamp01(midDiff / (midCount * 255)) : 0,
+    bottomMotion: bottomCount > 0 ? clamp01(bottomDiff / (bottomCount * 255)) : 0
+  };
+}
+
+function detectNod(
+  state: Pick<FaceAnalysisState, "nodCount" | "nodPhase" | "nodStartMs" | "nodBaselineY" | "nodPeakY">,
+  noseY: number,
+  timestampMs: number
+): { state: Pick<FaceAnalysisState, "nodCount" | "nodPhase" | "nodStartMs" | "nodBaselineY" | "nodPeakY">; detected: boolean; amplitude: number } {
+  let { nodCount, nodPhase, nodStartMs, nodBaselineY, nodPeakY } = state;
+
+  if (nodBaselineY === null) {
+    return {
+      state: { nodCount, nodPhase: "idle", nodStartMs: null, nodBaselineY: noseY, nodPeakY: null },
+      detected: false,
+      amplitude: 0
+    };
+  }
+
+  let detected = false;
+  let amplitude = 0;
+
+  if (nodPhase === "idle") {
+    const drop = noseY - nodBaselineY;
+    if (drop >= NOD_MIN_AMPLITUDE) {
+      nodPhase = "down";
+      nodStartMs = timestampMs;
+      nodPeakY = noseY;
+    } else {
+      nodBaselineY = nodBaselineY * 0.85 + noseY * 0.15;
+    }
+  }
+
+  if (nodPhase === "down") {
+    const elapsed = timestampMs - (nodStartMs ?? timestampMs);
+    if (elapsed > NOD_MAX_DURATION_MS) {
+      nodPhase = "idle";
+      nodStartMs = null;
+      nodPeakY = null;
+      nodBaselineY = noseY;
+    } else {
+      if (nodPeakY === null || noseY > nodPeakY) {
+        nodPeakY = noseY;
+      }
+      const recovery = (nodPeakY ?? 0) - noseY;
+      if (recovery >= NOD_RECOVERY_AMPLITUDE) {
+        detected = true;
+        amplitude = (nodPeakY ?? 0) - (nodBaselineY ?? noseY);
+        nodCount += 1;
+        nodPhase = "idle";
+        nodStartMs = null;
+        nodBaselineY = noseY;
+        nodPeakY = null;
+      }
+    }
+  }
+
+  return {
+    state: { nodCount, nodPhase, nodStartMs, nodBaselineY, nodPeakY },
+    detected,
+    amplitude
+  };
+}
+
+function computeNodRate(nodCount: number, startedAtMs: number | null, timestampMs: number): number {
+  const elapsedMinutes = startedAtMs === null ? 0 : Math.max((timestampMs - startedAtMs) / 60000, 0);
+  if (elapsedMinutes === 0) {
+    return nodCount > 0 ? nodCount * 60 : 0;
+  }
+  return nodCount / elapsedMinutes;
 }

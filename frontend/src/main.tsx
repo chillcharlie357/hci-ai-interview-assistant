@@ -11,6 +11,7 @@ import zhCN from "antd/locale/zh_CN";
 import { themeConfig } from "./theme/config";
 import useIllustrationTheme from "./theme/illustrationTheme";
 import { AppLayout } from "./components/layout";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { DashboardPage } from "./pages/DashboardPage";
 import { RecruiterPage } from "./pages/RecruiterPage";
 import { InterviewPage } from "./pages/InterviewPage";
@@ -32,6 +33,7 @@ function App() {
   return (
     <ConfigProvider {...currentThemeConfig} locale={zhCN}>
       <AntApp>
+        <ErrorBoundary>
         <BrowserRouter>
           <Routes>
             {/* 公开路由 - 登录/注册 */}
@@ -111,6 +113,7 @@ function App() {
             <Route path="*" element={<Navigate to="/recruiter" replace />} />
           </Routes>
         </BrowserRouter>
+        </ErrorBoundary>
       </AntApp>
     </ConfigProvider>
   );

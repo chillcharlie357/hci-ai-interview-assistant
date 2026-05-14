@@ -9,7 +9,7 @@ export function getFillerWords(): string[] {
   if (!configured) {
     return DEFAULT_FILLER_WORDS;
   }
-  const values = configured.split(",").map((value) => value.trim()).filter(Boolean);
+  const values = configured.split(",").map((value: string) => value.trim()).filter(Boolean);
   return values.length > 0 ? values : DEFAULT_FILLER_WORDS;
 }
 

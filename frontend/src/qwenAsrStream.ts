@@ -57,10 +57,10 @@ export function isQwenAsrSupported(): boolean {
   const AnyWindow = window as Window & {
     webkitAudioContext?: typeof AudioContext;
   };
-  return Boolean(
-    window.WebSocket &&
-      navigator?.mediaDevices?.getUserMedia &&
-      (window.AudioContext || AnyWindow.webkitAudioContext)
+  return (
+    typeof WebSocket !== "undefined" &&
+      typeof navigator?.mediaDevices?.getUserMedia === "function" &&
+      Boolean(window.AudioContext || AnyWindow.webkitAudioContext)
   );
 }
 
