@@ -38,6 +38,7 @@ class AcousticFeatures:
     # 音高（F0，基频）
     f0_mean_hz: float | None
     f0_std_hz: float | None
+    f0_std_semitones: float | None   # 半音标准差，消除绝对基频影响
     f0_min_hz: float | None
     f0_max_hz: float | None
     f0_range_hz: float | None

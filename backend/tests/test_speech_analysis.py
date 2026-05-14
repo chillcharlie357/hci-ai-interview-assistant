@@ -116,6 +116,10 @@ class SpeechAnalysisTest(unittest.TestCase):
         self.assertIsNotNone(result.acoustic.f0_std_hz)
         assert result.acoustic.f0_std_hz is not None
         self.assertGreater(result.acoustic.f0_std_hz, 20.0)
+        # 半音标准差也应可计算
+        self.assertIsNotNone(result.acoustic.f0_std_semitones)
+        assert result.acoustic.f0_std_semitones is not None
+        self.assertGreater(result.acoustic.f0_std_semitones, 1.0)
 
     def test_accepts_wav_file(self) -> None:
         sample_rate = 16000

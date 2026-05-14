@@ -7,6 +7,7 @@ import type {
   KeyframeRecord,
   PrepSession,
   ReadySummary,
+  SpeechSummary,
   VideoMetrics,
   VideoSignalEvent,
   VideoSummary
@@ -38,6 +39,9 @@ type ApiAnswer = {
   word_count: number;
   filler_word_count: number;
   recorded_at: string;
+  speech_rate_wpm?: number | null;
+  audio_rms_db?: number | null;
+  audio_f0_std_hz?: number | null;
 };
 
 type ApiEvent = {
@@ -61,6 +65,8 @@ type ApiVideoMetrics = {
   gaze_deviation_deg?: number | null;
   eye_aspect_ratio?: number | null;
   nod_proxy?: number | null;
+  nod_count?: number | null;
+  nod_rate_per_minute?: number | null;
   hand_activity?: number | null;
   body_activity?: number | null;
 };
@@ -85,6 +91,20 @@ type ApiVideoSummary = {
   event_types: string[];
 };
 
+type ApiSpeechSummary = {
+  chunk_count: number;
+  analyzed_duration_sec: number;
+  voiced_duration_sec: number;
+  speech_rate_sps: number;
+  rms_db_mean: number | null;
+  f0_mean_hz: number | null;
+  f0_std_hz: number | null;
+  f0_std_semitones: number | null;
+  f0_min_hz: number | null;
+  f0_max_hz: number | null;
+  f0_range_hz: number | null;
+};
+
 type ApiSession = {
   id: string;
   user_id?: string;
@@ -99,6 +119,7 @@ type ApiSession = {
   video_events?: ApiVideoEvent[];
   keyframes?: ApiKeyframe[];
   video_summary?: ApiVideoSummary;
+  speech_summary?: ApiSpeechSummary;
   meeting_room?: string;
   enable_video_observation?: boolean;
 };
@@ -146,8 +167,10 @@ export type SpeechChunkMetrics = {
   duration_sec: number;
   voiced_duration_sec: number;
   speech_rate_sps: number;
+  rms_db_mean: number | null;
   f0_mean_hz: number | null;
   f0_std_hz: number | null;
+  f0_std_semitones: number | null;
   f0_min_hz: number | null;
   f0_max_hz: number | null;
   warnings: string[];
@@ -158,8 +181,10 @@ export type SpeechCumulativeMetrics = {
   analyzed_duration_sec: number;
   voiced_duration_sec: number;
   speech_rate_sps: number;
+  rms_db_mean: number | null;
   f0_mean_hz: number | null;
   f0_std_hz: number | null;
+  f0_std_semitones: number | null;
   f0_min_hz: number | null;
   f0_max_hz: number | null;
   f0_range_hz: number | null;
@@ -462,6 +487,7 @@ function mapSession(session: ApiSession): InterviewSession {
     videoEvents: (session.video_events ?? []).map(mapVideoEvent),
     keyframes: (session.keyframes ?? []).map(mapKeyframe),
     videoSummary: mapVideoSummary(session.video_summary),
+    speechSummary: mapSpeechSummary(session.speech_summary),
     meetingRoom: session.meeting_room ?? "",
     enableVideoObservation: session.enable_video_observation ?? true
   };
@@ -507,7 +533,11 @@ function mapAnswer(answer: ApiAnswer): AnswerRecord {
     durationSec: answer.duration_sec,
     wordCount: answer.word_count,
     fillerWordCount: answer.filler_word_count,
-    recordedAt: answer.recorded_at
+    recordedAt: answer.recorded_at,
+    speechRateWpm: answer.speech_rate_wpm,
+    audioRmsDb: answer.audio_rms_db,
+    audioF0StdHz: answer.audio_f0_std_hz,
+    audioF0StdSemitones: answer.audio_f0_std_semitones
   };
 }
 
@@ -546,6 +576,23 @@ function mapVideoSummary(summary?: ApiVideoSummary): VideoSummary {
   };
 }
 
+function mapSpeechSummary(summary?: ApiSpeechSummary): SpeechSummary | null {
+  if (!summary) return null;
+  return {
+    chunkCount: summary.chunk_count,
+    analyzedDurationSec: summary.analyzed_duration_sec,
+    voicedDurationSec: summary.voiced_duration_sec,
+    speechRateSps: summary.speech_rate_sps,
+    rmsDbMean: summary.rms_db_mean,
+    f0MeanHz: summary.f0_mean_hz,
+    f0StdHz: summary.f0_std_hz,
+    f0StdSemitones: summary.f0_std_semitones,
+    f0MinHz: summary.f0_min_hz,
+    f0MaxHz: summary.f0_max_hz,
+    f0RangeHz: summary.f0_range_hz
+  };
+}
+
 function mapVideoMetrics(metrics: ApiVideoMetrics): VideoMetrics {
   return {
     facePresent: metrics.face_present,
@@ -561,6 +608,8 @@ function mapVideoMetrics(metrics: ApiVideoMetrics): VideoMetrics {
     gazeDeviationDeg: metrics.gaze_deviation_deg,
     eyeAspectRatio: metrics.eye_aspect_ratio,
     nodProxy: metrics.nod_proxy,
+    nodCount: metrics.nod_count,
+    nodRatePerMinute: metrics.nod_rate_per_minute,
     handActivity: metrics.hand_activity,
     bodyActivity: metrics.body_activity
   };
@@ -581,6 +630,8 @@ function toApiVideoMetrics(metrics: VideoMetrics): ApiVideoMetrics {
     gaze_deviation_deg: metrics.gazeDeviationDeg,
     eye_aspect_ratio: metrics.eyeAspectRatio,
     nod_proxy: metrics.nodProxy,
+    nod_count: metrics.nodCount,
+    nod_rate_per_minute: metrics.nodRatePerMinute,
     hand_activity: metrics.handActivity,
     body_activity: metrics.bodyActivity
   };

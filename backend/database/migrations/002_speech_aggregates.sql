@@ -1,5 +1,6 @@
 -- 语音聚合状态表
 -- 在 Supabase SQL Editor 中执行此脚本
+-- 注意：rms_weighted_db_sum 和 rms_weight_count 已移至 004 迁移添加
 
 CREATE TABLE IF NOT EXISTS speech_aggregates (
     session_id TEXT PRIMARY KEY REFERENCES interview_sessions(id) ON DELETE CASCADE,

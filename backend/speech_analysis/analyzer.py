@@ -149,7 +149,14 @@ def _build_observations(features: AcousticFeatures) -> list[str]:
     lines.append(f"语音占比约 {features.speech_ratio * 100:.0f}%（剩余为静音或噪声）。")
 
     # F0 / 语调
-    if features.f0_mean_hz is not None and features.f0_std_hz is not None:
+    if features.f0_mean_hz is not None and features.f0_std_semitones is not None:
+        tone_hint = "起伏较平稳" if features.f0_std_semitones < 1.5 else ("起伏明显" if features.f0_std_semitones > 5.0 else "起伏适中")
+        lines.append(
+            f"检测到基频 F0 均值 {features.f0_mean_hz:.0f} Hz，半音标准差 {features.f0_std_semitones:.1f} st，{tone_hint}。"
+        )
+        if features.f0_range_hz is not None:
+            lines.append(f"F0 跨度约 {features.f0_range_hz:.0f} Hz，仅供复核语调丰富度参考。")
+    elif features.f0_mean_hz is not None and features.f0_std_hz is not None:
         tone_hint = "起伏较平稳" if features.f0_std_hz < 25 else ("起伏明显" if features.f0_std_hz > 60 else "起伏适中")
         lines.append(
             f"检测到基频 F0 均值 {features.f0_mean_hz:.0f} Hz，标准差 {features.f0_std_hz:.0f} Hz，{tone_hint}。"
