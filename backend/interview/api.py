@@ -246,11 +246,24 @@ class SessionStore:
         if session is None:
             return None
         answer_analysis = analyze_answer_text(str(payload.get("text", "")))
+        # 从语音聚合状态快照音频指标
+        audio_rms_db = None
+        audio_f0_std_hz = None
+        audio_f0_std_semitones = None
+        agg = self.speech_aggregates.get(session_id)
+        if agg and agg.chunk_count > 0:
+            cumulative = summarize_cumulative_metrics(agg)
+            audio_rms_db = cumulative.rms_db_mean
+            audio_f0_std_hz = cumulative.f0_std_hz
+            audio_f0_std_semitones = cumulative.f0_std_semitones
         updated = record_answer(
             session,
             text=str(payload.get("text", "")),
             duration_sec=int(payload.get("duration_sec", 0)),
             filler_word_count=answer_analysis.filler_word_count,
+            audio_rms_db=audio_rms_db,
+            audio_f0_std_hz=audio_f0_std_hz,
+            audio_f0_std_semitones=audio_f0_std_semitones,
         )
         if answer_analysis.llm_status == "ok":
             updated = replace(updated, llm_status="ok")
@@ -373,7 +386,7 @@ def handle_api_request(
         session = store.get(path_parts[2], user_id)
         if session is None:
             return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
-        return HTTPStatus.OK, serialize_session(session)
+        return HTTPStatus.OK, serialize_session(session, _get_speech_cumulative(store, path_parts[2]))
 
     if (
         method == "GET"
@@ -384,7 +397,8 @@ def handle_api_request(
         session = store.get(path_parts[2], user_id)
         if session is None:
             return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
-        report, report_llm_status = generate_report(session)
+        speech_metrics = _get_speech_cumulative(store, path_parts[2])
+        report, report_llm_status = generate_report(session, speech_metrics)
         return HTTPStatus.OK, {"report": report, "llm_status": report_llm_status if report_llm_status == "ok" else session.llm_status}
 
     if method == "POST" and path_parts == ["api", "sessions"]:
@@ -425,8 +439,9 @@ def handle_api_request(
         session = store.record_answer(path_parts[2], body, user_id)
         if session is None:
             return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
-        response = serialize_session(session)
-        report, report_llm_status = generate_report(session)
+        speech_metrics = _get_speech_cumulative(store, path_parts[2])
+        response = serialize_session(session, speech_metrics)
+        report, report_llm_status = generate_report(session, speech_metrics)
         response["report"] = report
         response["llm_status"] = report_llm_status if report_llm_status == "ok" else response.get("llm_status", "fallback")
         return HTTPStatus.OK, response
@@ -467,7 +482,7 @@ def handle_api_request(
         session = store.record_video_event(path_parts[2], body)
         if session is None:
             return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
-        return HTTPStatus.OK, serialize_session(session)
+        return HTTPStatus.OK, serialize_session(session, _get_speech_cumulative(store, path_parts[2]))
 
     # Mock session creation - 快速创建测试面试
     if method == "POST" and path_parts == ["api", "mock-session"]:
@@ -798,20 +813,29 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
     return ThreadingHTTPServer((host, port), InterviewApiHandler)
 
 
-def serialize_session(session: InterviewSession) -> dict[str, Any]:
+def serialize_session(session: InterviewSession, speech_metrics: SpeechCumulativeMetrics | None = None) -> dict[str, Any]:
     body = asdict(session)
     body["current_question"] = asdict(session.current_question) if session.current_question else None
     body["video_summary"] = summarize_video(session)
+    if speech_metrics is not None:
+        body["speech_summary"] = speech_metrics.to_dict()
     return body
 
 
-def generate_report(session: InterviewSession) -> tuple[str, str]:
-    fallback_report = generate_markdown_report(session)
+def _get_speech_cumulative(store: SessionStore, session_id: str) -> SpeechCumulativeMetrics | None:
+    state = store.speech_aggregates.get(session_id)
+    if state is None or state.chunk_count == 0:
+        return None
+    return summarize_cumulative_metrics(state)
+
+
+def generate_report(session: InterviewSession, speech_metrics: SpeechCumulativeMetrics | None = None) -> tuple[str, str]:
+    fallback_report = generate_markdown_report(session, speech_metrics)
     llm_result = LlmClient.from_env().complete_json(
-        "你是面试纪要助手。请输出 JSON，字段 report_markdown。纪要必须基于问题、回答、事件和非语言观察信号；非语言观察只能作为可复核观察，禁止输出 hire/no-hire、录用、不录用或自动评分结论。",
+        "你是面试纪要助手。请输出 JSON，字段 report_markdown。纪要必须基于问题、回答、语音观察和非语言观察信号；语音观察和非语言观察只能作为可复核观察，禁止输出 hire/no-hire、录用、不录用或自动评分结论。",
         json.dumps(
             {
-                "session": serialize_session(session),
+                "session": serialize_session(session, speech_metrics),
                 "fallback_report": fallback_report,
             },
             ensure_ascii=False,

@@ -243,6 +243,7 @@ describe("apiClient", () => {
             speech_rate_sps: 1.4,
             f0_mean_hz: 210,
             f0_std_hz: 32,
+            f0_std_semitones: 2.5,
             f0_min_hz: 160,
             f0_max_hz: 280,
             warnings: []
@@ -254,6 +255,7 @@ describe("apiClient", () => {
             speech_rate_sps: 1.3,
             f0_mean_hz: 205,
             f0_std_hz: 29,
+            f0_std_semitones: 2.3,
             f0_min_hz: 150,
             f0_max_hz: 292,
             f0_range_hz: 142

@@ -128,6 +128,7 @@ def compute_acoustic_features(
         dynamic_range_db=rms_stats["dynamic_range_db"],
         f0_mean_hz=f0_stats.get("f0_mean_hz"),
         f0_std_hz=f0_stats.get("f0_std_hz"),
+        f0_std_semitones=f0_stats.get("f0_std_semitones"),
         f0_min_hz=f0_stats.get("f0_min_hz"),
         f0_max_hz=f0_stats.get("f0_max_hz"),
         f0_range_hz=f0_stats.get("f0_range_hz"),
@@ -340,6 +341,7 @@ def _f0_statistics_with_scipy(framed: _FramedSignal, sample_rate: int, numpy) ->
         return {
             "f0_mean_hz": None,
             "f0_std_hz": None,
+            "f0_std_semitones": None,
             "f0_min_hz": None,
             "f0_max_hz": None,
             "f0_range_hz": None,
@@ -357,6 +359,7 @@ def _f0_statistics_with_scipy(framed: _FramedSignal, sample_rate: int, numpy) ->
         return {
             "f0_mean_hz": None,
             "f0_std_hz": None,
+            "f0_std_semitones": None,
             "f0_min_hz": None,
             "f0_max_hz": None,
             "f0_range_hz": None,
@@ -415,6 +418,7 @@ def _f0_statistics_with_scipy(framed: _FramedSignal, sample_rate: int, numpy) ->
         return {
             "f0_mean_hz": None,
             "f0_std_hz": None,
+            "f0_std_semitones": None,
             "f0_min_hz": None,
             "f0_max_hz": None,
             "f0_range_hz": None,
@@ -422,9 +426,12 @@ def _f0_statistics_with_scipy(framed: _FramedSignal, sample_rate: int, numpy) ->
         }
 
     values_np = numpy.asarray(values, dtype=numpy.float64)
+    f0_mean = float(values_np.mean())
+    x_values = 12.0 * numpy.log2(values_np)
     return {
-        "f0_mean_hz": float(values_np.mean()),
+        "f0_mean_hz": f0_mean,
         "f0_std_hz": float(values_np.std()),
+        "f0_std_semitones": float(x_values.std()),
         "f0_min_hz": float(values_np.min()),
         "f0_max_hz": float(values_np.max()),
         "f0_range_hz": float(values_np.max() - values_np.min()),
@@ -435,6 +442,7 @@ def _f0_statistics_with_scipy(framed: _FramedSignal, sample_rate: int, numpy) ->
 def _f0_statistics_with_librosa_chunked(samples: "np.ndarray", sample_rate: int, framed: _FramedSignal, numpy, librosa):
     chunk_samples = max(int(sample_rate * F0_CHUNK_SEC), framed.frame_length * 4)
     moments = _RunningMoments()
+    semitone_moments = _RunningMoments()
     total_frames = 0
     voiced_frames = 0
 
@@ -467,13 +475,17 @@ def _f0_statistics_with_librosa_chunked(samples: "np.ndarray", sample_rate: int,
         total_frames += int(f0_arr.size)
         voiced_frames += int(valid_mask.sum())
         if valid_mask.any():
-            moments = moments.update(f0_arr[valid_mask])
+            valid_f0 = f0_arr[valid_mask]
+            moments = moments.update(valid_f0)
+            semitone_moments = semitone_moments.update(12.0 * numpy.log2(valid_f0))
 
     voiced_ratio = float(voiced_frames) / float(total_frames) if total_frames > 0 else None
     stats = moments.to_stats()
+    st_stats = semitone_moments.to_stats()
     return {
         "f0_mean_hz": stats["mean"],
         "f0_std_hz": stats["std"],
+        "f0_std_semitones": st_stats["std"],
         "f0_min_hz": stats["min"],
         "f0_max_hz": stats["max"],
         "f0_range_hz": stats["range"],
@@ -487,6 +499,7 @@ def _f0_statistics_with_autocorr_chunked(framed: _FramedSignal, sample_rate: int
         return {
             "f0_mean_hz": None,
             "f0_std_hz": None,
+            "f0_std_semitones": None,
             "f0_min_hz": None,
             "f0_max_hz": None,
             "f0_range_hz": None,
@@ -506,6 +519,7 @@ def _f0_statistics_with_autocorr_chunked(framed: _FramedSignal, sample_rate: int
         return {
             "f0_mean_hz": None,
             "f0_std_hz": None,
+            "f0_std_semitones": None,
             "f0_min_hz": None,
             "f0_max_hz": None,
             "f0_range_hz": None,
@@ -534,6 +548,7 @@ def _f0_statistics_with_autocorr_chunked(framed: _FramedSignal, sample_rate: int
         return {
             "f0_mean_hz": None,
             "f0_std_hz": None,
+            "f0_std_semitones": None,
             "f0_min_hz": None,
             "f0_max_hz": None,
             "f0_range_hz": None,
@@ -541,17 +556,16 @@ def _f0_statistics_with_autocorr_chunked(framed: _FramedSignal, sample_rate: int
         }
 
     values_np = numpy.asarray(values, dtype=numpy.float64)
+    x_values = 12.0 * numpy.log2(values_np)
     return {
         "f0_mean_hz": float(values_np.mean()),
         "f0_std_hz": float(values_np.std()),
+        "f0_std_semitones": float(x_values.std()),
         "f0_min_hz": float(values_np.min()),
         "f0_max_hz": float(values_np.max()),
         "f0_range_hz": float(values_np.max() - values_np.min()),
         "voiced_ratio": voiced_ratio,
-    }
-
-
-# -------------------- 音质：jitter / shimmer / HNR --------------------
+    }：jitter / shimmer / HNR --------------------
 
 
 def _voice_quality(samples: "np.ndarray", sample_rate: int) -> dict[str, float | None]:
@@ -610,6 +624,7 @@ def _empty_features(sample_rate: int) -> AcousticFeatures:
         dynamic_range_db=0.0,
         f0_mean_hz=None,
         f0_std_hz=None,
+        f0_std_semitones=None,
         f0_min_hz=None,
         f0_max_hz=None,
         f0_range_hz=None,

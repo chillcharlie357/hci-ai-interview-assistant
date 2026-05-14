@@ -250,6 +250,7 @@ class ApiTest(unittest.TestCase):
         self.assertGreater(second["cumulative"]["analyzed_duration_sec"], first["cumulative"]["analyzed_duration_sec"])
         self.assertGreaterEqual(second["cumulative"]["speech_rate_sps"], 0.0)
         self.assertIsNotNone(second["cumulative"]["f0_std_hz"])
+        self.assertIn("f0_std_semitones", second["cumulative"])
 
     def test_rejects_invalid_speech_chunk_payload(self):
         created = self.request(

@@ -45,6 +45,10 @@ export type AnswerRecord = {
   wordCount: number;
   fillerWordCount: number;
   recordedAt: string;
+  speechRateWpm?: number | null;
+  audioRmsDb?: number | null;
+  audioF0StdHz?: number | null;
+  audioF0StdSemitones?: number | null;
 };
 
 export type InterviewEvent = {
@@ -68,6 +72,8 @@ export type VideoMetrics = {
   gazeDeviationDeg?: number | null;
   eyeAspectRatio?: number | null;
   nodProxy?: number | null;
+  nodCount?: number | null;
+  nodRatePerMinute?: number | null;
   handActivity?: number | null;
   bodyActivity?: number | null;
 };
@@ -92,6 +98,20 @@ export type VideoSummary = {
   eventTypes: string[];
 };
 
+export type SpeechSummary = {
+  chunkCount: number;
+  analyzedDurationSec: number;
+  voicedDurationSec: number;
+  speechRateSps: number;
+  rmsDbMean: number | null;
+  f0MeanHz: number | null;
+  f0StdHz: number | null;
+  f0StdSemitones: number | null;
+  f0MinHz: number | null;
+  f0MaxHz: number | null;
+  f0RangeHz: number | null;
+};
+
 export type InterviewSession = {
   id: string;
   userId?: string;
@@ -106,6 +126,7 @@ export type InterviewSession = {
   videoEvents: VideoSignalEvent[];
   keyframes: KeyframeRecord[];
   videoSummary: VideoSummary;
+  speechSummary?: SpeechSummary | null;
   meetingRoom: string;
   enableVideoObservation: boolean;
 };
@@ -167,15 +188,19 @@ export function recordAnswer(
   }
 
   const recordedAt = new Date().toISOString();
+  const wordCount = countWords(answer.text);
+  // 本地语速估算仅用于离线/mock 场景；在线场景通过 API 提交后由后端重新计算
+  const speechRateWpm = answer.durationSec > 0 ? Math.round((wordCount / (answer.durationSec / 60)) * 10) / 10 : null;
   const record: AnswerRecord = {
     questionId: session.currentQuestion.id,
     dimension: session.currentQuestion.dimension,
     prompt: session.currentQuestion.prompt,
     text: answer.text.trim(),
     durationSec: answer.durationSec,
-    wordCount: countWords(answer.text),
+    wordCount,
     fillerWordCount: countFillerWords(answer.text),
-    recordedAt
+    recordedAt,
+    speechRateWpm
   };
   const nextIndex = session.currentIndex + 1;
 
@@ -220,6 +245,7 @@ export function generateMarkdownReport(session: InterviewSession): string {
       `- 回答摘要：${answer.text || "未记录回答"}`,
       `- 回答用时：${answer.durationSec} 秒`,
       `- 字数/字符数：${answer.wordCount}`,
+      `- 语速：${formatSpeechRate(answer.speechRateWpm)}`,
       `- 填充词数量：${answer.fillerWordCount}`,
       `- 建议追问：${question?.followUps[0] ?? "无"}`,
       `- 观察点：${question?.evidenceHints[0] ?? "无"}`
@@ -312,6 +338,15 @@ function countWords(text: string): number {
   const latinWords = text.match(/[A-Za-z0-9_.+-]+/g)?.length ?? 0;
   const chineseChars = text.replace(/[A-Za-z0-9_.+\-\s，。！？、；：,.!?;:]/g, "").length;
   return latinWords + chineseChars;
+}
+
+// 参考范围 120–160 仅适用中文口语场景；英文口语约为 130–170 wpm
+function formatSpeechRate(value: number | null | undefined): string {
+  if (value == null) return "未知";
+  let hint = "";
+  if (value < 120) hint = "（偏慢，中文参考范围 120–160 字/分钟）";
+  else if (value > 160) hint = "（偏快，中文参考范围 120–160 字/分钟）";
+  return `${Math.round(value)} 字/分钟${hint}`;
 }
 
 function buildReviewItems(answers: AnswerRecord[], unanswered: InterviewQuestion[]): string[] {

@@ -1,8 +1,9 @@
 """Speech analysis subpackage.
 
-独立的声学特征分析模块。该模块目前不接入面试主流程，只作为可复用的
-函数对外暴露；任何地方需要分析语音时，直接 `from backend.speech_analysis
-import analyze_speech` 即可。
+声学特征分析模块，已接入面试主流程：
+- 前端通过 POST /api/sessions/<id>/speech-chunks 上传音频分片
+- 后端调用 analyze_speech() 分析，增量合并至 SpeechAggregateState
+- 报告生成时通过 SpeechCumulativeMetrics 输出语音观察章节
 
 设计原则：
 - 全部函数为纯函数，输入明确、输出使用 frozen dataclass。

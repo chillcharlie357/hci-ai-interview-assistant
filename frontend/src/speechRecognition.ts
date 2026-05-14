@@ -25,7 +25,7 @@ type SpeechWindow = {
   webkitSpeechRecognition?: SpeechRecognitionConstructor;
 };
 
-export function isSpeechRecognitionSupported(target: SpeechWindow = window): boolean {
+export function isSpeechRecognitionSupported(target: SpeechWindow = window as unknown as SpeechWindow): boolean {
   return Boolean(target.SpeechRecognition || target.webkitSpeechRecognition);
 }
 

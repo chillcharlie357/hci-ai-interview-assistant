@@ -148,6 +148,9 @@ class SessionRepository:
                     pitch_weight_sum=result.data.get('pitch_weight_sum', 0.0),
                     pitch_weighted_mean_sum=result.data.get('pitch_weighted_mean_sum', 0.0),
                     pitch_weighted_second_moment_sum=result.data.get('pitch_weighted_second_moment_sum', 0.0),
+                    semitone_weight_sum=result.data.get('semitone_weight_sum', 0.0),
+                    semitone_weighted_mean_sum=result.data.get('semitone_weighted_mean_sum', 0.0),
+                    semitone_weighted_second_moment_sum=result.data.get('semitone_weighted_second_moment_sum', 0.0),
                     f0_min_hz=result.data.get('f0_min_hz'),
                     f0_max_hz=result.data.get('f0_max_hz'),
                 )

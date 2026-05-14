@@ -13,6 +13,7 @@ describe("speechRecognition", () => {
       interimResults = false;
       lang = "";
       onresult: ((event: { results: ArrayLike<{ 0: { transcript: string } }> }) => void) | null = null;
+      onerror: ((event: { error?: string }) => void) | null = null;
       start = vi.fn();
       stop = vi.fn();
     }
