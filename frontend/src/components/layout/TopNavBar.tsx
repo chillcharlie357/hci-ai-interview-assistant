@@ -148,18 +148,19 @@ export function TopNavBar({ title = "AI 智能面试系统", showActions = true 
                 type="text"
                 icon={themeIcons[themeMode]}
                 className="top-nav-bar-icon-btn"
+                aria-label={`切换到${themeLabels[nextMode]}`}
                 onClick={() => setThemeMode(nextMode)}
               />
             </Tooltip>
-            <Button type="text" icon={<BellOutlined />} className="top-nav-bar-icon-btn" />
+            <Button type="text" icon={<BellOutlined />} className="top-nav-bar-icon-btn" aria-label="通知" />
             <Dropdown menu={{ items: userMenuItems }} trigger={["click"]} placement="bottomRight">
-              <div className="top-nav-bar-user">
-                <div className="top-nav-bar-avatar">
+              <button type="button" className="top-nav-bar-user" aria-label="用户菜单">
+                <div className="top-nav-bar-avatar" aria-hidden="true">
                   <span>{user ? getInitials(user.fullName || user.email) : "U"}</span>
                 </div>
                 <span className="top-nav-bar-username">{user?.fullName || "用户"}</span>
-                <DownOutlined style={{ fontSize: 10 }} />
-              </div>
+                <DownOutlined style={{ fontSize: 10 }} aria-hidden="true" />
+              </button>
             </Dropdown>
           </Space>
         </div>
@@ -225,6 +226,10 @@ export function TopNavBar({ title = "AI 智能面试系统", showActions = true 
           border-radius: var(--radius-full);
           cursor: pointer;
           transition: background var(--transition-fast);
+          background: none;
+          border: none;
+          font: inherit;
+          color: inherit;
         }
 
         .top-nav-bar-user:hover {

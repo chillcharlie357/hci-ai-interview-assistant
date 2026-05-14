@@ -57,7 +57,7 @@ export function LoginPage() {
   };
 
   return (
-    <div style={{ backgroundColor: "#f5f5f5", height: "100vh" }}>
+    <main style={{ backgroundColor: "#f5f5f5", height: "100vh" }}>
       <LoginFormPage
         // 使用渐变背景，符合 spec 的"科技灵动"风格
         backgroundImageUrl="https://mdn.alipayobjects.com/huamei_gcee1x/afts/img/A*y0ZTS6WLwvgAAAAAAAAAAAAADml6AQ/fmt.webp"
@@ -153,9 +153,9 @@ export function LoginPage() {
           }}
         >
           <Link to="/register">还没有账号？立即注册</Link>
-          <a>忘记密码？</a>
+          <button type="button" style={{ background: "none", border: "none", color: "#1677ff", cursor: "pointer", padding: 0, font: "inherit" }}>忘记密码？</button>
         </div>
       </LoginFormPage>
-    </div>
+    </main>
   );
 }
