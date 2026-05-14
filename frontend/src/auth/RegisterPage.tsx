@@ -68,7 +68,7 @@ export function RegisterPage() {
   };
 
   return (
-    <div style={{ backgroundColor: "#f5f5f5", height: "100vh" }}>
+    <main style={{ backgroundColor: "#f5f5f5", height: "100vh" }}>
       <LoginFormPage
         backgroundImageUrl="https://mdn.alipayobjects.com/huamei_gcee1x/afts/img/A*y0ZTS6WLwvgAAAAAAAAAAAAADml6AQ/fmt.webp"
         logo={
@@ -184,6 +184,6 @@ export function RegisterPage() {
           <Link to="/login">已有账号？立即登录</Link>
         </div>
       </LoginFormPage>
-    </div>
+    </main>
   );
 }

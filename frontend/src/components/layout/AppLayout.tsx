@@ -28,14 +28,34 @@ export function AppLayout({
 
   return (
     <div className="app-layout">
+      <a href="#main-content" className="skip-link">跳转到主要内容</a>
       <TopNavBar title={title} showActions={showTopBarActions} />
       {showSidebar && <SideNavBar />}
       <main
+        id="main-content"
         className={`app-layout-content ${showSidebar ? "with-sidebar" : ""} ${showSidebar && sidebarCollapsed ? "sidebar-collapsed" : ""}`}
       >
         {children}
       </main>
       <style>{`
+        .skip-link {
+          position: absolute;
+          top: -100%;
+          left: 16px;
+          z-index: 200;
+          padding: 8px 16px;
+          background: var(--color-primary);
+          color: white;
+          border-radius: var(--radius);
+          font-size: 14px;
+          font-weight: 600;
+          text-decoration: none;
+          transition: top 0.2s;
+        }
+        .skip-link:focus {
+          top: 8px;
+        }
+
         .app-layout {
           min-height: 100vh;
           background: var(--color-bg-layout);
