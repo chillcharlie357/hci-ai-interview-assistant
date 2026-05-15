@@ -7,6 +7,7 @@ import { ReactNode } from "react";
 import { TopNavBar } from "./TopNavBar";
 import { SideNavBar } from "./SideNavBar";
 import { useAppStore } from "../../store";
+import { isDevMode } from "../../config";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -37,6 +38,7 @@ export function AppLayout({
       >
         {children}
       </main>
+      {isDevMode() && <div className="dev-badge">开发模式</div>}
       <style>{`
         .skip-link {
           position: absolute;
