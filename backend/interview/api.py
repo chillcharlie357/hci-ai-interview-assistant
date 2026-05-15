@@ -22,6 +22,7 @@ from backend.auth import (
     EmailAlreadyRegisteredError,
     WeakPasswordError,
 )
+from backend.storage import upload_video as storage_upload_video, get_video_signed_url
 from backend.interview.answer_analysis import analyze_answer_text
 from backend.interview.config import is_auth_required, is_debug
 from backend.interview.exceptions import PersistenceError
@@ -47,6 +48,7 @@ from backend.speech_analysis.aggregate import (
 )
 from backend.database.prep_session_repo import PrepSessionRepository
 from backend.database.session_repo import SessionRepository
+from backend.database.utils import is_valid_uuid
 
 
 def _dbg(*args, **kwargs) -> None:
@@ -484,6 +486,14 @@ def handle_api_request(
             return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
         return HTTPStatus.OK, serialize_session(session, _get_speech_cumulative(store, path_parts[2]))
 
+    if (
+        method == "GET"
+        and len(path_parts) == 4
+        and path_parts[:2] == ["api", "sessions"]
+        and path_parts[3] == "video"
+    ):
+        return _handle_video_download(store, path_parts[2], user_id)
+
     # Mock session creation - 快速创建测试面试
     if method == "POST" and path_parts == ["api", "mock-session"]:
         _dbg(f"[ROUTE] mock-session user_id={user_id!r}", flush=True)
@@ -738,8 +748,16 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
                         self._send_json({"error": "authentication_required"}, HTTPStatus.UNAUTHORIZED)
                         return
 
-                payload = self._read_json()
                 user_id = auth.user_id if auth else ""
+
+                # 视频 raw binary body 上传
+                if self._is_video_upload_route():
+                    _dbg(f"[REQ] POST video upload session_id={self._extract_session_id()}", flush=True)
+                    status, body = self._handle_video_upload_raw(user_id)
+                    self._send_json(body, HTTPStatus(status))
+                    return
+
+                payload = self._read_json()
                 _dbg(f"[REQ] POST {self.path} user_id={user_id!r} auth={auth is not None}", flush=True)
                 status, body = handle_api_request(store, "POST", self.path, payload, user_id=user_id, auth=auth)
                 _dbg(f"[RES] POST {self.path} -> {status}", flush=True)
@@ -779,6 +797,68 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
             path = self.path.split("?")[0]  # 去掉查询参数
             public_routes = ["/api/auth/login", "/api/auth/register", "/api/auth/refresh", "/api/auth/logout"]
             return path in public_routes
+
+        def _is_video_upload_route(self) -> bool:
+            """检查是否是视频上传路由（raw binary body）"""
+            path = self.path.split("?")[0]
+            parts = [p for p in path.split("/") if p]
+            return (
+                len(parts) == 4
+                and parts[:2] == ["api", "sessions"]
+                and parts[3] == "video"
+            )
+
+        def _extract_session_id(self) -> str:
+            """从路径中提取 session_id"""
+            path = self.path.split("?")[0]
+            parts = [p for p in path.split("/") if p]
+            return parts[2] if len(parts) >= 3 else ""
+
+        def _handle_video_upload_raw(self, user_id: str) -> tuple[int, dict[str, Any]]:
+            """处理 raw binary body 视频上传"""
+            if not is_valid_uuid(user_id):
+                return HTTPStatus.UNAUTHORIZED, {"error": "authentication_required"}
+
+            session_id = self._extract_session_id()
+            session = store.get(session_id, user_id)
+            if session is None:
+                return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
+
+            content_length = int(self.headers.get("Content-Length", "0"))
+            if content_length == 0:
+                return HTTPStatus.BAD_REQUEST, {"error": "empty_body"}
+            if content_length > MAX_VIDEO_SIZE:
+                return HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "video_too_large", "message": f"视频文件超过 {MAX_VIDEO_SIZE // (1024 * 1024)}MB 上限"}
+
+            try:
+                video_bytes = self.rfile.read(content_length)
+            except Exception as error:
+                return HTTPStatus.BAD_REQUEST, {"error": "read_failed", "message": str(error)}
+
+            try:
+                video_path = storage_upload_video(user_id, session_id, video_bytes)
+            except Exception as error:
+                _dbg(f"[video_upload] Storage upload failed: {error}", flush=True)
+                updated = replace(session, video_upload_failed=True)
+                store.sessions[session_id] = updated
+                if store.repo:
+                    store.repo.save_session(updated, user_id)
+                return HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "storage_upload_failed", "message": str(error)}
+
+            # 优先使用前端上报的真实录制时长，fallback 为码率估算
+            query_params = parse_qs(urlparse(self.path).query)
+            client_duration = query_params.get("duration_sec", [None])[0]
+            duration_sec = float(client_duration) if client_duration else None
+            if duration_sec is None:
+                estimated_duration = content_length / (200_000 / 8) if content_length > 0 else 0
+                duration_sec = round(estimated_duration, 1)
+
+            updated = replace(session, video_path=video_path, video_duration_sec=duration_sec, video_upload_failed=False)
+            store.sessions[session_id] = updated
+            if store.repo:
+                store.repo.save_session(updated, user_id)
+
+            return HTTPStatus.OK, {"video_path": video_path, "video_duration_sec": updated.video_duration_sec}
 
         def _authenticate(self) -> AuthContext | None:
             """从请求头中提取并验证认证信息"""
@@ -888,6 +968,29 @@ def _decode_audio_base64(value: str) -> bytes:
     if not decoded:
         raise ValueError("audio_base64 解码后为空。")
     return decoded
+
+
+MAX_VIDEO_SIZE = 200 * 1024 * 1024  # 200MB
+
+
+def _handle_video_download(store: SessionStore, session_id: str, user_id: str) -> tuple[int, dict[str, Any]]:
+    """返回面试视频的签名 URL"""
+    if not is_valid_uuid(user_id):
+        return HTTPStatus.UNAUTHORIZED, {"error": "authentication_required"}
+
+    session = store.get(session_id, user_id)
+    if session is None:
+        return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
+
+    if not session.video_path:
+        return HTTPStatus.NOT_FOUND, {"error": "video_not_found"}
+
+    try:
+        signed_url = get_video_signed_url(user_id, session_id, expires_in=14400)
+    except Exception as error:
+        return HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "storage_error", "message": str(error)}
+
+    return HTTPStatus.OK, {"video_url": signed_url}
 
 
 def main() -> None:

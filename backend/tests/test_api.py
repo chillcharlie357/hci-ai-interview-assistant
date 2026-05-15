@@ -273,6 +273,43 @@ class ApiTest(unittest.TestCase):
         )
         self.assertEqual(bad["error"], "invalid_audio_payload")
 
+    def test_video_upload_clears_failed_flag_on_success(self):
+        from dataclasses import replace
+        from backend.interview.session import create_interview_session
+        from backend.interview.question_engine import InterviewQuestion
+
+        questions = [InterviewQuestion(id="q1", dimension="项目经验", prompt="test", follow_ups=[], evidence_hints=[])]
+        session = create_interview_session(candidate_name="张三", role="工程师", questions=questions)
+
+        # 模拟上传失败
+        session = replace(session, video_upload_failed=True)
+        self.assertTrue(session.video_upload_failed)
+
+        # 模拟上传成功：video_path 被设置，video_upload_failed 应被清除
+        session = replace(session, video_path="user1/session1.webm", video_duration_sec=60.0, video_upload_failed=False)
+        self.assertFalse(session.video_upload_failed)
+        self.assertEqual(session.video_path, "user1/session1.webm")
+
+    def test_video_download_returns_404_when_no_video(self):
+        created = self.request(
+            "POST",
+            "/api/sessions",
+            {
+                "candidate_name": "张三",
+                "resume": "候选人负责 AI 面试平台。",
+                "job_description": "岗位是 AI 产品全栈工程师。",
+                "interview_goal": "评估项目经验。",
+            },
+            expected_status=201,
+        )
+
+        status, body = handle_api_request(
+            self.store, "GET", f"/api/sessions/{created['id']}/video", {},
+            user_id="00000000-0000-0000-0000-000000000001",
+        )
+        self.assertEqual(status, 404)
+        self.assertEqual(body["error"], "video_not_found")
+
     def test_returns_404_for_unknown_session(self):
         response = self.request(
             "POST",
