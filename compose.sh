@@ -2,9 +2,11 @@
 # compose.sh — 一键启动/关闭 Docker Compose 服务栈
 #
 # 用法:
-#   ./compose.sh up     启动开发模式（源码热重载）
-#   ./compose.sh down   关闭所有服务
-#   ./compose.sh prod   启动生产模式（前端构建后 nginx 部署）
+#   ./compose.sh up      启动开发模式（源码热重载）
+#   ./compose.sh down    关闭所有服务
+#   ./compose.sh prod    启动生产模式（前端构建后 nginx 部署）
+#   ./compose.sh logs    查看所有服务日志（Ctrl+C 退出）
+#   ./compose.sh logs backend  查看特定服务日志
 #
 # 环境变量:
 #   COMPOSE_BIN        容器编排工具，默认自动检测 podman → docker
@@ -57,8 +59,19 @@ compose_up() {
   echo "    前端页面:   http://127.0.0.1:5173"
   echo "    ASR 服务:   ws://127.0.0.1:9785/"
   echo ""
-  echo "    查看日志: $COMPOSE_BIN compose -f \"$ROOT_DIR/docker-compose.yml\" logs -f"
+  echo "    查看日志: ./compose.sh logs"
   echo "    关闭服务:  ./compose.sh down"
+}
+
+# ============================
+# 查看日志
+# ============================
+compose_logs() {
+  local service="${1:-}"
+  local compose_cmd="$COMPOSE_BIN compose -f \"$ROOT_DIR/docker-compose.yml\" logs -f $service"
+
+  echo ">>> 查看日志${service:+ ($service)}..."
+  eval "$compose_cmd"
 }
 
 # ============================
@@ -85,12 +98,16 @@ case "${1:-}" in
   down|stop)
     compose_down
     ;;
+  logs)
+    compose_logs "${2:-}"
+    ;;
   *)
-    echo "用法: $0 <up|down|prod>"
+    echo "用法: $0 <up|down|prod|logs> [service]"
     echo ""
     echo "  up       启动开发模式（默认，含前端 Vite HMR 和后端 watchfiles 热重载）"
     echo "  down     关闭所有服务"
     echo "  prod     启动生产模式（前端构建后由 nginx 部署）"
+    echo "  logs     查看服务日志（加服务名可只看单个服务）"
     exit 1
     ;;
 esac

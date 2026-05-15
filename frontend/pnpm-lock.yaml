@@ -1724,6 +1724,9 @@ packages:
       use-sync-external-store:
         optional: true
 
+onlyBuiltDependencies:
+  - core-js
+
 snapshots:
 
   '@ant-design/colors@7.2.1':
