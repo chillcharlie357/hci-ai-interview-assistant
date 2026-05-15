@@ -23,6 +23,40 @@ Current MVP scope includes lightweight browser-side camera metrics and in-memory
 - Resume extraction uses MinerU CLI. Treat uploaded source files as temporary only.
 - Candidate interview room uses LiveKit when configured; keep text fallback for unavailable browser/meeting capabilities.
 - Do not add root-level JavaScript prototypes; frontend code belongs under `frontend/`.
+- Docker/Podman for containerization; multi-stage builds (dev → builder → nginx prod).
+
+## Docker / Podman
+
+### Start
+
+```bash
+# Production (nginx static serve, optimized image)
+docker compose up -d --build
+podman compose up -d --build
+
+# Development (hot reload: watchfiles + Vite HMR)
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+podman compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+### Stop
+
+```bash
+docker compose down
+podman compose down
+```
+
+### Architecture
+
+- **Dockerfile.backend**: Python 3.12-slim, uv sync分层缓存, mineru CLI
+- **Dockerfile.frontend**: 三阶段构建
+  - `dev` → node:22-slim + pnpm dev (开发热重载)
+  - `builder` → pnpm build (VITE_* 构建时注入)
+  - `prod` → nginx:alpine (静态服务, ~10MB)
+- **docker-compose.yml**: 生产模式，backend:8000 + nginx:80→5173 + asr:9785
+- **docker-compose.dev.yml**: 开发覆盖，全量源码挂载 + watchfiles + HMR
+
+All Dockerfiles are at project root. `.dockerignore` excludes node_modules, .git, .env, etc.
 
 ## Spec-Driven Development
 

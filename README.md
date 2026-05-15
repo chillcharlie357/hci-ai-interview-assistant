@@ -81,29 +81,54 @@ ASR 服务使用阿里云 DashScope（qwen）实时语音识别，通过 WebSock
 
 If the API key or model is missing, the app uses fallback logic and returns `llm_status: "fallback"`.
 
-## Docker Compose
+## Docker / Podman Compose
 
-### Production Mode
+支持 `docker compose` 和 `podman compose`，跨平台（Windows / macOS / Linux）。
 
-```bash
-docker compose up --build
-```
+### 启动
 
-### Development Mode (Hot Reload)
+**生产模式**（优化镜像，nginx 静态服务）：
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+docker compose up -d --build
+# 或
+podman compose up -d --build
 ```
 
-Dev mode overrides:
-- **Backend**: mounts `./backend` into the container and uses `watchfiles` for auto-reload on Python changes; sets `DEBUG=true`.
-- **Frontend**: mounts `./frontend/src` into the container; Vite HMR handles live updates.
+**开发模式**（前后端源码热重载）：
 
-Exposed ports:
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+# 或
+podman compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
 
-- API: `http://localhost:8100`
-- Frontend: `http://localhost:5173`
-- ASR WebSocket: `ws://localhost:9785`
+### 停止
+
+```bash
+docker compose down
+# 或
+podman compose down
+```
+
+### 模式对比
+
+| 特性 | 生产模式 (`prod`) | 开发模式 (`dev`) |
+|---|---|---|
+| 前端构建 | `pnpm build` → nginx:alpine | `pnpm dev` (Vite HMR) |
+| 后端热重载 | ❌ | ✅ (watchfiles) |
+| 前端热重载 | ❌ | ✅ (Vite HMR + 源码挂载) |
+| 镜像体积 | 小（nginx alpine ~10MB） | 大（node:22-slim + deps） |
+| 环境变量 | 构建时注入 (VITE_*) | 运行时注入 |
+| DEBUG | false | true |
+
+### 端口
+
+| 服务 | 端口 | 说明 |
+|---|---|---|
+| 后端 API | `http://localhost:8000` | 可通过 `BACKEND_PORT` 自定义 |
+| 前端 | `http://localhost:5173` | 可通过 `FRONTEND_PORT` 自定义 |
+| ASR WebSocket | `ws://localhost:9785` | 可通过 `ASR_PORT` 自定义 |
 
 ## Run Backend API Manually
 
@@ -149,7 +174,7 @@ pnpm install
 pnpm dev
 ```
 
-The frontend expects the backend API at `http://127.0.0.1:8000`.
+The Vite dev server proxies `/api/*` to `http://127.0.0.1:8000`. Set `VITE_API_BASE_URL` in `.env` to override (Docker 环境自动注入，本地开发留空即可走 proxy)。
 
 ## Tests
 

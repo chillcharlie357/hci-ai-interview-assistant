@@ -1,7 +1,17 @@
 export const DEFAULT_FILLER_WORDS: string[] = [];
 
+/**
+ * 返回 API 基础 URL。
+ * - Docker 环境：从 VITE_API_BASE_URL 读取（构建时注入或运行时注入）
+ * - 本地开发：回退到空字符串，由 Vite proxy 代理到后端
+ */
 export function getApiBaseUrl(): string {
-  return import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+  return import.meta.env.VITE_API_BASE_URL || "";
+}
+
+/** 当前运行模式 */
+export function getAppEnv(): "development" | "production" {
+  return (import.meta.env.VITE_APP_ENV as "development" | "production") || "production";
 }
 
 export function getFillerWords(): string[] {
@@ -20,7 +30,6 @@ export function getFillerWords(): string[] {
 export function isAuthEnabled(): boolean {
   const value = import.meta.env.VITE_REQUIRE_AUTH;
   if (value === undefined) {
-    // 如果未设置，默认与后端保持一致：开发模式关闭
     return import.meta.env.PROD;
   }
   return value === "true";

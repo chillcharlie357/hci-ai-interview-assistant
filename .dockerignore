@@ -1,7 +1,41 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.venv
+venv
+
+# Node
 **/node_modules
-**/.git
-**/__pycache__
-**/*.pyc
-.env
 **/dist
 **/.vite
+
+# Secrets & config
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docs (不需要进镜像)
+spec
+AGENTS.md
+README.md
+
+# Misc
+*.log
+tmp

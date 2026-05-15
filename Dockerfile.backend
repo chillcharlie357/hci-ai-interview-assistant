@@ -4,16 +4,21 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED=1
 ENV UV_DEFAULT_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 
+# 系统依赖 + uv + mineru CLI（合并为一层，用完清理）
 RUN apt-get update \
     && apt-get install -y --no-install-recommends nodejs npm \
-    && pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple uv \
+    && pip install --no-cache-dir uv \
     && npm install -g mineru-open-api --registry=https://registry.npmmirror.com \
+    && npm cache clean --force \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* /tmp/*
 
+# 依赖层（优先于源码，利用缓存）
 COPY pyproject.toml uv.lock* .python-version ./
+RUN uv sync --frozen --no-dev
+
+# 源码层
 COPY backend ./backend
 
 EXPOSE 8000
-
 CMD ["uv", "run", "python", "-m", "backend.interview.api", "--host", "0.0.0.0", "--port", "8000"]
