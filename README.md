@@ -182,13 +182,12 @@ The Vite dev server proxies `/api/*` to `http://127.0.0.1:8000`. Set `VITE_API_B
 scripts/test.sh
 ```
 
-Run the full browser E2E flow with mocked camera, microphone, TTS, STT, and MinerU:
+Run the full browser E2E interview flow (resume upload → LLM question generation → candidate Q&A → report page):
 
-```bash
-scripts/e2e.sh
-```
-
-This starts the API and frontend with `INTERVIEW_DISABLE_DOTENV=1`, so it does not read local LLM or LiveKit secrets from `.env`. The test covers recruiter resume upload, role follow-up, generated question preview, candidate subtitle interview, Markdown report download, and report visibility enforcement. Screenshots and downloaded reports are written to `/private/tmp` by default.
+Run the `/interview-e2e-testing` skill to automatically execute the full Playwright E2E test flow with mocked camera, microphone, TTS, STT, and MinerU. Prerequisites:
+- Dev environment started (`docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build -d`)
+- Playwright plugin loaded
+- PDF resumes available in `mock-resumes/`
 
 ## Mock Resumes For Local QA
 
