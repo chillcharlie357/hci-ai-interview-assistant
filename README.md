@@ -101,9 +101,9 @@ Dev mode overrides:
 
 Exposed ports:
 
-- API: `http://localhost:8100`
+- API: `http://localhost:9000`
 - Frontend: `http://localhost:5173`
-- ASR WebSocket: `ws://localhost:9785`
+- ASR WebSocket: `ws://localhost:9100`
 
 ## Run Backend API Manually
 

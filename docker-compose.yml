@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile.backend
     env_file: .env
     ports:
-      - "8100:8000"
+      - "9000:8000"
     command: ["uv", "run", "python", "-m", "backend.interview.api", "--host", "0.0.0.0", "--port", "8000"]
 
   asr:
@@ -19,7 +19,7 @@ services:
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
     command: ["uv", "run", "python", "-m", "backend.asr.qwen_realtime", "--host", "0.0.0.0", "--port", "8765"]
     ports:
-      - "9785:8765"
+      - "9100:8765"
 
   frontend:
     build:
@@ -27,8 +27,8 @@ services:
       dockerfile: frontend/Dockerfile
     env_file: .env
     environment:
-      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:8100}
-      VITE_ASR_WS_URL: ${VITE_ASR_WS_URL:-ws://127.0.0.1:9785/}
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:9000}
+      VITE_ASR_WS_URL: ${VITE_ASR_WS_URL:-ws://127.0.0.1:9100/}
       VITE_ASR_PROVIDER: ${VITE_ASR_PROVIDER:-qwen}
     depends_on:
       - backend
