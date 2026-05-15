@@ -565,7 +565,10 @@ def _f0_statistics_with_autocorr_chunked(framed: _FramedSignal, sample_rate: int
         "f0_max_hz": float(values_np.max()),
         "f0_range_hz": float(values_np.max() - values_np.min()),
         "voiced_ratio": voiced_ratio,
-    }：jitter / shimmer / HNR --------------------
+    }
+
+
+# jitter / shimmer / HNR --------------------
 
 
 def _voice_quality(samples: "np.ndarray", sample_rate: int) -> dict[str, float | None]:
