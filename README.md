@@ -85,31 +85,22 @@ If the API key or model is missing, the app uses fallback logic and returns `llm
 
 支持 `docker compose` 和 `podman compose`，跨平台（Windows / macOS / Linux）。
 
-### 启动
+### 一键启动 / 关闭
 
-**生产模式**（优化镜像，nginx 静态服务）：
-
-```bash
-docker compose up -d --build
-# 或
-podman compose up -d --build
-```
-
-**开发模式**（前后端源码热重载）：
+使用 `compose.sh` 自动检测 podman 或 docker，无需记忆 compose 参数：
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
-# 或
-podman compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+# 启动开发模式（默认，前端 Vite HMR + 后端 watchfiles 热重载）
+./compose.sh up
+
+# 启动生产模式（nginx 静态服务）
+./compose.sh prod
+
+# 关闭所有服务
+./compose.sh down
 ```
 
-### 停止
-
-```bash
-docker compose down
-# 或
-podman compose down
-```
+支持环境变量 `COMPOSE_BIN` 手动指定编排工具：`COMPOSE_BIN=docker ./compose.sh up`。
 
 ### 模式对比
 
