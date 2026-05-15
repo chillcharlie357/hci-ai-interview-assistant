@@ -76,6 +76,18 @@ All Dockerfiles are at project root. `.dockerignore` excludes node_modules, .git
 - Keep `main` pushable and clean.
 - After merging to `main`, push `main` only when the merge has been verified.
 
+## Project Skills
+
+Project-level skills are available under `.claude/skills/` and can be invoked via `/skill-name`:
+
+- **`interview-e2e-testing`** — Playwright-based E2E test of the complete interview flow: resume upload (PDF) → LLM question generation → candidate interview (6 Q&A) → report page.
+
+## Mock Resumes
+
+- `mock-resumes/` contains pre-generated PDF resumes for testing (4 candidates: frontend, backend, ML engineer, AI product manager).
+- Run `scripts/generate_mock_resumes.py` to regenerate both PDF and source markdown files.
+- MinerU only supports PDF reliably; DOCX files time out on the cloud-based API.
+
 ## Testing Rules
 
 - Write tests before production code for new behavior.
