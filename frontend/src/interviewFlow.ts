@@ -89,7 +89,8 @@ export type VideoSignalEvent = {
 export type KeyframeRecord = {
   timestamp: number;
   reason: string;
-  dataUrl: string;
+  dataUrl?: string;
+  videoTimestampSec?: number | null;
 };
 
 export type VideoSummary = {
@@ -129,6 +130,9 @@ export type InterviewSession = {
   speechSummary?: SpeechSummary | null;
   meetingRoom: string;
   enableVideoObservation: boolean;
+  videoPath?: string | null;
+  videoDurationSec?: number | null;
+  videoUploadFailed?: boolean;
 };
 
 export function createDraft(): DraftInput {

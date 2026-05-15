@@ -59,7 +59,8 @@ class VideoMetrics:
 class KeyframeRecord:
     timestamp: float
     reason: str
-    data_url: str
+    data_url: str = ""
+    video_timestamp_sec: float | None = None
 
 
 @dataclass(frozen=True)
@@ -86,6 +87,9 @@ class InterviewSession:
     keyframes: list[KeyframeRecord] | None = None
     meeting_room: str = ""
     enable_video_observation: bool = True
+    video_path: str | None = None
+    video_duration_sec: float | None = None
+    video_upload_failed: bool = False
 
     @property
     def current_question(self) -> InterviewQuestion | None:
@@ -185,20 +189,23 @@ def record_video_event(
     event_type: str,
     confidence: float,
     metrics: dict[str, object] | VideoMetrics,
-    keyframe: dict[str, str] | None = None,
+    keyframe: dict[str, object] | None = None,
 ) -> InterviewSession:
     video_metrics = metrics if isinstance(metrics, VideoMetrics) else VideoMetrics(**_filter_metric_fields(metrics))
     keyframes = list(session.keyframes or [])
     keyframe_index: int | None = None
-    if keyframe and keyframe.get("data_url"):
-        keyframe_index = len(keyframes)
-        keyframes.append(
-            KeyframeRecord(
-                timestamp=timestamp,
-                reason=str(keyframe.get("reason") or event_type),
-                data_url=str(keyframe["data_url"]),
+    if keyframe:
+        has_data = keyframe.get("data_url") or keyframe.get("video_timestamp_sec") is not None
+        if has_data:
+            keyframe_index = len(keyframes)
+            keyframes.append(
+                KeyframeRecord(
+                    timestamp=timestamp,
+                    reason=str(keyframe.get("reason") or event_type),
+                    data_url=str(keyframe.get("data_url", "")),
+                    video_timestamp_sec=keyframe.get("video_timestamp_sec"),
+                )
             )
-        )
 
     video_events = [
         *(session.video_events or []),

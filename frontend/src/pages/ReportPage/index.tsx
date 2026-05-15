@@ -164,7 +164,7 @@ export function ReportPage() {
             topSkills={topSkills}
             speechSummary={session.speechSummary}
           />
-          <KeyframesGallery keyframes={session.keyframes} />
+          <KeyframesGallery keyframes={session.keyframes} sessionId={session.id} />
         </div>
       </div>
 

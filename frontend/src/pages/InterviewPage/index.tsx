@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Spin } from "antd";
+import { App, Spin } from "antd";
 import { VideoCameraOutlined } from "@ant-design/icons";
 
 import { buildAvatarPrompt } from "@/interviewFlow";
@@ -10,6 +10,7 @@ import { useVideoAnalysis } from "./hooks/useVideoAnalysis";
 import { useSpeechRecognition } from "./hooks/useSpeechRecognition";
 import { useLiveKit } from "./hooks/useLiveKit";
 import { useInterviewSession } from "./hooks/useInterviewSession";
+import { useVideoRecorder } from "./hooks/useVideoRecorder";
 
 import { InterviewerTile } from "./components/InterviewerTile";
 import { CandidateVideo } from "./components/CandidateVideo";
@@ -22,6 +23,7 @@ import "./InterviewPage.css";
 export function InterviewPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
+  const { message } = App.useApp();
 
   const [interimTranscriptDisplay, setInterimTranscriptDisplay] = useState("");
 
@@ -34,7 +36,8 @@ export function InterviewPage() {
   const sessionHandle = useInterviewSession(sessionId, speech.chunkUploadFailCount);
   const { session, loading, report, answerText, setAnswerText, answerStartedAt, startAnswer, finishAnswer, finishingAnswer, updateSession, appendAnswerText } = sessionHandle;
 
-  const video = useVideoAnalysis(sessionId, session, updateSession);
+  const recorder = useVideoRecorder();
+  const video = useVideoAnalysis(sessionId, session, updateSession, recorder.recordingStartTimeRef);
   const liveKit = useLiveKit(sessionId, session);
 
   const [interviewerState, setInterviewerState] = useState<DigitalInterviewerState>("preparing");
@@ -83,6 +86,13 @@ export function InterviewPage() {
     };
   }, []);
 
+  // 视频上传失败提示
+  useEffect(() => {
+    if (recorder.uploadError) {
+      message.warning(`视频上传失败：${recorder.uploadError}，面试记录仍已保存`);
+    }
+  }, [recorder.uploadError, message]);
+
   function speakQuestion(mode: "auto" | "replay" = "replay") {
     if (!session?.currentQuestion) {
       setInterviewerState("finished");
@@ -106,10 +116,23 @@ export function InterviewPage() {
     if (!session?.currentQuestion || answerStartedAt !== null) return;
     startAnswer();
     await speech.startMediaStreamAndAsr();
+    // 第一次回答时启动录制
+    if (!recorder.isRecording) {
+      recorder.startRecording(video.analysisStreamRef.current, video.analysisCanvasRef.current);
+    }
   }
 
   async function handleFinishCandidateAnswer() {
     await speech.stopMediaStream();
+    const isLastQuestion = session?.currentQuestion && session.currentIndex >= session.questions.length - 1;
+    // 最后一题：先完成录制上传，再提交答案（避免上传未完成即跳转报告页）
+    if (isLastQuestion && sessionId && recorder.isRecording) {
+      try {
+        await recorder.stopAndUpload(sessionId);
+      } catch {
+        // 上传失败已在 recorder.uploadError 中处理
+      }
+    }
     await finishAnswer();
   }
 

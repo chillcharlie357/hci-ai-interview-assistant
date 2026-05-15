@@ -82,7 +82,8 @@ type ApiVideoEvent = {
 type ApiKeyframe = {
   timestamp: number;
   reason: string;
-  data_url: string;
+  data_url?: string;
+  video_timestamp_sec?: number | null;
 };
 
 type ApiVideoSummary = {
@@ -122,6 +123,9 @@ type ApiSession = {
   speech_summary?: ApiSpeechSummary;
   meeting_room?: string;
   enable_video_observation?: boolean;
+  video_path?: string | null;
+  video_duration_sec?: number | null;
+  video_upload_failed?: boolean;
 };
 
 type ApiSessionWithReport = ApiSession & {
@@ -284,7 +288,7 @@ export async function submitVideoEvent(
     eventType: string;
     confidence: number;
     metrics: VideoMetrics;
-    keyframe?: { reason: string; dataUrl: string };
+    keyframe?: { reason: string; dataUrl?: string; videoTimestampSec?: number | null };
   },
   options: ClientOptions = {}
 ): Promise<InterviewSession> {
@@ -295,7 +299,9 @@ export async function submitVideoEvent(
       event_type: event.eventType,
       confidence: event.confidence,
       metrics: toApiVideoMetrics(event.metrics),
-      keyframe: event.keyframe ? { reason: event.keyframe.reason, data_url: event.keyframe.dataUrl } : undefined
+      keyframe: event.keyframe
+        ? { reason: event.keyframe.reason, data_url: event.keyframe.dataUrl, video_timestamp_sec: event.keyframe.videoTimestampSec }
+        : undefined
     },
     200,
     options
@@ -354,6 +360,75 @@ export async function listSessions(options: ClientOptions = {}): Promise<{ sessi
 
 export async function deleteSession(sessionId: string, options: ClientOptions = {}): Promise<void> {
   await deleteRequest(`/api/sessions/${sessionId}`, 200, options);
+}
+
+export async function uploadInterviewVideo(
+  sessionId: string,
+  videoBlob: Blob,
+  options: ClientOptions & { durationSec?: number } = {}
+): Promise<{ videoPath: string; videoDurationSec: number }> {
+  const baseUrl = options.baseUrl ?? getApiBaseUrl();
+  const fetcher = options.fetcher ?? fetch;
+
+  const accessToken = useAuthStore.getState().accessToken;
+  const headers: Record<string, string> = {
+    "Content-Type": "video/webm",
+  };
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
+
+  const durationParam = options.durationSec ? `?duration_sec=${Math.round(options.durationSec)}` : "";
+  const response = await fetcher(`${baseUrl}/api/sessions/${sessionId}/video${durationParam}`, {
+    method: "POST",
+    headers,
+    body: videoBlob,
+  });
+
+  if (response.status === 401) {
+    useAuthStore.getState().logout();
+    window.location.href = "/login";
+    throw new Error("认证已过期，请重新登录");
+  }
+  if (response.status === 413) {
+    throw new Error("视频文件过大，上传失败");
+  }
+  if (response.status !== 200) {
+    throw new Error(`视频上传失败: ${response.status} ${await response.text()}`);
+  }
+
+  return (await response.json()) as { videoPath: string; videoDurationSec: number };
+}
+
+export async function fetchVideoUrl(
+  sessionId: string,
+  options: ClientOptions = {}
+): Promise<string | null> {
+  const baseUrl = options.baseUrl ?? getApiBaseUrl();
+  const fetcher = options.fetcher ?? fetch;
+
+  const accessToken = useAuthStore.getState().accessToken;
+  const headers: Record<string, string> = {};
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
+
+  const response = await fetcher(`${baseUrl}/api/sessions/${sessionId}/video`, { method: "GET", headers });
+
+  if (response.status === 401) {
+    useAuthStore.getState().logout();
+    window.location.href = "/login";
+    throw new Error("认证已过期，请重新登录");
+  }
+  if (response.status === 404) {
+    return null;
+  }
+  if (response.status !== 200) {
+    throw new Error(`获取视频 URL 失败: ${response.status}`);
+  }
+
+  const data = (await response.json()) as { video_url: string };
+  return data.video_url || null;
 }
 
 /** 快速创建 mock 面试，用于调试 */
@@ -489,7 +564,10 @@ function mapSession(session: ApiSession): InterviewSession {
     videoSummary: mapVideoSummary(session.video_summary),
     speechSummary: mapSpeechSummary(session.speech_summary),
     meetingRoom: session.meeting_room ?? "",
-    enableVideoObservation: session.enable_video_observation ?? true
+    enableVideoObservation: session.enable_video_observation ?? true,
+    videoPath: session.video_path ?? null,
+    videoDurationSec: session.video_duration_sec ?? null,
+    videoUploadFailed: session.video_upload_failed ?? false
   };
 }
 
@@ -564,7 +642,8 @@ function mapKeyframe(keyframe: ApiKeyframe): KeyframeRecord {
   return {
     timestamp: keyframe.timestamp,
     reason: keyframe.reason,
-    dataUrl: keyframe.data_url
+    dataUrl: keyframe.data_url,
+    videoTimestampSec: keyframe.video_timestamp_sec ?? null
   };
 }
 

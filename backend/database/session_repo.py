@@ -206,4 +206,7 @@ class SessionRepository:
             'keyframes': keyframes if keyframes else None,
             'meeting_room': data.get('meeting_room', ''),
             'enable_video_observation': data.get('enable_video_observation', True),
+            'video_path': data.get('video_path'),
+            'video_duration_sec': data.get('video_duration_sec'),
+            'video_upload_failed': data.get('video_upload_failed', False),
         })

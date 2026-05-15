@@ -20,6 +20,7 @@ const FACE_ANALYSIS_INTERVAL_MS = 100;
 export type VideoAnalysisHandle = {
   analysisVideoRef: React.RefObject<HTMLVideoElement | null>;
   analysisCanvasRef: React.RefObject<HTMLCanvasElement | null>;
+  analysisStreamRef: React.RefObject<MediaStream | null>;
   faceMetricsSnapshot: FaceAnalysisMetrics | null;
   videoObservationStatus: string;
   currentFacePresent: boolean;
@@ -30,7 +31,8 @@ export type VideoAnalysisHandle = {
 export function useVideoAnalysis(
   sessionId: string | undefined,
   session: InterviewSession | null,
-  onSessionUpdate: (updated: InterviewSession) => void
+  onSessionUpdate: (updated: InterviewSession) => void,
+  recordingStartTimeRef: React.RefObject<number | null>
 ): VideoAnalysisHandle {
   const analysisVideoRef = useRef<HTMLVideoElement | null>(null);
   const analysisCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -134,7 +136,10 @@ export function useVideoAnalysis(
       if (shouldUpload && session) {
         lastUploadedVideoEventAtRef.current = timestampMs;
         const keyframe = event.shouldCaptureKeyframe
-          ? { reason: event.keyframeReason ?? event.eventType, dataUrl: canvasElement.toDataURL("image/jpeg", 0.72) }
+          ? {
+              reason: event.keyframeReason ?? event.eventType,
+              videoTimestampSec: recordingStartTimeRef.current ? (timestampMs - recordingStartTimeRef.current) / 1000 : null,
+            }
           : undefined;
         void submitVideoEvent(session.id, {
           timestamp: timestampMs / 1000,
@@ -244,6 +249,7 @@ export function useVideoAnalysis(
   return {
     analysisVideoRef,
     analysisCanvasRef,
+    analysisStreamRef,
     faceMetricsSnapshot,
     videoObservationStatus,
     currentFacePresent,
