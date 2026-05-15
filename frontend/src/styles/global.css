@@ -165,6 +165,31 @@ body {
   color: var(--color-success);
 }
 
+/* ===== 开发模式徽标 ===== */
+.dev-badge {
+  position: fixed;
+  bottom: 12px;
+  left: 12px;
+  z-index: 9999;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #fff;
+  background: #f59e0b;
+  border-radius: 9999px;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+  pointer-events: none;
+  user-select: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .dev-badge {
+    background: #d97706;
+    box-shadow: 0 2px 8px rgba(217, 119, 6, 0.4);
+  }
+}
+
 /* ===== 响应式工具类 ===== */
 @media (max-width: 800px) {
   .page-container-center,

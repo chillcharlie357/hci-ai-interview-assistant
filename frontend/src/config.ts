@@ -9,9 +9,14 @@ export function getApiBaseUrl(): string {
   return import.meta.env.VITE_API_BASE_URL || "";
 }
 
-/** 当前运行模式 */
+/** 当前运行模式（来自 VITE_APP_ENV 环境变量） */
 export function getAppEnv(): "development" | "production" {
   return (import.meta.env.VITE_APP_ENV as "development" | "production") || "production";
+}
+
+/** 是否在开发模式下运行（Vite dev server 或 Docker 开发模式） */
+export function isDevMode(): boolean {
+  return import.meta.env.DEV;
 }
 
 export function getFillerWords(): string[] {

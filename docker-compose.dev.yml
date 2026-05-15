@@ -21,6 +21,13 @@ services:
       VITE_INTERVIEW_FILLER_WORDS: ${VITE_INTERVIEW_FILLER_WORDS:-}
       VITE_APP_ENV: development
     volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      # 只挂载需要热重载的源码目录/文件，保留构建层的 node_modules
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/vite.config.ts:/app/vite.config.ts
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+      # 挂载包配置文件，添加依赖时无需重新构建镜像
+      - ./frontend/package.json:/app/package.json
+      - ./frontend/pnpm-lock.yaml:/app/pnpm-lock.yaml
 

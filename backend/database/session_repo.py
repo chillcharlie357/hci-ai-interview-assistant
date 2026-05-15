@@ -145,6 +145,8 @@ class SessionRepository:
                     analyzed_duration_sec=result.data.get('analyzed_duration_sec', 0.0),
                     voiced_duration_sec=result.data.get('voiced_duration_sec', 0.0),
                     speech_run_equivalent=result.data.get('speech_run_equivalent', 0.0),
+                    rms_weighted_db_sum=result.data.get('rms_weighted_db_sum', 0.0),
+                    rms_weight_count=result.data.get('rms_weight_count', 0.0),
                     pitch_weight_sum=result.data.get('pitch_weight_sum', 0.0),
                     pitch_weighted_mean_sum=result.data.get('pitch_weighted_mean_sum', 0.0),
                     pitch_weighted_second_moment_sum=result.data.get('pitch_weighted_second_moment_sum', 0.0),

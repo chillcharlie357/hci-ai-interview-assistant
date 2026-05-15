@@ -88,12 +88,6 @@ uv run python scripts/generate_mock_resumes.py
 - Playwright 插件已加载
 - `mock-resumes/` 目录下有 PDF 简历
 
-### E2E 测试（模拟摄像头、麦克风、TTS、STT、MinerU）
-
-```bash
-scripts/e2e.sh
-```
-
 ### Docker Compose（生产模式）
 
 ```bash

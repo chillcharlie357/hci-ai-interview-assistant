@@ -85,31 +85,22 @@ If the API key or model is missing, the app uses fallback logic and returns `llm
 
 支持 `docker compose` 和 `podman compose`，跨平台（Windows / macOS / Linux）。
 
-### 启动
+### 一键启动 / 关闭
 
-**生产模式**（优化镜像，nginx 静态服务）：
-
-```bash
-docker compose up -d --build
-# 或
-podman compose up -d --build
-```
-
-**开发模式**（前后端源码热重载）：
+使用 `compose.sh` 自动检测 podman 或 docker，无需记忆 compose 参数：
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
-# 或
-podman compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+# 启动开发模式（默认，前端 Vite HMR + 后端 watchfiles 热重载）
+./compose.sh up
+
+# 启动生产模式（nginx 静态服务）
+./compose.sh prod
+
+# 关闭所有服务
+./compose.sh down
 ```
 
-### 停止
-
-```bash
-docker compose down
-# 或
-podman compose down
-```
+支持环境变量 `COMPOSE_BIN` 手动指定编排工具：`COMPOSE_BIN=docker ./compose.sh up`。
 
 ### 模式对比
 
@@ -182,13 +173,12 @@ The Vite dev server proxies `/api/*` to `http://127.0.0.1:8000`. Set `VITE_API_B
 scripts/test.sh
 ```
 
-Run the full browser E2E flow with mocked camera, microphone, TTS, STT, and MinerU:
+Run the full browser E2E interview flow (resume upload → LLM question generation → candidate Q&A → report page):
 
-```bash
-scripts/e2e.sh
-```
-
-This starts the API and frontend with `INTERVIEW_DISABLE_DOTENV=1`, so it does not read local LLM or LiveKit secrets from `.env`. The test covers recruiter resume upload, role follow-up, generated question preview, candidate subtitle interview, Markdown report download, and report visibility enforcement. Screenshots and downloaded reports are written to `/private/tmp` by default.
+Run the `/interview-e2e-testing` skill to automatically execute the full Playwright E2E test flow with mocked camera, microphone, TTS, STT, and MinerU. Prerequisites:
+- Dev environment started (`docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build -d`)
+- Playwright plugin loaded
+- PDF resumes available in `mock-resumes/`
 
 ## Mock Resumes For Local QA
 
