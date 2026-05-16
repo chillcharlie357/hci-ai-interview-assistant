@@ -7,6 +7,19 @@ services:
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     command: ["uv", "run", "python", "-m", "backend.interview.api", "--host", "0.0.0.0", "--port", "8000"]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "uv", "run", "python", "-c",
+        "import urllib.request; r=urllib.request.urlopen('http://localhost:8000/api/health'); assert r.status==200"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
   asr:
     build:
@@ -20,6 +33,12 @@ services:
     command: ["uv", "run", "python", "-m", "backend.asr.qwen_realtime", "--host", "0.0.0.0", "--port", "8765"]
     ports:
       - "${ASR_PORT:-9785}:8765"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
 
   frontend:
     build:
@@ -38,3 +57,9 @@ services:
       - asr
     ports:
       - "${FRONTEND_PORT:-5173}:5173"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped

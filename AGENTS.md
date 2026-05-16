@@ -95,6 +95,64 @@ Project-level skills are available under `.claude/skills/` and can be invoked vi
 - TypeScript UI data flow should have focused tests.
 - Do not claim work is complete until tests have been run and results are known.
 
+## Observability & Logging
+
+The project has a structured observability layer designed for agent-parsable log output. All new features should use the shared logging infrastructure rather than `print()` or `console.info()`.
+
+### Backend Logging
+
+- **Config**: `backend/interview/logging_config.py` — call `configure_logging()` once at startup.
+- **Logger names**: Use `logging.getLogger("backend.<component>")`:
+  - `backend.http` — HTTP requests/responses (api.py)
+  - `backend.db` — Database operations (session_repo.py, prep_session_repo.py)
+  - `backend.startup` — Application startup events (handled by `backend.http`)
+- **Log format**: `%(asctime)s [%(levelname)-7s] [%(name)s] %(message)s`
+  ```
+  2026-05-16 10:30:15 [INFO   ] [backend.http] GET /api/sessions -> 200 (42ms)
+  2026-05-16 10:30:16 [WARNING] [backend.db] save_session: user_id='xyz' not valid UUID
+  ```
+- **Level control**: `LOG_LEVEL` env var (DEBUG, INFO, WARNING, ERROR). Default: INFO.
+- **Health endpoint**: `GET /api/health` returns component status, LLM config, and runtime metrics. It is a public route (no auth required). Add it to `_is_public_auth_route()` if new public routes are added.
+- **Rule**: Always use `log.info()`, `log.warning()`, `log.exception()` instead of `print()`, `traceback.print_exc()`, or custom `_dbg()` wrappers. The `_dbg()` function has been removed — use the real logging system.
+
+### Frontend Logging
+
+- **Config**: `frontend/src/logger.ts` — call `createLogger("<component>")` to get a logger.
+- **Console prefix**: `[HCI:<component>]` for easy filtering in browser DevTools.
+- **Level control**: `VITE_LOG_LEVEL` env var (debug, info, warn, error). Default: info.
+- **Usage patterns**:
+  - `createLogger("api")` — API request logging (in apiClient.ts)
+  - `createLogger("app")` — App startup logging (in main.tsx)
+  - `createLogger("error-boundary")` — React render error logging
+- **Rule**: Use the logger in all new code instead of `console.log()`, `console.info()`, etc. Exception: `console.error()` remains acceptable for critical errors.
+
+### Docker Logging
+
+- All three services (backend, asr, frontend) have JSON-file logging with max-size 10m and max-file 3.
+- `restart: unless-stopped` is set on all services.
+- Backend has a healthcheck using the `/api/health` endpoint.
+- nginx in the frontend container uses JSON log format with `access_log` and `error_log` configured.
+
+### Agent Log Inspection Commands
+
+```bash
+# View logs for all services
+./compose.sh logs
+
+# View logs for a specific service
+./compose.sh logs backend
+./compose.sh logs frontend
+
+# Filter backend warnings/errors
+./compose.sh logs backend | grep -E "\[WARNING\]|\[ERROR\]"
+
+# Filter frontend API logs
+docker logs hci-frontend-1 2>&1 | grep "\[HCI:api\]"
+
+# Check health endpoint
+curl http://localhost:8000/api/health | python -m json.tool
+```
+
 ## Product Guardrails
 
 - Keep conclusions tied to evidence: question text, candidate answer, answer metrics, and event logs.
