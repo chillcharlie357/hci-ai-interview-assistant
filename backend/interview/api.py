@@ -733,7 +733,10 @@ def _handle_health(store: SessionStore) -> tuple[int, dict[str, Any]]:
                 "url": bool(os.environ.get("LIVEKIT_URL")),
                 "accepted": all(os.environ.get(k) for k in ("LIVEKIT_API_KEY", "LIVEKIT_API_SECRET")),
             },
-            "mineru": {"command": os.environ.get("MINERU_COMMAND", "not-set")},
+            "mineru": {
+                "api_token_configured": bool(os.environ.get("MINERU_API_TOKEN")),
+                "mode": "precision_api" if os.environ.get("MINERU_API_TOKEN") else ("agent_api" if not os.environ.get("MINERU_COMMAND") else "cli_deprecated"),
+            },
         },
         "runtime": {
             "uptime_sec": int(time.time() - _start_time),

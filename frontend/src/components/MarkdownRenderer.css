@@ -1,0 +1,103 @@
+.markdown-renderer {
+  color: var(--ant-color-text-base, #333);
+  font-size: 14px;
+  line-height: 1.7;
+  word-break: break-word;
+}
+
+.markdown-renderer h1,
+.markdown-renderer h2,
+.markdown-renderer h3 {
+  margin: 0.8em 0 0.4em;
+  font-weight: 600;
+  color: var(--ant-color-text, #111);
+}
+
+.markdown-renderer h1 { font-size: 1.4em; border-bottom: 1px solid var(--ant-color-border, #e8e8e8); padding-bottom: 0.3em; }
+.markdown-renderer h2 { font-size: 1.2em; }
+.markdown-renderer h3 { font-size: 1.05em; }
+
+.markdown-renderer p {
+  margin: 0.4em 0;
+}
+
+.markdown-renderer ul,
+.markdown-renderer ol {
+  margin: 0.3em 0;
+  padding-left: 1.5em;
+}
+
+.markdown-renderer li {
+  margin: 0.15em 0;
+}
+
+.markdown-renderer code {
+  background: var(--ant-color-fill-tertiary, #f5f5f5);
+  border-radius: 3px;
+  padding: 0.15em 0.4em;
+  font-size: 0.9em;
+  font-family: "SF Mono", "Monaco", "Menlo", monospace;
+}
+
+.markdown-renderer pre {
+  background: var(--ant-color-fill-tertiary, #f5f5f5);
+  border-radius: 6px;
+  padding: 0.8em 1em;
+  overflow-x: auto;
+  font-size: 0.9em;
+  line-height: 1.5;
+  font-family: "SF Mono", "Monaco", "Menlo", monospace;
+}
+
+.markdown-renderer pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+.markdown-renderer table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.6em 0;
+  font-size: 0.95em;
+}
+
+.markdown-renderer th,
+.markdown-renderer td {
+  border: 1px solid var(--ant-color-border, #e8e8e8);
+  padding: 0.4em 0.6em;
+  text-align: left;
+}
+
+.markdown-renderer th {
+  background: var(--ant-color-fill-quaternary, #fafafa);
+  font-weight: 600;
+}
+
+.markdown-renderer a {
+  color: var(--ant-color-primary, #1677ff);
+  text-decoration: none;
+}
+
+.markdown-renderer a:hover {
+  text-decoration: underline;
+}
+
+.markdown-renderer blockquote {
+  border-left: 3px solid var(--ant-color-primary, #1677ff);
+  margin: 0.5em 0;
+  padding: 0.2em 0.8em;
+  color: var(--ant-color-text-secondary, #666);
+  background: var(--ant-color-fill-quaternary, #fafafa);
+  border-radius: 0 4px 4px 0;
+}
+
+.markdown-renderer hr {
+  border: none;
+  border-top: 1px solid var(--ant-color-border, #e8e8e8);
+  margin: 1em 0;
+}
+
+.markdown-renderer strong {
+  font-weight: 600;
+}

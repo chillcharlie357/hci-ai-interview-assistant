@@ -188,7 +188,8 @@ uv run python scripts/generate_mock_resumes.py
 
 ### 其他工具（可选）
 
-- `MINERU_COMMAND` — 简历解析工具命令
+- `MINERU_API_TOKEN` — MinerU API Token（配饰后使用 Precision API，未配置自动降级 Agent API）
+- `MINERU_TIMEOUT_SEC` — MinerU 解析超时秒数（默认 300）
 - `LIVEKIT_URL`、`LIVEKIT_API_KEY`、`LIVEKIT_API_SECRET` — 视频会议配置
 - `DATABASE_URL` — 数据库直连 URL（可选，现有代码通过 Supabase API 操作）
 - `VITE_API_BASE_URL` — 前端 API 端点（默认 `http://127.0.0.1:8000`）

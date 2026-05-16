@@ -671,16 +671,6 @@
   margin-bottom: var(--space-md);
 }
 
-.report-preview {
-  max-height: 150px;
-  overflow: auto;
-  font-size: 12px;
-  white-space: pre-wrap;
-  background: #f7f9fb;
-  padding: var(--space-sm);
-  border-radius: var(--radius);
-}
-
 /* ===== LiveKit 候选人视频 ===== */
 .candidate-livekit-room {
   display: flex;

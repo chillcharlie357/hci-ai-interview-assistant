@@ -37,6 +37,7 @@ import {
 } from "../../apiClient";
 import type { PrepSession, InterviewSession } from "../../interviewFlow";
 import { buildQuestionPreviewItems } from "../../questionPreview";
+import { MarkdownRenderer } from "../../components/MarkdownRenderer";
 import { toBase64 } from "@/utils/file";
 import { buildReportFilename, downloadMarkdownReport } from "../../reportDownload";
 import { useAppStore } from "../../store";
@@ -134,6 +135,16 @@ export function RecruiterPage() {
         dataBase64,
       });
       setPrep(result);
+      // 自动提取候选人姓名（只在不为空且用户未手动修改时填充）
+      const extractedName = result.extractedCandidateName;
+      if (extractedName && candidateName === "候选人") {
+        setCandidateName(extractedName);
+      }
+      // 自动匹配岗位模板（仅在用户未选择模板时填充）
+      const matchedTemplate = result.matchingTemplate;
+      if (matchedTemplate && !selectedTemplate) {
+        handleTemplateChange(matchedTemplate);
+      }
       message.success("简历解析成功");
     } catch (error) {
       message.error(error instanceof Error ? error.message : "简历上传失败");
@@ -314,7 +325,7 @@ export function RecruiterPage() {
             {/* 简历预览 */}
             {prep?.resumeMarkdownPreview && (
               <div className="resume-preview">
-                <pre>{prep.resumeMarkdownPreview}</pre>
+                <MarkdownRenderer content={prep.resumeMarkdownPreview} maxHeight="400px" />
               </div>
             )}
           </Card>
@@ -463,7 +474,7 @@ export function RecruiterPage() {
         {/* 报告预览 */}
         {report && (
           <Card className="recruiter-page-card glass-card" title="面试报告">
-            <pre className="report-preview">{report}</pre>
+            <MarkdownRenderer content={report} maxHeight="400px" />
           </Card>
         )}
       </div>

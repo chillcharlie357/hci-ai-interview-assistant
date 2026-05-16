@@ -73,7 +73,9 @@ OPENAI_MODEL=gpt-4
 
 ```bash
 UV_DEFAULT_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
-MINERU_COMMAND=mineru-open-api
+# MinerU API Token（可选，在 https://mineru.net/apiManage/token 获取）
+# 配置后使用 Precision API（更快），未配置时自动降级为 Agent API
+# MINERU_API_TOKEN=your-token-here
 LIVEKIT_URL=wss://...
 LIVEKIT_API_KEY=...
 LIVEKIT_API_SECRET=...

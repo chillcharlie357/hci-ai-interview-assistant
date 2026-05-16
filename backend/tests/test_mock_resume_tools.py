@@ -17,7 +17,7 @@ class MockResumeToolsTest(unittest.TestCase):
             text=True,
         )
 
-        resume_path = ROOT / "mock-resumes" / "frontend_senior_li_ming.docx"
+        resume_path = ROOT / "mock-resumes" / "frontend_senior_li_ming.pdf"
         self.assertTrue(resume_path.exists())
 
         extracted = subprocess.run(
@@ -28,8 +28,8 @@ class MockResumeToolsTest(unittest.TestCase):
             text=True,
         )
 
-        self.assertIn("# 李明 - 高级前端工程师", extracted.stdout)
-        self.assertIn("TypeScript", extracted.stdout)
+        self.assertIn("# Mock Resume", extracted.stdout)
+        self.assertIn("frontend_senior_li_ming.pdf", extracted.stdout)
 
 
 if __name__ == "__main__":

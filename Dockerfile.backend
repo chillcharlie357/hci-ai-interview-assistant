@@ -4,12 +4,11 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED=1
 ENV UV_DEFAULT_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 
-# 系统依赖 + uv + mineru CLI（合并为一层，用完清理）
+# 系统依赖 + uv（合并为一层，用完清理）
+# 注意：MinerU 已从 CLI 切换为 HTTP API 直连，不再需要 nodejs/npm/mineru-open-api
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends nodejs npm \
+    && apt-get install -y --no-install-recommends \
     && pip install --no-cache-dir uv \
-    && npm install -g mineru-open-api --registry=https://registry.npmmirror.com \
-    && npm cache clean --force \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/*
 
