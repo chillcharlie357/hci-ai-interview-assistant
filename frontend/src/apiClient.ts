@@ -111,6 +111,7 @@ type ApiSpeechSummary = {
 type ApiSession = {
   id: string;
   user_id?: string;
+  created_at?: string;
   candidate_name: string;
   role: string;
   questions: ApiQuestion[];
@@ -491,6 +492,7 @@ function mapSession(session: ApiSession): InterviewSession {
   return {
     id: session.id,
     userId: session.user_id,
+    createdAt: session.created_at,
     candidateName: session.candidate_name,
     role: session.role,
     questions,

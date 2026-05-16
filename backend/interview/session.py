@@ -81,6 +81,7 @@ class InterviewSession:
     answers: list[AnswerRecord]
     events: list[InterviewEvent]
     user_id: str = ""  # 所属用户 ID
+    created_at: str = ""  # 创建时间（从数据库读取时填充，创建时不填）
     llm_status: str = "fallback"
     video_events: list[VideoEvent] | None = None
     keyframes: list[KeyframeRecord] | None = None

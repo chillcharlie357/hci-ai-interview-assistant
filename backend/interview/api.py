@@ -280,7 +280,8 @@ class SessionStore:
         return session
 
     def list_sessions(self, user_id: str = "", limit: int = 50) -> list[dict[str, Any]]:
-        if self.repo:
+        from backend.database.utils import is_valid_uuid
+        if self.repo and is_valid_uuid(user_id):
             return self.repo.list_sessions(user_id, limit)
         result = []
         for session in self.sessions.values():
