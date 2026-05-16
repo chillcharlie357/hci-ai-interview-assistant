@@ -26,6 +26,9 @@ export type PrepSession = {
   ready: boolean;
   readySummary: ReadySummary | null;
   llmStatus: string;
+  extractedCandidateName?: string;
+  matchingTemplate?: string | null;
+  detectedSkills?: string[];
 };
 
 export type InterviewQuestion = {

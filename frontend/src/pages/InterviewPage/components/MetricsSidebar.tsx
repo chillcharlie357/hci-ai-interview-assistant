@@ -3,6 +3,7 @@ import { Button, Tag } from "antd";
 import { EyeOutlined, UserOutlined, SoundOutlined } from "@ant-design/icons";
 
 import type { InterviewSession, InterviewQuestion } from "@/interviewFlow";
+import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import { buildReportFilename, downloadMarkdownReport } from "@/reportDownload";
 import type { VideoAnalysisHandle } from "../hooks/useVideoAnalysis";
 import type { SpeechRecognitionHandle } from "../hooks/useSpeechRecognition";
@@ -249,7 +250,7 @@ export const MetricsSidebar = memo(function MetricsSidebar({
       {report && (
         <div className="report-panel">
           <h3>面试报告</h3>
-          <pre className="report-preview">{report}</pre>
+          <MarkdownRenderer content={report} maxHeight="150px" />
           <Button
             block
             onClick={() => {

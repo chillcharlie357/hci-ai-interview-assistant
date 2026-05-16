@@ -456,17 +456,6 @@
   color: var(--color-text);
 }
 
-.full-report-content {
-  background: var(--color-bg-layout);
-  padding: var(--space-md);
-  border-radius: var(--radius);
-  max-height: 400px;
-  overflow: auto;
-  white-space: pre-wrap;
-  font-size: 13px;
-  line-height: 1.6;
-}
-
 /* 响应式 */
 @media (max-width: 1024px) {
   .report-grid {
