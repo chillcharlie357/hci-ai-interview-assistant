@@ -20,7 +20,7 @@ class PrepFlowTest(unittest.TestCase):
         self.store = SessionStore()
 
     @patch("subprocess.run")
-    @patch.dict(os.environ, {"MINERU_COMMAND": "mineru-open-api"}, clear=False)
+    @patch.dict(os.environ, {"MINERU_COMMAND": "mineru-open-api", "MINERU_API_TOKEN": ""}, clear=False)
     def test_uploads_resume_and_returns_prep_session(self, run_mock):
         run_mock.return_value = FakeCompletedProcess()
 
@@ -58,7 +58,7 @@ class PrepFlowTest(unittest.TestCase):
         self.assertEqual(response["error"], "unsupported_resume_format")
 
     @patch("subprocess.run")
-    @patch.dict(os.environ, {"MINERU_COMMAND": "mineru-open-api"}, clear=False)
+    @patch.dict(os.environ, {"MINERU_COMMAND": "mineru-open-api", "MINERU_API_TOKEN": ""}, clear=False)
     def test_followup_submits_job_info_and_becomes_ready(self, run_mock):
         run_mock.return_value = FakeCompletedProcess()
         prep = self.create_prep()
@@ -75,7 +75,7 @@ class PrepFlowTest(unittest.TestCase):
 
     @patch("subprocess.run")
     @patch("backend.interview.api.LlmClient.from_env")
-    @patch.dict(os.environ, {"MINERU_COMMAND": "mineru-open-api"}, clear=False)
+    @patch.dict(os.environ, {"MINERU_COMMAND": "mineru-open-api", "MINERU_API_TOKEN": ""}, clear=False)
     def test_creates_interview_session(self, from_env_mock, run_mock):
         run_mock.return_value = FakeCompletedProcess()
         from_env_mock.return_value.complete_json.return_value = LlmResult(status="fallback", data=None)
@@ -101,7 +101,7 @@ class PrepFlowTest(unittest.TestCase):
         self.assertGreaterEqual(len(created["questions"]), 6)
 
     @patch("subprocess.run")
-    @patch.dict(os.environ, {"MINERU_COMMAND": "mineru-open-api"}, clear=False)
+    @patch.dict(os.environ, {"MINERU_COMMAND": "mineru-open-api", "MINERU_API_TOKEN": ""}, clear=False)
     def test_extracts_role_from_answer(self, run_mock):
         run_mock.return_value = FakeCompletedProcess()
         prep = self.create_prep()
@@ -141,7 +141,7 @@ class PrepFlowTest(unittest.TestCase):
         self.assertGreater(len(response["token"]), 40)
 
     @patch("subprocess.run")
-    @patch.dict(os.environ, {"MINERU_COMMAND": "mineru-open-api"}, clear=False)
+    @patch.dict(os.environ, {"MINERU_COMMAND": "mineru-open-api", "MINERU_API_TOKEN": ""}, clear=False)
     def test_report_is_always_accessible(self, run_mock):
         run_mock.return_value = FakeCompletedProcess()
         session = self.create_interview_session()
