@@ -38,33 +38,50 @@ class PrepSessionRepository:
             log.warning("ensure_profile: failed for user_id=%s: %s", user_id, e)
 
     def save_prep_session(self, session: PrepSession, user_id: str) -> bool:
+        import time as _time
         if not is_valid_uuid(user_id):
-            log.warning("save_prep_session: user_id=%r is not valid UUID, skipping DB persistence", user_id)
+            log.warning("save_prep_session: user_id=%r is not valid UUID, skipping DB persistence (prep_id=%s)",
+                        user_id, session.id)
             return True
         try:
             self._ensure_profile(user_id)
             data = self._prep_to_dict(session, user_id)
-            log.info("save_prep_session id=%s user_id=%s", session.id, user_id)
+            _t0 = _time.time()
             result = self.client.table('prep_sessions').upsert(data).execute()
-            return len(result.data) > 0
+            _t1 = _time.time()
+            ok = len(result.data) > 0
+            log.info("save_prep_session id=%s user_id=%s ok=%s duration=%.2fs",
+                     session.id, user_id, ok, _t1 - _t0)
+            if not ok:
+                log.warning("save_prep_session returned 0 rows: id=%s, user_id=%s", session.id, user_id)
+            return ok
         except Exception as e:
-            log.warning("save_prep_session failed for id=%s: %s", session.id, e)
+            log.warning("save_prep_session failed for id=%s, user_id=%s: %s", session.id, user_id, e)
             return False
 
     def get_prep_session(self, prep_session_id: str, user_id: str) -> PrepSession | None:
+        import time as _time
         if not is_valid_uuid(user_id):
+            log.warning("get_prep_session: user_id=%r is not valid UUID (prep_id=%s)", user_id, prep_session_id)
             return None
         try:
+            _t0 = _time.time()
             result = self.client.table('prep_sessions') \
                 .select('*') \
                 .eq('id', prep_session_id) \
                 .eq('user_id', user_id) \
                 .single() \
                 .execute()
+            _t1 = _time.time()
             if result.data:
+                log.info("get_prep_session found: id=%s, user_id=%s, duration=%.2fs",
+                         prep_session_id, user_id, _t1 - _t0)
                 return self._dict_to_prep(result.data)
+            log.info("get_prep_session not found: id=%s, user_id=%s, duration=%.2fs",
+                     prep_session_id, user_id, _t1 - _t0)
             return None
-        except Exception:
+        except Exception as e:
+            log.warning("get_prep_session failed for id=%s, user_id=%s: %s", prep_session_id, user_id, e)
             return None
 
     def list_prep_sessions(self, user_id: str, limit: int = 50) -> list[dict[str, Any]]:
