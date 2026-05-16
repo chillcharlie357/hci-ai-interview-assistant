@@ -150,13 +150,10 @@
   width: 72px;
   height: 72px;
   border-radius: 50%;
-  background: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 26px;
-  font-weight: 900;
-  color: #00629d;
+  overflow: hidden;
   position: relative;
 }
 
@@ -739,6 +736,22 @@
 @keyframes interview-voice-bounce {
   0%, 100% { height: 8px; }
   50% { height: 20px; }
+}
+
+@keyframes headSway {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-1.5deg); }
+  75% { transform: rotate(1.5deg); }
+}
+
+.animated-avatar-wrapper {
+  animation: headSway 4s ease-in-out infinite;
+  transform-origin: center center;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ===== 响应式 ===== */
