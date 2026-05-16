@@ -3,21 +3,19 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import asdict
 from typing import Any
 
 from supabase import Client
 
 from backend.database.utils import is_valid_uuid
-from backend.interview.config import is_debug
 from backend.interview.question_engine import InterviewQuestion
 from backend.interview.session import AnswerRecord, InterviewEvent, InterviewSession, KeyframeRecord, VideoEvent, VideoMetrics
 from backend.speech_analysis.aggregate import SpeechAggregateState
 
 
-def _dbg(*args, **kwargs) -> None:
-    if is_debug():
-        print(*args, **kwargs)
+log = logging.getLogger("backend.db")
 
 
 class SessionRepository:
@@ -37,23 +35,23 @@ class SessionRepository:
                 'email': email or f'{user_id}@placeholder.local',
                 'full_name': '',
             }).execute()
-            _dbg(f"[ensure_profile] 为 {user_id} 补建了 profile 记录", flush=True)
+            log.info("ensure_profile: created profile for user_id=%s", user_id)
         except Exception as e:
-            print(f"[ensure_profile] 补建 profile 失败: {e}", flush=True)
+            log.warning("ensure_profile: failed for user_id=%s: %s", user_id, e)
 
     def save_session(self, session: InterviewSession, user_id: str) -> bool:
         """保存面试会话到数据库"""
         if not is_valid_uuid(user_id):
-            print(f"[save_session] WARNING: user_id={user_id!r} 不是合法 UUID，跳过数据库持久化", flush=True)
+            log.warning("save_session: user_id=%r is not valid UUID, skipping DB persistence", user_id)
             return True
         try:
             self._ensure_profile(user_id)
             data = self._session_to_dict(session, user_id)
-            _dbg(f"[save_session] id={session.id} user_id={user_id!r}", flush=True)
+            log.info("save_session id=%s user_id=%s", session.id, user_id)
             result = self.client.table('interview_sessions').upsert(data).execute()
             return len(result.data) > 0
         except Exception as e:
-            print(f"[save_session] 数据库写入失败: {e}", flush=True)
+            log.warning("save_session: DB write failed for id=%s: %s", session.id, e)
             return False
 
     def get_session(self, session_id: str, user_id: str) -> InterviewSession | None:
@@ -88,7 +86,7 @@ class SessionRepository:
 
             return [self._enrich_session_summary(row) for row in (result.data or [])]
         except Exception as e:
-            print(f"Failed to list sessions: {e}")
+            log.warning("list_sessions failed for user_id=%s: %s", user_id, e)
             return []
 
     def _enrich_session_summary(self, row: dict[str, Any]) -> dict[str, Any]:
@@ -119,7 +117,7 @@ class SessionRepository:
                 .execute()
             return True
         except Exception as e:
-            print(f"Failed to delete session: {e}")
+            log.warning("delete_session failed for id=%s: %s", session_id, e)
             return False
 
     def save_speech_aggregate(self, session_id: str, state: SpeechAggregateState) -> bool:
@@ -129,7 +127,7 @@ class SessionRepository:
             self.client.table('speech_aggregates').upsert(data).execute()
             return True
         except Exception as e:
-            print(f"Failed to save speech aggregate: {e}")
+            log.warning("save_speech_aggregate failed for session_id=%s: %s", session_id, e)
             return False
 
     def get_speech_aggregate(self, session_id: str) -> SpeechAggregateState | None:

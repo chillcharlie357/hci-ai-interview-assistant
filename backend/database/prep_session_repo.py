@@ -3,19 +3,17 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import asdict
 from typing import Any
 
 from supabase import Client
 
 from backend.database.utils import is_valid_uuid
-from backend.interview.config import is_debug
 from backend.interview.prep_session import FollowupTurn, PrepSession, ReadySummary
 
 
-def _dbg(*args, **kwargs) -> None:
-    if is_debug():
-        print(*args, **kwargs)
+log = logging.getLogger("backend.db")
 
 
 class PrepSessionRepository:
@@ -35,21 +33,22 @@ class PrepSessionRepository:
                 'email': email or f'{user_id}@placeholder.local',
                 'full_name': '',
             }).execute()
-            _dbg(f"[ensure_profile] 为 {user_id} 补建了 profile 记录", flush=True)
+            log.info("ensure_profile: created profile for user_id=%s", user_id)
         except Exception as e:
-            print(f"[ensure_profile] 补建 profile 失败: {e}", flush=True)
+            log.warning("ensure_profile: failed for user_id=%s: %s", user_id, e)
 
     def save_prep_session(self, session: PrepSession, user_id: str) -> bool:
         if not is_valid_uuid(user_id):
-            print(f"[save_prep_session] WARNING: user_id={user_id!r} 不是合法 UUID，跳过数据库持久化", flush=True)
+            log.warning("save_prep_session: user_id=%r is not valid UUID, skipping DB persistence", user_id)
             return True
         try:
             self._ensure_profile(user_id)
             data = self._prep_to_dict(session, user_id)
+            log.info("save_prep_session id=%s user_id=%s", session.id, user_id)
             result = self.client.table('prep_sessions').upsert(data).execute()
             return len(result.data) > 0
         except Exception as e:
-            print(f"Failed to save prep session: {e}")
+            log.warning("save_prep_session failed for id=%s: %s", session.id, e)
             return False
 
     def get_prep_session(self, prep_session_id: str, user_id: str) -> PrepSession | None:
@@ -80,7 +79,7 @@ class PrepSessionRepository:
                 .execute()
             return result.data or []
         except Exception as e:
-            print(f"Failed to list prep sessions: {e}")
+            log.warning("list_prep_sessions failed for user_id=%s: %s", user_id, e)
             return []
 
     # TODO: 添加 DELETE /api/prep-sessions/{id} 路由后启用此方法
@@ -95,7 +94,7 @@ class PrepSessionRepository:
                 .execute()
             return True
         except Exception as e:
-            print(f"Failed to delete prep session: {e}")
+            log.warning("delete_prep_session failed for id=%s: %s", prep_session_id, e)
             return False
 
     def _prep_to_dict(self, session: PrepSession, user_id: str) -> dict[str, Any]:
