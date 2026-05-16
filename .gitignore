@@ -8,6 +8,7 @@ node_modules/
 dist/
 coverage/
 .pnpm-store/
+pnpm-workspace.yaml
 .env
 .env.*
 !.env.example
