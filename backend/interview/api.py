@@ -56,6 +56,49 @@ import time
 log = logging.getLogger("backend.http")
 _start_time = time.time()
 
+# 日志脱敏/截断常量
+_LOG_PAYLOAD_MAX_VALUE_LEN = 200       # 字符串值最大显示长度
+_LOG_PAYLOAD_BASE64_PREFIX_LEN = 20    # base64 字段仅显示前 N 字符
+
+
+def _sanitize_for_log(value: object, _depth: int = 0) -> object:
+    """脱敏/截断请求/响应内容以便安全打印日志。
+
+    - data_base64 字段仅保留前 N 字符 + 总长度
+    - 长字符串截断
+    - 递归处理 dict / list，最大深度 5
+    """
+    if _depth > 5:
+        return "..."
+    if isinstance(value, dict):
+        return {k: _sanitize_for_log(v, _depth + 1) for k, v in value.items()}
+    if isinstance(value, list):
+        if len(value) > 20:
+            return [f"...({len(value)} items)"]   # 过长列表只显示条目数
+        return [_sanitize_for_log(v, _depth + 1) for v in value]
+    if isinstance(value, str):
+        if len(value) > _LOG_PAYLOAD_MAX_VALUE_LEN:
+            return value[:_LOG_PAYLOAD_MAX_VALUE_LEN] + f"...({len(value)} chars)"
+        return value
+    # 其它类型（int, float, bool, None 等）直接返回
+    return value
+
+
+def _payload_for_log(payload: dict[str, Any]) -> dict[str, object]:
+    """返回适合日志打印的 payload 副本，脱敏 base64 等敏感字段。"""
+    safe: dict[str, object] = {}
+    for k, v in payload.items():
+        if k in ("data_base64",):
+            if isinstance(v, str) and len(v) > _LOG_PAYLOAD_BASE64_PREFIX_LEN:
+                safe[k] = f"{v[:_LOG_PAYLOAD_BASE64_PREFIX_LEN]}...({len(v)} chars)"
+            else:
+                safe[k] = _sanitize_for_log(v)
+        elif k in ("password", "refresh_token", "access_token"):
+            safe[k] = f"***({len(str(v))} chars)"
+        else:
+            safe[k] = _sanitize_for_log(v)
+    return safe
+
 
 class SessionStore:
     def __init__(self, repo: SessionRepository | None = None, prep_repo: PrepSessionRepository | None = None) -> None:
@@ -106,30 +149,46 @@ class SessionStore:
         return session
 
     def create_prep(self, payload: dict[str, Any], user_id: str = "") -> tuple[int, dict[str, Any]]:
-        log.info("SessionStore.create_prep user_id=%s", user_id)
+        file_name = str(payload.get("file_name", ""))
+        base64_len = len(str(payload.get("data_base64", "")))
+        candidate_name = str(payload.get("candidate_name", "候选人"))
+        log.info("SessionStore.create_prep user_id=%s file=%s base64_len=%d candidate=%s",
+                 user_id, file_name, base64_len, candidate_name)
         try:
+            import time as _time
+            _t0 = _time.time()
             extracted = extract_resume_markdown(
-                file_name=str(payload.get("file_name", "")),
+                file_name=file_name,
                 data_base64=str(payload.get("data_base64", "")),
             )
+            _t1 = _time.time()
+            log.info("extract_resume_markdown completed in %.2fs: file=%s, extracted_len=%d chars",
+                     _t1 - _t0, file_name, len(extracted.markdown))
         except DocumentExtractionError as error:
-            log.warning("SessionStore.create_prep extraction failed: %s", error.code)
+            log.warning("SessionStore.create_prep extraction failed: code=%s, file=%s, msg=%s",
+                        error.code, file_name, error.message)
             return HTTPStatus.BAD_REQUEST, {"error": error.code, "message": error.message}
 
         prep = create_prep_session(
-            candidate_name=str(payload.get("candidate_name", "候选人")),
+            candidate_name=candidate_name,
             resume_markdown=extracted.markdown,
             user_id=user_id,
         )
+        _t2 = _time.time()
+        log.info("prep session created: id=%s, duration=%.2fs", prep.id, _t2 - _t1)
         self.prep_sessions[prep.id] = prep
         if self.prep_repo:
             log.debug("create_prep: saving prep session to DB...")
             ok = self.prep_repo.save_prep_session(prep, user_id)
-            log.debug("create_prep: save_prep_session returned %s", ok)
+            _t3 = _time.time()
+            log.debug("create_prep: save_prep_session returned %s (duration=%.2fs)", ok, _t3 - _t2)
             if not ok:
                 from backend.interview.exceptions import PersistenceError
                 raise PersistenceError(f"Failed to save prep session {prep.id}")
-        return HTTPStatus.CREATED, serialize_prep_session(prep)
+        result = serialize_prep_session(prep)
+        log.info("create_prep success: prep_id=%s, candidate=%s, ready=%s",
+                 prep.id, prep.candidate_name, prep.ready)
+        return HTTPStatus.CREATED, result
 
     def record_followup(self, prep_session_id: str, payload: dict[str, Any], user_id: str = "") -> PrepSession | None:
         log.info("SessionStore.record_followup id=%s user_id=%s", prep_session_id, user_id)
@@ -752,14 +811,16 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
 
         def do_GET(self) -> None:
             try:
-                log.info("GET %s -> handling", self.path)
                 auth = self._authenticate()
                 if auth is None and auth_middleware.require_auth:
                     self._send_json({"error": "authentication_required"}, HTTPStatus.UNAUTHORIZED)
                     return
                 user_id = auth.user_id if auth else ""
+                log.info("GET %s query=%s user_id=%s",
+                         self.path,
+                         json.dumps(_payload_for_log(parse_qs(urlparse(self.path).query))),
+                         user_id)
                 status, body = handle_api_request(store, "GET", self.path, user_id=user_id, auth=auth)
-                log.info("GET %s -> %s (user_id=%s)", self.path, status, user_id)
                 self._send_json(body, HTTPStatus(status))
             except Exception as e:
                 import traceback
@@ -771,7 +832,6 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
 
         def do_POST(self) -> None:
             try:
-                log.info("POST %s -> handling", self.path)
                 if self._is_public_auth_route():
                     auth = None
                 else:
@@ -782,9 +842,11 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
 
                 payload = self._read_json()
                 user_id = auth.user_id if auth else ""
-                log.info("POST %s (user_id=%s)", self.path, user_id)
+                log.info("POST %s payload=%s user_id=%s",
+                         self.path,
+                         json.dumps(_payload_for_log(payload), ensure_ascii=False),
+                         user_id)
                 status, body = handle_api_request(store, "POST", self.path, payload, user_id=user_id, auth=auth)
-                log.info("POST %s -> %s", self.path, status)
                 self._send_json(body, HTTPStatus(status))
             except PersistenceError as e:
                 try:
@@ -806,6 +868,7 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
                     self._send_json({"error": "authentication_required"}, HTTPStatus.UNAUTHORIZED)
                     return
                 user_id = auth.user_id if auth else ""
+                log.info("DELETE %s user_id=%s", self.path, user_id)
                 status, body = handle_api_request(store, "DELETE", self.path, user_id=user_id, auth=auth)
                 self._send_json(body, HTTPStatus(status))
             except Exception as e:
@@ -841,6 +904,8 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
 
         def _send_json(self, payload: dict[str, Any], status: HTTPStatus = HTTPStatus.OK) -> None:
             raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            log.info("%s %s -> %s body=%s", self.command, self.path, status.value,
+                     json.dumps(_payload_for_log(payload), ensure_ascii=False))
             try:
                 self.send_response(status)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
