@@ -150,6 +150,19 @@ export type FollowupResponse = {
   round: number;
 };
 
+type ApiAnswerHelp = {
+  mode: "llm" | "fallback";
+  llm_status: "ok" | "fallback";
+  question_id: string;
+  question_prompt: string;
+  summary: string;
+  reference_answer: string;
+  outline: string[];
+  key_points: string[];
+  cautions: string[];
+  generated_at: string;
+};
+
 type ApiSessionSummary = {
   id: string;
   candidate_name: string;
@@ -308,6 +321,21 @@ export async function submitAnswer(
     report: response.report,
     followup
   };
+}
+
+export async function requestAnswerHelp(
+  sessionId: string,
+  payload: { draftText: string },
+  options: ClientOptions = {}
+): Promise<ApiAnswerHelp> {
+  return await request<ApiAnswerHelp>(
+    `/api/sessions/${sessionId}/help`,
+    {
+      draft_text: payload.draftText
+    },
+    200,
+    options
+  );
 }
 
 export async function submitVideoEvent(

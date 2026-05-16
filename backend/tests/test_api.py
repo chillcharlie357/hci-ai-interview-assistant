@@ -8,6 +8,7 @@ import wave
 
 from backend.interview.api import SessionStore, _handle_health, handle_api_request
 from backend.interview.followup_engine import FollowupDecision
+from backend.interview.answer_help import AnswerHelpResult
 from backend.interview.llm_client import LlmResult
 
 
@@ -153,6 +154,31 @@ class ApiTest(unittest.TestCase):
         self.assertNotIn("录用", updated["report"])
         self.assertNotIn("不录用", updated["report"])
 
+    def test_answer_help_falls_back_when_llm_is_not_configured(self):
+        created = self.request(
+            "POST",
+            "/api/sessions",
+            {
+                "candidate_name": "张三",
+                "resume": "候选人负责 AI 面试平台。",
+                "job_description": "岗位是 AI 产品全栈工程师。",
+                "interview_goal": "评估项目经验。",
+            },
+            expected_status=201,
+        )
+
+        response = self.request(
+            "POST",
+            f"/api/sessions/{created['id']}/help",
+            {"draft_text": "我先讲项目背景。"},
+        )
+
+        self.assertEqual(response["mode"], "fallback")
+        self.assertEqual(response["llm_status"], "fallback")
+        self.assertEqual(response["question_id"], "q_001")
+        self.assertGreater(len(response["reference_answer"]), 0)
+        self.assertIn("answer_help_requested", [event.type for event in self.store.sessions[created["id"]].events])
+
     @patch("backend.interview.api.LlmClient.from_env")
     def test_answer_report_can_be_enhanced_by_openai_compatible_llm(self, from_env_mock):
         class FakeLlmClient:
@@ -185,6 +211,42 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(updated["llm_status"], "ok")
         self.assertIn("report_markdown", fake_client.system_prompt)
         self.assertIn("我负责问题生成", fake_client.user_prompt)
+
+    @patch("backend.interview.api.generate_answer_help")
+    def test_answer_help_route_returns_llm_response(self, help_mock):
+        help_mock.return_value = AnswerHelpResult(
+            llm_status="ok",
+            summary="可以按背景、方法、结果回答。",
+            reference_answer="参考答案",
+            outline=["背景", "方法", "结果"],
+            key_points=["背景", "职责"],
+            cautions=["不要照抄"],
+            generated_at="2026-05-16T00:00:00Z",
+        )
+        created = self.request(
+            "POST",
+            "/api/sessions",
+            {
+                "candidate_name": "张三",
+                "resume": "候选人负责 AI 面试平台。",
+                "job_description": "岗位是 AI 产品全栈工程师。",
+                "interview_goal": "评估项目经验。",
+            },
+            expected_status=201,
+        )
+
+        response = self.request(
+            "POST",
+            f"/api/sessions/{created['id']}/help",
+            {"draft_text": "我先讲项目背景。"},
+        )
+
+        self.assertEqual(response["mode"], "llm")
+        self.assertEqual(response["llm_status"], "ok")
+        self.assertEqual(response["reference_answer"], "参考答案")
+        self.assertEqual(response["outline"], ["背景", "方法", "结果"])
+        self.assertEqual(response["generated_at"], "2026-05-16T00:00:00Z")
+        help_mock.assert_called_once()
 
     @patch("backend.interview.api.analyze_answer_text")
     def test_answer_metrics_use_llm_analysis_before_rule_fallback(self, analyze_mock):
