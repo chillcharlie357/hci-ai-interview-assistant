@@ -85,7 +85,15 @@ compose_up() {
 # ============================
 compose_logs() {
   local service="${1:-}"
-  local compose_cmd="$COMPOSE_BIN compose -f \"$ROOT_DIR/docker-compose.yml\" logs -f $service"
+  local dev_file="$ROOT_DIR/docker-compose.dev.yml"
+  local compose_cmd
+
+  if [[ -f "$dev_file" ]]; then
+    # 与 compose_up 开发模式使用的文件列表一致，保证容器日志流正确关联
+    compose_cmd="$COMPOSE_BIN compose -f \"$ROOT_DIR/docker-compose.yml\" -f \"$dev_file\" logs -f $service"
+  else
+    compose_cmd="$COMPOSE_BIN compose -f \"$ROOT_DIR/docker-compose.yml\" logs -f $service"
+  fi
 
   echo ">>> 查看日志${service:+ ($service)}..."
   eval "$compose_cmd"
@@ -95,7 +103,14 @@ compose_logs() {
 # 关闭服务
 # ============================
 compose_down() {
-  local compose_cmd="$COMPOSE_BIN compose -f \"$ROOT_DIR/docker-compose.yml\" down"
+  local dev_file="$ROOT_DIR/docker-compose.dev.yml"
+  local compose_cmd
+
+  if [[ -f "$dev_file" ]]; then
+    compose_cmd="$COMPOSE_BIN compose -f \"$ROOT_DIR/docker-compose.yml\" -f \"$dev_file\" down"
+  else
+    compose_cmd="$COMPOSE_BIN compose -f \"$ROOT_DIR/docker-compose.yml\" down"
+  fi
 
   echo ">>> 关闭所有服务..."
   eval "$compose_cmd"

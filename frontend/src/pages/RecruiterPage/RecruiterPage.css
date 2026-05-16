@@ -191,7 +191,7 @@
 
 .question-item-meta {
   padding: var(--space-sm);
-  background: white;
+  background: var(--color-bg-container);
   border-radius: var(--radius);
   font-size: 13px;
 }
@@ -202,15 +202,4 @@
 
 .question-item-meta strong {
   color: var(--color-text);
-}
-
-.report-preview {
-  background: var(--color-bg-layout);
-  padding: var(--space-md);
-  border-radius: var(--radius);
-  max-height: 500px;
-  overflow: auto;
-  white-space: pre-wrap;
-  font-size: 13px;
-  line-height: 1.5;
 }

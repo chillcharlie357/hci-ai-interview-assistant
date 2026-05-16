@@ -671,16 +671,6 @@
   margin-bottom: var(--space-md);
 }
 
-.report-preview {
-  max-height: 150px;
-  overflow: auto;
-  font-size: 12px;
-  white-space: pre-wrap;
-  background: #f7f9fb;
-  padding: var(--space-sm);
-  border-radius: var(--radius);
-}
-
 /* ===== LiveKit 候选人视频 ===== */
 .candidate-livekit-room {
   display: flex;
@@ -814,5 +804,182 @@
 
   .question-panel {
     padding: var(--space-md);
+  }
+}
+
+/* ===== 深色模式 ===== */
+@media (prefers-color-scheme: dark) {
+  .interview-page {
+    background: var(--color-bg-layout);
+  }
+
+  .interview-header {
+    background: rgba(30, 30, 30, 0.7);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .interview-header-left {
+    color: var(--color-primary);
+  }
+
+  .interview-header-left h1 {
+    color: var(--color-primary);
+  }
+
+  .interview-header-rec {
+    background: rgba(186, 26, 26, 0.15);
+    color: #ff6b6b;
+  }
+
+  .candidate-video-tile {
+    background: #1f1f1f;
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: none;
+  }
+
+  .danmaku-captions {
+    background: rgba(30, 30, 30, 0.5);
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: none;
+  }
+
+  .caption-bubble.candidate {
+    background: rgba(40, 40, 40, 0.95);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .caption-bubble.candidate .caption-avatar {
+    background: #333;
+    color: #aaa;
+  }
+
+  .caption-bubble.candidate .caption-name {
+    color: #aaa;
+  }
+
+  .caption-text {
+    color: var(--color-text);
+  }
+
+  .caption-input .ant-input {
+    background: rgba(40, 40, 40, 0.95);
+    border-color: rgba(255, 255, 255, 0.12);
+    color: var(--color-text);
+  }
+
+  .caption-input .ant-input::placeholder {
+    color: rgba(255, 255, 255, 0.35);
+  }
+
+  .interview-right {
+    background: rgba(20, 20, 20, 0.5);
+    border-left-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .question-panel {
+    background: #1f1f1f;
+    box-shadow: none;
+    border-color: rgba(255, 255, 255, 0.06);
+  }
+
+  .question-progress {
+    color: var(--color-text-tertiary);
+  }
+
+  .question-title {
+    color: var(--color-text);
+  }
+
+  .evidence-label {
+    color: var(--color-text-tertiary);
+  }
+
+  .evidence-tag {
+    background: #2a2a2a;
+    border-color: rgba(255, 255, 255, 0.1);
+    color: var(--color-text-secondary);
+  }
+
+  .followup-label {
+    color: var(--color-text-tertiary);
+  }
+
+  .followup-btn {
+    background: #2a2a2a;
+    border-color: rgba(255, 255, 255, 0.1);
+    color: var(--color-text);
+  }
+
+  .followup-btn:hover {
+    color: var(--color-primary);
+  }
+
+  .followup-icon {
+    color: var(--color-primary);
+  }
+
+  .metrics-panel {
+    background: #1f1f1f;
+    box-shadow: none;
+    border-color: rgba(255, 255, 255, 0.06);
+  }
+
+  .metrics-title {
+    color: var(--color-primary);
+  }
+
+  .metric-header {
+    color: var(--color-text-tertiary);
+  }
+
+  .metric-value-primary {
+    color: var(--color-primary);
+  }
+
+  .metric-value-secondary,
+  .metric-value-tertiary {
+    color: var(--color-text);
+  }
+
+  .metric-bar {
+    background: #333;
+  }
+
+  .metric-footnote {
+    color: var(--color-text-tertiary);
+  }
+
+  .metric-sub-header {
+    color: var(--color-text-tertiary);
+  }
+
+  .metric-card {
+    background: #2a2a2a;
+  }
+
+  .metric-card-label {
+    color: var(--color-text-tertiary);
+  }
+
+  .metric-card-value {
+    color: var(--color-text);
+  }
+
+  .report-panel {
+    background: #1f1f1f;
+    box-shadow: none;
+  }
+
+  .waveform {
+    background: #2a2a2a;
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .waveform-bar {
+    background: rgba(0, 163, 255, 0.4);
+  }
+
+  .interview-toolbar {
+    border-top-color: rgba(255, 255, 255, 0.08);
   }
 }

@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { MarkdownRenderer } from "../../../components/MarkdownRenderer";
 
 interface FullReportSectionProps {
   report: string;
@@ -8,7 +9,7 @@ export const FullReportSection = memo(function FullReportSection({ report }: Ful
   return (
     <div className="glass-card full-report-card">
       <h3>完整报告</h3>
-      <pre className="full-report-content">{report}</pre>
+      <MarkdownRenderer content={report} />
     </div>
   );
 });

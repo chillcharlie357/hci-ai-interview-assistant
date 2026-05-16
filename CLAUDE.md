@@ -188,7 +188,8 @@ uv run python scripts/generate_mock_resumes.py
 
 ### 其他工具（可选）
 
-- `MINERU_COMMAND` — 简历解析工具命令
+- `MINERU_API_TOKEN` — MinerU API Token（配饰后使用 Precision API，未配置自动降级 Agent API）
+- `MINERU_TIMEOUT_SEC` — MinerU 解析超时秒数（默认 300）
 - `LIVEKIT_URL`、`LIVEKIT_API_KEY`、`LIVEKIT_API_SECRET` — 视频会议配置
 - `DATABASE_URL` — 数据库直连 URL（可选，现有代码通过 Supabase API 操作）
 - `VITE_API_BASE_URL` — 前端 API 端点（默认 `http://127.0.0.1:8000`）
@@ -236,6 +237,7 @@ uv run python scripts/generate_mock_resumes.py
 - `scripts/generate_mock_resumes.py` — 生成 Mock 简历 PDF 和 Markdown 源码（输出到 `mock-resumes/`）
 - `mock-resumes/` — 预生成的 PDF 简历文件（前端、后端、AI 工程师、产品经理 4 个候选）
 - `backend/tests/test_functional.py` — 真实 HTTP 请求功能测试（需运行中的后端）
+- `TROUBLESHOOTING.md` — 常见排错指南（端口冲突、MinerU 超时、health check 等）
 
 产品范围变更时，先更新 `spec/`。实现遵循 TDD：先写测试，再写生产代码。
 

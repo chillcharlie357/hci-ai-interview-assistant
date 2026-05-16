@@ -108,7 +108,7 @@ export function DashboardPage() {
               title="本周面试"
               value={stats.thisWeek}
               prefix={<ClockCircleOutlined />}
-              styles={{ content: { color: "#1677ff" } }}
+              styles={{ content: { color: "var(--color-primary)" } }}
             />
           </Card>
         </Col>
@@ -118,7 +118,7 @@ export function DashboardPage() {
               title="活跃面试"
               value={stats.activeSessions}
               prefix={<VideoCameraOutlined />}
-              styles={{ content: { color: "#52c41a" } }}
+              styles={{ content: { color: "var(--color-success)" } }}
             />
           </Card>
         </Col>
@@ -128,7 +128,7 @@ export function DashboardPage() {
               title="候选人数"
               value={stats.candidates}
               prefix={<UserOutlined />}
-              styles={{ content: { color: "#722ed1" } }}
+              styles={{ content: { color: "var(--color-primary)" } }}
             />
           </Card>
         </Col>

@@ -3,9 +3,10 @@
  * 使用 React Router 实现路由
  */
 
+import { useState, useEffect, useMemo } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { ConfigProvider, App as AntApp } from "antd";
+import { ConfigProvider, App as AntApp, theme } from "antd";
 import zhCN from "antd/locale/zh_CN";
 
 import { themeConfig } from "./theme/config";
@@ -35,9 +36,28 @@ log.info(
 function App() {
   const mode = useThemeStore((s) => s.mode);
   const illustrationTheme = useIllustrationTheme();
+  const [isDark, setIsDark] = useState(() =>
+    window.matchMedia("(prefers-color-scheme: dark)").matches
+  );
 
-  // 根据主题模式选择配置
-  const currentThemeConfig = mode === "illustration" ? illustrationTheme : { theme: themeConfig };
+  // 监听系统深色模式变化
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = (e: MediaQueryListEvent) => setIsDark(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  // 根据主题模式和系统深色模式选择配置
+  const currentThemeConfig = useMemo(() => {
+    if (mode === "illustration") return illustrationTheme;
+    return {
+      theme: {
+        ...themeConfig,
+        algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
+      },
+    };
+  }, [mode, illustrationTheme, isDark]);
 
   return (
     <ConfigProvider {...currentThemeConfig} locale={zhCN}>

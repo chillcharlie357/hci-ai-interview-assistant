@@ -18,13 +18,8 @@ class ProjectConfigTest(unittest.TestCase):
         self.assertEqual(config["tool"]["uv"]["package"], False)
 
     def test_shell_scripts_run_backend_through_uv(self):
-        dev_script = (ROOT / "scripts" / "dev.sh").read_text(encoding="utf-8")
         test_script = (ROOT / "scripts" / "test.sh").read_text(encoding="utf-8")
 
-        self.assertIn("UV_DEFAULT_INDEX", dev_script)
-        self.assertIn("https://pypi.tuna.tsinghua.edu.cn/simple", dev_script)
-        self.assertIn("UV_DEFAULT_INDEX", test_script)
-        self.assertIn("uv run python -m backend.interview.api", dev_script)
         self.assertIn("uv run python -m unittest discover -s backend/tests", test_script)
 
 

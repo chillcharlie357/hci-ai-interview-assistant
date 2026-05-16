@@ -91,7 +91,9 @@ class FunctionalApiTest(unittest.TestCase):
     def test_health_mineru_component(self):
         """健康端点的 MinerU 组件显示命令路径。"""
         status, body = http_request("GET", "/api/health", headers=HEADERS)
-        self.assertIn("command", body["components"]["mineru"])
+        mineru = body["components"]["mineru"]
+        self.assertIn("mode", mineru)
+        self.assertIn("api_token_configured", mineru)
 
     # ---- 简历上传（真实 MinerU 解析） ----
 

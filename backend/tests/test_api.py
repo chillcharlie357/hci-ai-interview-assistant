@@ -488,7 +488,8 @@ class ApiTest(unittest.TestCase):
     def test_health_endpoint_reports_component_details(self):
         status, body = _handle_health(self.store)
         # mineru
-        self.assertIn("command", body["components"]["mineru"])
+        self.assertIn("api_token_configured", body["components"]["mineru"])
+        self.assertIn("mode", body["components"]["mineru"])
         # livekit
         self.assertIn("url", body["components"]["livekit"])
         self.assertIn("accepted", body["components"]["livekit"])

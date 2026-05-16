@@ -163,7 +163,9 @@ The project has a structured observability layer designed for agent-parsable log
 curl http://localhost:8000/api/health | python -m json.tool
 ```
 
-## Product Guardrails
+## Troubleshooting
+
+参见 `TROUBLESHOOTING.md`，涵盖宿主机残留进程端口冲突、health check 解析错误、磁盘清理、直接测试端点、MinerU 超时、单元测试环境变量干扰等问题。
 
 - Keep conclusions tied to evidence: question text, candidate answer, answer metrics, and event logs.
 - Do not output hire/no-hire decisions.

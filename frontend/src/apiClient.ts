@@ -160,6 +160,9 @@ type ApiPrepSession = {
   ready: boolean;
   ready_summary: ApiReadySummary | null;
   llm_status: string;
+  extracted_candidate_name?: string;
+  matching_template?: string | null;
+  detected_skills?: string[];
 };
 
 export type LiveKitToken = {
@@ -591,7 +594,10 @@ function mapPrepSession(session: ApiPrepSession): PrepSession {
     followupQuestions: session.followup_questions,
     ready: session.ready,
     readySummary: session.ready_summary ? mapReadySummary(session.ready_summary) : null,
-    llmStatus: session.llm_status
+    llmStatus: session.llm_status,
+    extractedCandidateName: session.extracted_candidate_name,
+    matchingTemplate: session.matching_template,
+    detectedSkills: session.detected_skills,
   };
 }
 

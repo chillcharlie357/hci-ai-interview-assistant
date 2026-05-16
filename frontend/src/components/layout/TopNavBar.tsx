@@ -91,7 +91,7 @@ export function TopNavBar({ title = "AI 智能面试系统", showActions = true 
       label: (
         <div style={{ padding: "4px 0" }}>
           <div style={{ fontWeight: 600 }}>{user?.fullName || "用户"}</div>
-          <div style={{ fontSize: 12, color: "#666" }}>{user?.email}</div>
+          <div style={{ fontSize: 12, color: "var(--color-text-tertiary)" }}>{user?.email}</div>
         </div>
       ),
       disabled: true,
@@ -113,7 +113,7 @@ export function TopNavBar({ title = "AI 智能面试系统", showActions = true 
           content: (
             <div>
               <p>请前往 Supabase 控制台修改密码，或使用忘记密码功能。</p>
-              <p style={{ color: "#666", fontSize: 12 }}>
+              <p style={{ color: "var(--color-text-tertiary)", fontSize: 12 }}>
                 后续版本将支持在应用内修改密码。
               </p>
             </div>
@@ -177,11 +177,11 @@ export function TopNavBar({ title = "AI 智能面试系统", showActions = true 
           justify-content: space-between;
           align-items: center;
           padding: 0 32px;
-          background: rgba(255, 255, 255, 0.8);
+          background: var(--topnav-bg);
           backdrop-filter: blur(12px);
           -webkit-backdrop-filter: blur(12px);
           border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-          box-shadow: 0 8px 32px rgba(0, 163, 255, 0.1);
+          box-shadow: var(--topnav-shadow);
         }
 
         .top-nav-bar-left {
@@ -233,7 +233,7 @@ export function TopNavBar({ title = "AI 智能面试系统", showActions = true 
         }
 
         .top-nav-bar-user:hover {
-          background: rgba(0, 0, 0, 0.04);
+          background: var(--topnav-user-hover-bg);
         }
 
         .top-nav-bar-avatar {
