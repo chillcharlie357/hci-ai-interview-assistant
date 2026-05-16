@@ -27,14 +27,23 @@ Current MVP scope includes lightweight browser-side camera metrics and in-memory
 
 ## Docker / Podman
 
-### Start
+Use `compose.sh` (auto-detects podman or docker):
 
 ```bash
-# Production (nginx static serve, optimized image)
+./compose.sh up       # Development (hot reload: watchfiles + Vite HMR)
+./compose.sh prod     # Production (nginx static serve, optimized image)
+./compose.sh down     # Stop all services
+./compose.sh logs     # View logs for all services
+```
+
+Or use raw commands:
+
+```bash
+# Production
 docker compose up -d --build
 podman compose up -d --build
 
-# Development (hot reload: watchfiles + Vite HMR)
+# Development (hot reload)
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 podman compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 ```
@@ -93,6 +102,7 @@ Project-level skills are available under `.claude/skills/` and can be invoked vi
 - Write tests before production code for new behavior.
 - Python core logic should have unit tests.
 - TypeScript UI data flow should have focused tests.
+- Functional tests (`backend/tests/test_functional.py`) use real HTTP requests against a running backend for end-to-end verification.
 - Do not claim work is complete until tests have been run and results are known.
 
 ## Observability & Logging
@@ -147,7 +157,7 @@ The project has a structured observability layer designed for agent-parsable log
 ./compose.sh logs backend | grep -E "\[WARNING\]|\[ERROR\]"
 
 # Filter frontend API logs
-docker logs hci-frontend-1 2>&1 | grep "\[HCI:api\]"
+./compose.sh logs frontend | grep "\[HCI:api\]"
 
 # Check health endpoint
 curl http://localhost:8000/api/health | python -m json.tool

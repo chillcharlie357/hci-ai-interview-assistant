@@ -23,16 +23,27 @@ The MVP intentionally does not implement screen sharing, OCR, high-precision fac
 
 ## One-Click Local Run
 
+### 首选：Docker/Podman Compose（推荐）
+
 ```bash
-scripts/dev.sh
+./compose.sh up       # 开发模式（源码热重载）
+./compose.sh prod     # 生产模式（nginx 部署）
+./compose.sh down     # 关闭所有服务
 ```
 
-The script starts:
+自动检测 podman 或 docker，支持 `COMPOSE_BIN=docker ./compose.sh up` 强制指定。详见下方 Docker/Podman Compose 章节。
 
-- API: `http://127.0.0.1:8000`
-- Frontend: `http://localhost:5173`
+### 本地开发调试（直接启动 API + 前端）
 
-Configuration lives in `.env`:
+```bash
+# 终端 1：后端
+uv run python -m backend.interview.api --host 127.0.0.1 --port 8000
+
+# 终端 2：前端
+cd frontend && pnpm install && pnpm dev
+```
+
+> `scripts/dev.sh` 已不再维护，请使用上述方式或 Docker/Podman Compose。
 
 ```bash
 cp .env.example .env
@@ -152,7 +163,6 @@ Useful API endpoints:
 - `POST /api/sessions/{id}/video-events`: record a browser-side camera observation event and optional in-memory keyframe.
 - `POST /api/sessions/{id}/answers`: record the current answer and return the updated session plus Markdown report.
 - `POST /api/sessions/{id}/speech-chunks`: submit an audio chunk for server-side speech analysis.
-- `DELETE /api/sessions/{id}`: delete an interview session.
 - `POST /api/mock-session`: quickly create a test interview with pre-built mock data (templates: frontend/backend/ai/pm).
 
 Note: When `REQUIRE_AUTH=true`, all session endpoints require a valid JWT token in the `Authorization: Bearer <token>` header.
@@ -170,13 +180,21 @@ The Vite dev server proxies `/api/*` to `http://127.0.0.1:8000`. Set `VITE_API_B
 ## Tests
 
 ```bash
-scripts/test.sh
+scripts/test.sh         # Python 单元测试 + 脚本测试 + 前端测试 + 构建
 ```
 
-Run the full browser E2E interview flow (resume upload → LLM question generation → candidate Q&A → report page):
+### 功能测试（真实 HTTP 请求，后端需运行中）
+
+```bash
+uv run python -m unittest backend.tests.test_functional -v
+```
+
+测试 20 项核心功能：健康端点、真实 MinerU 简历解析、Followup、Session 生命周期、完整 6 题答题 + 报告、错误处理。后端未运行时自动跳过。
+
+### Playwright E2E 全流程测试
 
 Run the `/interview-e2e-testing` skill to automatically execute the full Playwright E2E test flow with mocked camera, microphone, TTS, STT, and MinerU. Prerequisites:
-- Dev environment started (`docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build -d`)
+- Dev environment started (`./compose.sh up`)
 - Playwright plugin loaded
 - PDF resumes available in `mock-resumes/`
 
@@ -188,10 +206,11 @@ Generate disposable mock resumes for recruiter-flow testing:
 python3 scripts/generate_mock_resumes.py
 ```
 
-The generated files are written to ignored `mock-resumes/`. To test resume upload without installing MinerU, start the app with the local mock extractor:
+The generated files are written to ignored `mock-resumes/`. To test resume upload without installing MinerU, use the mock extractor:
 
 ```bash
-MINERU_COMMAND="$PWD/scripts/mock_mineru_open_api.py" scripts/dev.sh
+# 本地开发调试（mock MinerU）
+MINERU_COMMAND="$PWD/scripts/mock_mineru_open_api.py" uv run python -m backend.interview.api --host 127.0.0.1 --port 8000
 ```
 
 ## Spec
