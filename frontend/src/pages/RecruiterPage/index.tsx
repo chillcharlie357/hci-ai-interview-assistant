@@ -86,6 +86,15 @@ const JOB_TEMPLATES = [
   },
 ];
 
+// 快速开始使用的默认候选人姓名
+const MOCK_DEFAULT_NAMES: Record<string, string> = {
+  frontend: "张三",
+  backend: "李四",
+  ai: "王五",
+  pm: "赵六",
+  fullstack: "陈七",
+};
+
 export function RecruiterPage() {
   const navigate = useNavigate();
   const { message } = App.useApp();
@@ -94,7 +103,7 @@ export function RecruiterPage() {
   const session = useAppStore((state) => state.interviewSession);
   const setSession = useAppStore((state) => state.setInterviewSession);
 
-  const [candidateName, setCandidateName] = useState(prep?.candidateName || "候选人");
+  const [candidateName, setCandidateName] = useState(prep?.candidateName || "");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
 
   // 岗位配置
@@ -137,7 +146,7 @@ export function RecruiterPage() {
       setPrep(result);
       // 自动提取候选人姓名（只在不为空且用户未手动修改时填充）
       const extractedName = result.extractedCandidateName;
-      if (extractedName && candidateName === "候选人") {
+      if (extractedName && (!candidateName || candidateName === "候选人")) {
         setCandidateName(extractedName);
       }
       // 自动匹配岗位模板（仅在用户未选择模板时填充）
@@ -191,7 +200,7 @@ export function RecruiterPage() {
     try {
       const result = await createMockSession({
         template,
-        candidateName: candidateName || "测试候选人",
+        candidateName: candidateName || MOCK_DEFAULT_NAMES[template] || "测试候选人",
         enableVideoObservation,
       });
       setSession(result);

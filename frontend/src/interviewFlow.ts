@@ -121,6 +121,7 @@ export type SpeechSummary = {
 export type InterviewSession = {
   id: string;
   userId?: string;
+  createdAt?: string;
   candidateName: string;
   role: string;
   questions: InterviewQuestion[];
