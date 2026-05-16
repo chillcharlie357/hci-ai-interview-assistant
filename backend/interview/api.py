@@ -24,7 +24,7 @@ from backend.auth import (
 )
 from backend.storage import upload_video as storage_upload_video, get_video_signed_url
 from backend.interview.answer_analysis import analyze_answer_text
-from backend.interview.config import is_auth_required, is_debug
+from backend.interview.config import is_auth_required, get_log_level
 from backend.interview.exceptions import PersistenceError
 from backend.interview.document_extractor import DocumentExtractionError, extract_resume_markdown
 from backend.interview.livekit_token import LiveKitConfigError, create_livekit_token
@@ -49,12 +49,14 @@ from backend.speech_analysis.aggregate import (
 from backend.database.prep_session_repo import PrepSessionRepository
 from backend.database.session_repo import SessionRepository
 from backend.database.utils import is_valid_uuid
+from backend.interview.logging_config import configure_logging
+import logging
+import os
+import time
 
 
-def _dbg(*args, **kwargs) -> None:
-    """调试日志，仅在 DEBUG 环境变量为 true/1/yes 时输出"""
-    if is_debug():
-        print(*args, **kwargs)
+log = logging.getLogger("backend.http")
+_start_time = time.time()
 
 
 class SessionStore:
@@ -66,7 +68,7 @@ class SessionStore:
         self.prep_repo = prep_repo
 
     def create(self, payload: dict[str, Any], user_id: str = "") -> InterviewSession:
-        _dbg(f"[create] user_id={user_id!r}", flush=True)
+        log.info("SessionStore.create user_id=%s", user_id)
         llm_status = "fallback"
         question_set = generate_interview_questions(
             resume=str(payload.get("resume", "")),
@@ -106,14 +108,14 @@ class SessionStore:
         return session
 
     def create_prep(self, payload: dict[str, Any], user_id: str = "") -> tuple[int, dict[str, Any]]:
-        _dbg(f"[create_prep] user_id={user_id!r}", flush=True)
+        log.info("SessionStore.create_prep user_id=%s", user_id)
         try:
             extracted = extract_resume_markdown(
                 file_name=str(payload.get("file_name", "")),
                 data_base64=str(payload.get("data_base64", "")),
             )
         except DocumentExtractionError as error:
-            print(f"[create_prep] extraction failed: {error.code}", flush=True)
+            log.warning("SessionStore.create_prep extraction failed: %s", error.code)
             return HTTPStatus.BAD_REQUEST, {"error": error.code, "message": error.message}
 
         prep = create_prep_session(
@@ -123,16 +125,16 @@ class SessionStore:
         )
         self.prep_sessions[prep.id] = prep
         if self.prep_repo:
-            _dbg(f"[create_prep] saving prep session to DB...", flush=True)
+            log.debug("create_prep: saving prep session to DB...")
             ok = self.prep_repo.save_prep_session(prep, user_id)
-            _dbg(f"[create_prep] save_prep_session returned {ok}", flush=True)
+            log.debug("create_prep: save_prep_session returned %s", ok)
             if not ok:
                 from backend.interview.exceptions import PersistenceError
                 raise PersistenceError(f"Failed to save prep session {prep.id}")
         return HTTPStatus.CREATED, serialize_prep_session(prep)
 
     def record_followup(self, prep_session_id: str, payload: dict[str, Any], user_id: str = "") -> PrepSession | None:
-        _dbg(f"[record_followup] id={prep_session_id} user_id={user_id!r}", flush=True)
+        log.info("SessionStore.record_followup id=%s user_id=%s", prep_session_id, user_id)
         prep = self.prep_sessions.get(prep_session_id)
         if prep is None and self.prep_repo:
             prep = self.prep_repo.get_prep_session(prep_session_id, user_id)
@@ -143,24 +145,24 @@ class SessionStore:
         updated = advance_followup(prep, str(payload.get("answer", "")))
         self.prep_sessions[prep_session_id] = updated
         if self.prep_repo:
-            _dbg(f"[record_followup] saving to DB...", flush=True)
+            log.debug("record_followup: saving to DB...")
             ok = self.prep_repo.save_prep_session(updated, user_id)
-            _dbg(f"[record_followup] save_prep_session returned {ok}", flush=True)
+            log.debug("record_followup: save_prep_session returned %s", ok)
             if not ok:
                 from backend.interview.exceptions import PersistenceError
                 raise PersistenceError(f"Failed to save prep session {prep_session_id}")
         return updated
 
     def create_from_prep(self, prep_session_id: str, payload: dict[str, Any], user_id: str = "") -> InterviewSession | None:
-        _dbg(f"[create_from_prep] prep_id={prep_session_id} user_id={user_id!r}", flush=True)
+        log.info("SessionStore.create_from_prep prep_id=%s user_id=%s", prep_session_id, user_id)
         prep = self.prep_sessions.get(prep_session_id)
         if prep is None and self.prep_repo:
-            _dbg(f"[create_from_prep] not in memory, querying DB...", flush=True)
+            log.debug("create_from_prep: not in memory, querying DB...")
             prep = self.prep_repo.get_prep_session(prep_session_id, user_id)
             if prep is not None:
                 self.prep_sessions[prep_session_id] = prep
         if prep is None:
-            _dbg(f"[create_from_prep] prep not found", flush=True)
+            log.warning("create_from_prep: prep not found prep_id=%s", prep_session_id)
             return None
         summary = prep.ready_summary
         job_description = summary.job_description if summary else " ".join(turn.answer for turn in prep.turns)
@@ -199,9 +201,9 @@ class SessionStore:
         self.sessions[session.id] = session
         self.speech_aggregates[session.id] = SpeechAggregateState()
         if self.repo:
-            _dbg(f"[create_from_prep] saving interview session to DB...", flush=True)
+            log.debug("create_from_prep: saving interview session to DB...")
             ok = self.repo.save_session(session, user_id)
-            _dbg(f"[create_from_prep] save_session returned {ok}", flush=True)
+            log.debug("create_from_prep: save_session returned %s", ok)
             if not ok:
                 from backend.interview.exceptions import PersistenceError
                 raise PersistenceError(f"Failed to save session {session.id}")
@@ -494,12 +496,16 @@ def handle_api_request(
     ):
         return _handle_video_download(store, path_parts[2], user_id)
 
+    # 健康检查端点
+    if method == "GET" and path_parts == ["api", "health"]:
+        return _handle_health(store)
+
     # Mock session creation - 快速创建测试面试
     if method == "POST" and path_parts == ["api", "mock-session"]:
-        _dbg(f"[ROUTE] mock-session user_id={user_id!r}", flush=True)
+        log.info("handle_api_request: mock-session user_id=%s", user_id)
         return _create_mock_session(store, body, user_id=user_id)
 
-    print(f"[ROUTE] 404 NOT FOUND: {method} {path} path_parts={path_parts}", flush=True)
+    log.warning("handle_api_request: 404 NOT FOUND: %s %s path_parts=%s", method, path, path_parts)
     return HTTPStatus.NOT_FOUND, {"error": "not_found"}
 
 
@@ -656,9 +662,42 @@ def _handle_logout(auth: AuthContext | None) -> tuple[int, dict[str, Any]]:
     return HTTPStatus.OK, {"message": "已退出登录"}
 
 
+def _handle_health(store: SessionStore) -> tuple[int, dict[str, Any]]:
+    llm_config = LlmClient.from_env().config
+    return HTTPStatus.OK, {
+        "status": "ok",
+        "version": "0.5.0",
+        "components": {
+            "database": {
+                "status": "connected" if store.repo else "disabled",
+                "type": "supabase" if store.repo else "in-memory",
+            },
+            "llm": {
+                "configured": llm_config.configured,
+                "model": llm_config.model if llm_config.configured else None,
+                "base_url": llm_config.base_url if llm_config.configured else None,
+            },
+            "asr": {
+                "dashscope_configured": bool(os.environ.get("DASHSCOPE_API_KEY")),
+            },
+            "livekit": {
+                "url": bool(os.environ.get("LIVEKIT_URL")),
+                "accepted": all(os.environ.get(k) for k in ("LIVEKIT_API_KEY", "LIVEKIT_API_SECRET")),
+            },
+            "mineru": {"command": os.environ.get("MINERU_COMMAND", "not-set")},
+        },
+        "runtime": {
+            "uptime_sec": int(time.time() - _start_time),
+            "memory_sessions": len(store.sessions),
+            "memory_prep_sessions": len(store.prep_sessions),
+            "memory_speech_aggregates": len(store.speech_aggregates),
+        },
+    }
+
+
 def _create_mock_session(store: SessionStore, body: dict[str, Any], user_id: str = "") -> tuple[int, dict[str, Any]]:
     """使用 mock 数据快速创建面试 session，走完整 PrepSession 流程"""
-    _dbg(f"[_create_mock_session] repo={store.repo is not None} prep_repo={store.prep_repo is not None} user_id={user_id!r}", flush=True)
+    log.info("_create_mock_session repo=%s prep_repo=%s user_id=%s", store.repo is not None, store.prep_repo is not None, user_id)
     template = str(body.get("template", "frontend"))
     candidate_name = str(body.get("candidate_name", "测试候选人"))
     enable_video_observation = bool(body.get("enable_video_observation", True))
@@ -695,46 +734,46 @@ def _create_mock_session(store: SessionStore, body: dict[str, Any], user_id: str
 
 
 def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPServer:
+    configure_logging(level=get_log_level())
     from backend.auth.supabase_client import get_service_client
     from backend.interview.config import get_supabase_config
     service_client = get_service_client()
     if service_client:
-        print("[startup] Supabase service client initialized, DB persistence enabled", flush=True)
+        log.info("Supabase service client initialized, DB persistence enabled")
     else:
         supabase_cfg = get_supabase_config()
         if supabase_cfg.get("url") and supabase_cfg.get("anon_key") and not supabase_cfg.get("service_role_key"):
-            print("[startup] WARNING: SUPABASE_SERVICE_ROLE_KEY 未配置！", flush=True)
-            print("[startup]   请在 .env 中添加 SUPABASE_SERVICE_ROLE_KEY（从 Supabase Dashboard → Settings → API → service_role 获取）", flush=True)
-            print("[startup]   当前 database 持久化已禁用，session 仅保存在内存中，服务重启后将丢失。", flush=True)
+            log.warning("SUPABASE_SERVICE_ROLE_KEY not configured, DB persistence disabled")
+            log.warning("Add SUPABASE_SERVICE_ROLE_KEY from Supabase Dashboard (Settings -> API -> service_role)")
         else:
-            print("[startup] WARNING: Supabase service client NOT available, DB persistence disabled", flush=True)
+            log.warning("Supabase service client NOT available, DB persistence disabled")
     repo = SessionRepository(service_client) if service_client else None
     prep_repo = PrepSessionRepository(service_client) if service_client else None
     store = SessionStore(repo, prep_repo)
     auth_middleware = AuthMiddleware(require_auth=is_auth_required())
 
     auth_status = "enabled" if auth_middleware.require_auth else "disabled"
-    print(f"[startup] Auth: {auth_status} (REQUIRE_AUTH={str(is_auth_required()).lower()})", flush=True)
+    log.info("Auth: %s (REQUIRE_AUTH=%s)", auth_status, str(is_auth_required()).lower())
 
     class InterviewApiHandler(BaseHTTPRequestHandler):
         def do_OPTIONS(self) -> None:
-            _dbg(f"[REQ] OPTIONS {self.path}", flush=True)
+            log.debug("OPTIONS %s", self.path)
             self._send_json({}, HTTPStatus.NO_CONTENT)
 
         def do_GET(self) -> None:
             try:
-                _dbg(f"[REQ] GET {self.path}", flush=True)
+                log.info("GET %s -> handling", self.path)
                 auth = self._authenticate()
                 if auth is None and auth_middleware.require_auth:
                     self._send_json({"error": "authentication_required"}, HTTPStatus.UNAUTHORIZED)
                     return
                 user_id = auth.user_id if auth else ""
                 status, body = handle_api_request(store, "GET", self.path, user_id=user_id, auth=auth)
-                _dbg(f"[RES] GET {self.path} -> {status} user_id={user_id!r}", flush=True)
+                log.info("GET %s -> %s (user_id=%s)", self.path, status, user_id)
                 self._send_json(body, HTTPStatus(status))
             except Exception as e:
                 import traceback
-                traceback.print_exc()
+                log.exception("Unhandled error in GET %s", self.path)
                 try:
                     self._send_json({"error": "internal_error", "message": str(e)}, HTTPStatus.INTERNAL_SERVER_ERROR)
                 except Exception:
@@ -742,7 +781,7 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
 
         def do_POST(self) -> None:
             try:
-                _dbg(f"[REQ] POST {self.path}", flush=True)
+                log.info("POST %s -> handling", self.path)
                 if self._is_public_auth_route():
                     auth = None
                 else:
@@ -755,15 +794,15 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
 
                 # 视频 raw binary body 上传
                 if self._is_video_upload_route():
-                    _dbg(f"[REQ] POST video upload session_id={self._extract_session_id()}", flush=True)
+                    log.debug("POST video upload session_id=%s", self._extract_session_id())
                     status, body = self._handle_video_upload_raw(user_id)
                     self._send_json(body, HTTPStatus(status))
                     return
 
                 payload = self._read_json()
-                _dbg(f"[REQ] POST {self.path} user_id={user_id!r} auth={auth is not None}", flush=True)
+                log.info("POST %s (user_id=%s)", self.path, user_id)
                 status, body = handle_api_request(store, "POST", self.path, payload, user_id=user_id, auth=auth)
-                _dbg(f"[RES] POST {self.path} -> {status}", flush=True)
+                log.info("POST %s -> %s", self.path, status)
                 self._send_json(body, HTTPStatus(status))
             except PersistenceError as e:
                 try:
@@ -772,7 +811,7 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
                     pass
             except Exception as e:
                 import traceback
-                traceback.print_exc()
+                log.exception("Unhandled error in POST %s", self.path)
                 try:
                     self._send_json({"error": "internal_error", "message": str(e)}, HTTPStatus.INTERNAL_SERVER_ERROR)
                 except Exception:
@@ -789,7 +828,7 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
                 self._send_json(body, HTTPStatus(status))
             except Exception as e:
                 import traceback
-                traceback.print_exc()
+                log.exception("Unhandled error in DELETE %s", self.path)
                 try:
                     self._send_json({"error": "internal_error", "message": str(e)}, HTTPStatus.INTERNAL_SERVER_ERROR)
                 except Exception:
@@ -798,7 +837,7 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
         def _is_public_auth_route(self) -> bool:
             """检查是否是公开的认证路由"""
             path = self.path.split("?")[0]  # 去掉查询参数
-            public_routes = ["/api/auth/login", "/api/auth/register", "/api/auth/refresh", "/api/auth/logout"]
+            public_routes = ["/api/auth/login", "/api/auth/register", "/api/auth/refresh", "/api/auth/logout", "/api/health"]
             return path in public_routes
 
         def _is_video_upload_route(self) -> bool:
@@ -869,7 +908,9 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
             return auth_middleware.authenticate(headers)
 
         def log_message(self, format: str, *args: Any) -> None:
-            return
+            """统一日志格式，供 agent 解析"""
+            logger = logging.getLogger("backend.http")
+            logger.info("%s %s - %s", self.command, self.path, format % args)
 
         def _read_json(self) -> dict[str, Any]:
             length = int(self.headers.get("Content-Length", "0"))
@@ -1003,7 +1044,7 @@ def main() -> None:
     args = parser.parse_args()
 
     server = create_server(args.host, args.port)
-    print(f"Serving interview API on http://{args.host}:{args.port}")
+    log.info("Serving interview API on http://%s:%s", args.host, args.port)
     server.serve_forever()
 
 

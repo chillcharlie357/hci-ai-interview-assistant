@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 import wave
 
-from backend.interview.api import SessionStore, handle_api_request
+from backend.interview.api import SessionStore, _handle_health, handle_api_request
 from backend.interview.llm_client import LlmResult
 
 
@@ -310,6 +310,61 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(status, 404)
         self.assertEqual(body["error"], "video_not_found")
 
+    def test_health_endpoint_returns_correct_structure(self):
+        status, body = _handle_health(self.store)
+        self.assertEqual(status, 200)
+        self.assertEqual(body["status"], "ok")
+        self.assertEqual(body["version"], "0.5.0")
+        self.assertIn("components", body)
+        self.assertIn("database", body["components"])
+        self.assertIn("llm", body["components"])
+        self.assertIn("asr", body["components"])
+        self.assertIn("livekit", body["components"])
+        self.assertIn("mineru", body["components"])
+        self.assertIn("runtime", body)
+        self.assertIn("uptime_sec", body["runtime"])
+        self.assertIn("memory_sessions", body["runtime"])
+
+    def test_health_endpoint_reports_disabled_database_for_in_memory_store(self):
+        status, body = _handle_health(self.store)
+        self.assertEqual(body["components"]["database"]["status"], "disabled")
+        self.assertEqual(body["components"]["database"]["type"], "in-memory")
+
+    def test_health_endpoint_reports_llm_not_configured(self):
+        status, body = _handle_health(self.store)
+        self.assertEqual(body["components"]["llm"]["configured"], False)
+        self.assertIsNone(body["components"]["llm"]["model"])
+        self.assertIsNone(body["components"]["llm"]["base_url"])
+
+    def test_health_endpoint_reports_runtime_metrics_after_creating_session(self):
+        created = self.request(
+            "POST",
+            "/api/sessions",
+            {
+                "candidate_name": "张三",
+                "resume": "候选人负责 AI 面试平台。",
+                "job_description": "岗位是 AI 产品全栈工程师。",
+                "interview_goal": "评估项目经验。",
+            },
+            expected_status=201,
+        )
+        status, body = _handle_health(self.store)
+        self.assertGreaterEqual(body["runtime"]["memory_sessions"], 1)
+        self.assertGreaterEqual(body["runtime"]["uptime_sec"], 0)
+
+    def test_health_endpoint_works_via_handle_api_request(self):
+        status, body = handle_api_request(self.store, "GET", "/api/health")
+        self.assertEqual(status, 200)
+        self.assertEqual(body["status"], "ok")
+
+    def test_health_endpoint_is_public_route_no_auth_required(self):
+        # Simulate unauthenticated request — should still return 200
+        self.env_patcher.stop()  # restore real env to clear OPENAI_API_KEY
+        self.addCleanup(lambda: None)
+        status, body = handle_api_request(self.store, "GET", "/api/health", user_id="")
+        self.assertEqual(status, 200)
+        self.assertEqual(body["status"], "ok")
+
     def test_returns_404_for_unknown_session(self):
         response = self.request(
             "POST",
@@ -318,6 +373,143 @@ class ApiTest(unittest.TestCase):
             expected_status=404,
         )
 
+        self.assertEqual(response["error"], "session_not_found")
+
+    def test_full_interview_flow_all_six_questions(self):
+        """完整面试流程：创建 session → 回答全部 6 题 → 验证状态推进和最终报告"""
+        created = self.request(
+            "POST",
+            "/api/sessions",
+            {
+                "candidate_name": "李四",
+                "resume": "候选人主导过 AI 客服平台开发，熟悉 Python、TypeScript、FastAPI、PostgreSQL。",
+                "job_description": "岗位是 AI 全栈工程师，需要 LLM 应用开发和系统架构能力。",
+                "interview_goal": "评估专业能力、项目经验、技术实现能力、应变能力、表达能力。",
+            },
+            expected_status=201,
+        )
+
+        self.assertEqual(created["candidate_name"], "李四")
+        self.assertEqual(len(created["questions"]), 6)
+        self.assertEqual(created["current_index"], 0)
+        self.assertEqual(created["current_question"]["id"], "q_001")
+
+        answers_texts = [
+            "我主要做 API 设计和 LLM 集成，用 FastAPI 构建了微服务架构。",
+            "AI 客服平台是我主导的项目，负责整体架构设计和技术选型。",
+            "我会设计分层架构，前端用 React、后端用 FastAPI、数据用 PostgreSQL。",
+            "用 TypeScript 重写了核心模块，类型安全减少了很多运行时错误。",
+            "如果回答信息不足，我会先确认理解是否正确，再引导补充细节。",
+            "这个系统帮助面试更标准化，但最终决策还是要靠人工判断。",
+        ]
+
+        session = created
+        for i, answer_text in enumerate(answers_texts):
+            self.assertEqual(session["current_index"], i)
+            self.assertEqual(session["current_question"]["id"], f"q_{i+1:03d}")
+            self.assertEqual(len(session["answers"]), i)
+
+            session = self.request(
+                "POST",
+                f"/api/sessions/{session['id']}/answers",
+                {"text": answer_text, "duration_sec": 45 + i * 10},
+            )
+
+            self.assertEqual(len(session["answers"]), i + 1)
+            self.assertEqual(session["answers"][i]["text"], answer_text)
+            self.assertEqual(session["answers"][i]["question_id"], f"q_{i+1:03d}")
+
+        # After 6th answer, current_question should be None
+        self.assertIsNone(session["current_question"])
+        self.assertEqual(session["current_index"], 6)
+        self.assertEqual(len(session["answers"]), 6)
+
+        # Report should contain all question dimensions
+        self.assertIn("# 智能面试纪要", session["report"])
+        for dim in ["专业能力", "项目经验", "技术实现能力", "应变能力", "表达能力"]:
+            self.assertIn(dim, session["report"])
+
+        # All answers should be in the report
+        for answer_text in answers_texts:
+            self.assertIn(answer_text, session["report"])
+
+    def test_session_lifecycle_create_get_list_delete(self):
+        """测试 session 完整生命周期：创建 → 获取 → 列表 → 删除 → 确认删除"""
+        created = self.request(
+            "POST",
+            "/api/sessions",
+            {
+                "candidate_name": "王五",
+                "resume": "候选人擅长前端开发。",
+                "job_description": "岗位是前端工程师。",
+                "interview_goal": "评估专业能力。",
+            },
+            expected_status=201,
+        )
+        session_id = created["id"]
+
+        # GET single session
+        fetched = self.request("GET", f"/api/sessions/{session_id}")
+        self.assertEqual(fetched["id"], session_id)
+        self.assertEqual(fetched["candidate_name"], "王五")
+
+        # LIST sessions
+        session_list_resp = self.request("GET", "/api/sessions")
+        self.assertIn("sessions", session_list_resp)
+        sessions = session_list_resp["sessions"]
+        self.assertGreaterEqual(len(sessions), 1)
+        self.assertIn(session_id, [s["id"] for s in sessions])
+
+        # DELETE session
+        deleted = self.request("DELETE", f"/api/sessions/{session_id}")
+        self.assertEqual(deleted["message"], "session_deleted")
+
+        # Verify deletion — list no longer contains it
+        session_list_after = self.request("GET", "/api/sessions")
+        self.assertNotIn(session_id, [s["id"] for s in session_list_after["sessions"]])
+
+    def test_create_session_accepts_payload_with_defaults_for_missing_fields(self):
+        """API 对空 payload 使用默认值创建 session（已知行为）"""
+        response = self.request(
+            "POST",
+            "/api/sessions",
+            {},
+            expected_status=201,
+        )
+        self.assertEqual(response["candidate_name"], "候选人")
+
+    def test_delete_unknown_session_returns_ok(self):
+        response = self.request(
+            "DELETE",
+            "/api/sessions/nonexistent-session",
+        )
+        self.assertEqual(response["message"], "session_deleted")
+
+    def test_health_endpoint_reports_component_details(self):
+        status, body = _handle_health(self.store)
+        # mineru
+        self.assertIn("command", body["components"]["mineru"])
+        # livekit
+        self.assertIn("url", body["components"]["livekit"])
+        self.assertIn("accepted", body["components"]["livekit"])
+        # asr
+        self.assertIn("dashscope_configured", body["components"]["asr"])
+        # runtime
+        self.assertIn("memory_prep_sessions", body["runtime"])
+        self.assertIn("memory_speech_aggregates", body["runtime"])
+        self.assertIn("uptime_sec", body["runtime"])
+
+    def test_health_endpoint_runtime_metrics_reflect_prep_sessions(self):
+        self.store.prep_sessions["prep_1"] = None
+        status, body = _handle_health(self.store)
+        self.assertEqual(body["runtime"]["memory_prep_sessions"], 1)
+
+    def test_get_unknown_session_returns_error(self):
+        response = self.request(
+            "GET",
+            "/api/sessions/unknown-id",
+            expected_status=404,
+        )
         self.assertEqual(response["error"], "session_not_found")
 
     def request(self, method, path, payload=None, expected_status=200):

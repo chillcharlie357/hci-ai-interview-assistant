@@ -1,5 +1,8 @@
 import { Component, type ReactNode } from "react";
 import { Button, Result } from "antd";
+import { createLogger } from "../logger";
+
+const log = createLogger("error-boundary");
 
 interface Props {
   children: ReactNode;
@@ -20,6 +23,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   static getDerivedStateFromError(error: Error): Partial<State> {
+    log.error("React render error:", error.message, error.stack);
     return { hasError: true, error };
   }
 

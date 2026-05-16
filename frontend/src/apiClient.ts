@@ -14,6 +14,9 @@ import type {
 } from "./interviewFlow";
 import { getApiBaseUrl } from "./config";
 import { useAuthStore } from "./auth/authStore";
+import { createLogger } from "./logger";
+
+const log = createLogger("api");
 
 type Fetcher = typeof fetch;
 
@@ -469,11 +472,14 @@ async function request<T>(path: string, payload: unknown, expectedStatus: number
     headers["Authorization"] = `Bearer ${accessToken}`;
   }
 
+  const _startPost = performance.now();
   const response = await fetcher(`${baseUrl}${path}`, {
     method: "POST",
     headers,
     body: JSON.stringify(payload)
   });
+  const _durPost = Math.round(performance.now() - _startPost);
+  log.info(`POST .../${path.split("/").pop()} -> ${response.status} (${_durPost}ms)`);
 
   // 处理 401 未授权响应
   if (response.status === 401) {
@@ -501,7 +507,10 @@ async function getRequest<T>(path: string, expectedStatus: number, options: Clie
     headers["Authorization"] = `Bearer ${accessToken}`;
   }
 
+  const _startGet = performance.now();
   const response = await fetcher(`${baseUrl}${path}`, { method: "GET", headers });
+  const _durGet = Math.round(performance.now() - _startGet);
+  log.info(`GET .../${path.split("/").pop()} -> ${response.status} (${_durGet}ms)`);
 
   // 处理 401 未授权响应
   if (response.status === 401) {
@@ -527,7 +536,10 @@ async function deleteRequest<T>(path: string, expectedStatus: number, options: C
     headers["Authorization"] = `Bearer ${accessToken}`;
   }
 
+  const _startDel = performance.now();
   const response = await fetcher(`${baseUrl}${path}`, { method: "DELETE", headers });
+  const _durDel = Math.round(performance.now() - _startDel);
+  log.info(`DELETE .../${path.split("/").pop()} -> ${response.status} (${_durDel}ms)`);
 
   if (response.status === 401) {
     useAuthStore.getState().logout();

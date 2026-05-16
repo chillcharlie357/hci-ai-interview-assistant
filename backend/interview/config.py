@@ -77,3 +77,8 @@ def is_auth_required() -> bool:
 def is_debug() -> bool:
     """检查是否开启调试日志"""
     return get_env("DEBUG", "").lower() in ("1", "true", "yes")
+
+
+def get_log_level() -> str:
+    """获取日志级别配置"""
+    return get_env("LOG_LEVEL", "INFO")
