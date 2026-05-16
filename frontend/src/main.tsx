@@ -20,13 +20,16 @@ import { NoSessionPage } from "./pages/NoSessionPage";
 import { LoginPage, RegisterPage, ProtectedRoute } from "./auth";
 import { useThemeStore } from "./store";
 import { isDevMode, isAuthEnabled } from "./config";
+import { createLogger } from "./logger";
+
+const log = createLogger("app");
 
 // 导入全局样式
 import "./styles/global.css";
 
 // 启动日志：输出当前运行模式
-console.info(
-  `[HCI] App started (mode: ${isDevMode() ? "development" : "production"}, auth: ${isAuthEnabled() ? "enabled" : "disabled"})`
+log.info(
+  `App started (mode: ${isDevMode() ? "development" : "production"}, auth: ${isAuthEnabled() ? "enabled" : "disabled"})`
 );
 
 function App() {
