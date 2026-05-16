@@ -6,7 +6,6 @@ import io
 import json
 import logging
 import time as _time
-import typing
 import urllib.error
 import urllib.request
 import zipfile
@@ -235,35 +234,39 @@ def _agent_api_poll(task_id: str, deadline: float) -> str:
 # ──────────────────────────────────────────────
 
 def _extract_via_precision_api(raw_bytes: bytes, file_name: str, timeout: int, token: str) -> str:
-    """Precision Extract API — 需要 Token，优先使用。"""
+    """Precision Extract API — 需要 Token，优先使用。
+
+    流程：上传至 OSS → MinerU 自动开始解析 → 通过 batch_id 轮询结果 → 下载 ZIP。
+    不需要手动创建任务，文件上传完毕后系统自动提交。
+    """
     deadline = _time.time() + timeout
 
-    # Step 1: 获取签名上传 URL
+    # Step 1: 获取 OSS 签名上传 URL
     log.info("precision_api: getting upload URL for file=%s size=%dKB", file_name, len(raw_bytes) // 1024)
-    upload_info = _precision_get_upload_url(file_name, token)
-    log.info("precision_api: got upload URL: url_id=%s", upload_info["url_id"])
+    batch_id, upload_url = _precision_get_upload_url(file_name, token)
+    log.info("precision_api: batch_id=%s, upload_url=%.60s...", batch_id, upload_url)
 
-    # Step 2: 上传文件
+    # Step 2: 上传文件到 OSS（必须空 Content-Type，否则 OSS 签名验证失败）
     log.info("precision_api: uploading file...")
-    _precision_upload_file(upload_info["upload_url"], raw_bytes, deadline)
-    log.info("precision_api: file uploaded")
+    _precision_upload_file(upload_url, raw_bytes, deadline)
+    log.info("precision_api: file uploaded, MinerU auto-starts parsing")
 
-    # Step 3: 创建提取任务
-    log.info("precision_api: creating extract task...")
-    task_id = _precision_create_task(upload_info["file_url"], file_name, token)
-    log.info("precision_api: task created: task_id=%s", task_id)
-
-    # Step 4: 轮询结果
-    full_zip_url = _precision_poll_task(task_id, token, deadline)
+    # Step 3: 轮询结果（系统自动提交，无需手动创建任务）
+    full_zip_url = _precision_poll_batch(batch_id, file_name, token, deadline)
     log.info("precision_api: result ready, downloading ZIP from %s", full_zip_url)
 
-    # Step 5: 下载 ZIP 并提取 full.md
+    # Step 4: 下载 ZIP 并提取 full.md
     return _precision_download_and_extract(full_zip_url, deadline)
 
 
-def _precision_get_upload_url(file_name: str, token: str) -> dict[str, str]:
-    """从 Precision API 获取签名上传 URL。"""
-    body = json.dumps({"files": [{"file_name": file_name}]}).encode("utf-8")
+def _precision_get_upload_url(file_name: str, token: str) -> tuple[str, str]:
+    """从 Precision API 获取 OSS 签名上传 URL。
+
+    POST /api/v4/file-urls/batch
+    Response: {code: 0, data: {batch_id, file_urls: ["https://oss..."]}}
+    返回 (batch_id, upload_url)。
+    """
+    body = json.dumps({"files": [{"name": file_name}]}).encode("utf-8")
     req = urllib.request.Request(
         f"{MINERU_API_BASE}/api/v4/file-urls/batch",
         data=body,
@@ -286,22 +289,22 @@ def _precision_get_upload_url(file_name: str, token: str) -> dict[str, str]:
     if result.get("code") != 0:
         raise DocumentExtractionError("mineru_api_error", f"Precision API 错误: {result.get('msg', '未知')}")
 
-    data = result.get("data") or []
-    if not data:
+    data = result.get("data") or {}
+    file_urls = data.get("file_urls", [])
+    if not file_urls:
         raise DocumentExtractionError("mineru_api_error", "Precision API 未返回上传 URL")
-
-    info = typing.cast(dict, data[0])
-    return {
-        "url_id": info.get("url_id", ""),
-        "upload_url": info.get("upload_url", ""),
-        "file_url": info.get("file_url", ""),
-    }
+    return str(data.get("batch_id", "")), str(file_urls[0])
 
 
 def _precision_upload_file(upload_url: str, raw_bytes: bytes, deadline: float) -> None:
-    """上传文件到签名 URL。"""
+    """上传文件到 OSS 签名 URL。
+
+    注意：urllib 在提供 data 时默认添加 Content-Type: application/x-www-form-urlencoded，
+    但 OSS 签名以空 Content-Type 计算，必须覆盖为空字符串。
+    """
     remaining = max(30, deadline - _time.time())
     req = urllib.request.Request(upload_url, data=raw_bytes, method="PUT")
+    req.add_header("Content-Type", "")  # 覆盖 urllib 默认 Content-Type
     try:
         with urllib.request.urlopen(req, timeout=remaining):
             pass
@@ -311,53 +314,17 @@ def _precision_upload_file(upload_url: str, raw_bytes: bytes, deadline: float) -
         raise DocumentExtractionError("mineru_network_error", f"文件上传网络错误: {e.reason}")
 
 
-def _precision_create_task(file_url: str, file_name: str, token: str) -> str:
-    """创建 Precision 提取任务。"""
-    body = json.dumps({
-        "url": file_url,
-        "file_name": file_name,
-        "model_version": "vlm",
-        "enable_formula": True,
-        "enable_table": True,
-        "language": "ch",
-    }).encode("utf-8")
+def _precision_poll_batch(batch_id: str, file_name: str, token: str, deadline: float) -> str:
+    """轮询 batch 结果直到指定文件完成，返回 full_zip_url。
 
-    req = urllib.request.Request(
-        f"{MINERU_API_BASE}/api/v4/extract/task",
-        data=body,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {token}",
-        },
-    )
-
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            result = json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        err_body = e.read().decode("utf-8", errors="replace")[:500]
-        raise DocumentExtractionError("mineru_api_error",
-                                      f"Precision API 创建任务失败: {e.code} - {err_body}")
-    except urllib.error.URLError as e:
-        raise DocumentExtractionError("mineru_network_error", f"Precision API 网络错误: {e.reason}")
-
-    if result.get("code") != 0:
-        raise DocumentExtractionError("mineru_api_error", f"Precision API 错误: {result.get('msg', '未知')}")
-
-    data = result.get("data") or {}
-    task_id = data.get("task_id", "")
-    if not task_id:
-        raise DocumentExtractionError("mineru_api_error", "Precision API 未返回 task_id")
-    return task_id
-
-
-def _precision_poll_task(task_id: str, token: str, deadline: float) -> str:
-    """轮询 Precision API 直到完成，返回 full_zip_url。"""
+    GET /api/v4/extract-results/batch/{batch_id}
+    文件上传后系统自动提交解析，无需手动创建任务。
+    """
     while _time.time() < deadline:
         remaining = max(10, deadline - _time.time())
         try:
             req = urllib.request.Request(
-                f"{MINERU_API_BASE}/api/v4/extract/task/{task_id}",
+                f"{MINERU_API_BASE}/api/v4/extract-results/batch/{batch_id}",
                 headers={"Authorization": f"Bearer {token}"},
             )
             with urllib.request.urlopen(req, timeout=remaining) as resp:
@@ -372,17 +339,26 @@ def _precision_poll_task(task_id: str, token: str, deadline: float) -> str:
                                           f"Precision API 轮询错误: {result.get('msg', '未知')}")
 
         data = result.get("data") or {}
-        state = data.get("state", "")
-        log.debug("precision_api poll: task_id=%s state=%s", task_id, state)
+        files = data.get("extract_result", [])
+        log.debug("precision_api poll: batch_id=%s, file_count=%d", batch_id, len(files))
 
-        if state == "done":
-            zip_url = data.get("full_zip_url", "")
-            if not zip_url:
-                raise DocumentExtractionError("mineru_api_error", "Precision API 完成但未返回 full_zip_url")
-            return zip_url
-        elif state in ("failed", "error"):
-            err_msg = data.get("err_msg", "Precision API 解析失败")
-            raise DocumentExtractionError("mineru_failed", err_msg)
+        # 在结果中找到目标文件
+        for entry in files:
+            if entry.get("file_name", "") == file_name:
+                state = entry.get("state", "")
+                if state == "done":
+                    zip_url = entry.get("full_zip_url", "")
+                    if not zip_url:
+                        raise DocumentExtractionError("mineru_api_error",
+                                                      f"文件 {file_name} 解析完成但无 full_zip_url")
+                    return zip_url
+                elif state in ("failed", "error"):
+                    err_msg = entry.get("err_msg", "Precision API 解析失败")
+                    raise DocumentExtractionError("mineru_failed", err_msg)
+                log.debug("precision_api poll: file=%s state=%s", file_name, state)
+                break
+        else:
+            log.debug("precision_api poll: file=%s not yet in results", file_name)
 
         _time.sleep(_MINERU_POLL_INTERVAL)
 
