@@ -1,5 +1,6 @@
-# 开发模式覆盖：源码热重载 + 调试日志
+# 开发模式覆盖：前后端源码热重载 + 调试日志
 # 使用方式: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+# Windows 用户需确保 WSL2 文件系统性能（建议项目放在 WSL2 内）
 
 services:
   backend:
@@ -10,5 +11,23 @@ services:
       DEBUG: "true"
 
   frontend:
+    build:
+      target: dev
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:8000}
+      VITE_ASR_WS_URL: ${VITE_ASR_WS_URL:-ws://127.0.0.1:9785/}
+      VITE_ASR_PROVIDER: ${VITE_ASR_PROVIDER:-qwen}
+      VITE_REQUIRE_AUTH: ${VITE_REQUIRE_AUTH:-false}
+      VITE_INTERVIEW_FILLER_WORDS: ${VITE_INTERVIEW_FILLER_WORDS:-}
+      VITE_APP_ENV: development
     volumes:
+      # 只挂载需要热重载的源码目录/文件，保留构建层的 node_modules
       - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/vite.config.ts:/app/vite.config.ts
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+      # 挂载包配置文件，添加依赖时无需重新构建镜像
+      - ./frontend/package.json:/app/package.json
+      - ./frontend/pnpm-lock.yaml:/app/pnpm-lock.yaml
+

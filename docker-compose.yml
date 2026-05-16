@@ -4,8 +4,13 @@ services:
       context: .
       dockerfile: Dockerfile.backend
     env_file: .env
+    environment:
+      MINERU_COMMAND: "mineru-open-api"
+      https_proxy: http://host.docker.internal:7890
+      NODE_OPTIONS: "--require /app/proxy-bootstrap.js"
+      REQUIRE_AUTH: "false"
     ports:
-      - "9000:8000"
+      - "${BACKEND_PORT:-8000}:8000"
     command: ["uv", "run", "python", "-m", "backend.interview.api", "--host", "0.0.0.0", "--port", "8000"]
 
   asr:
@@ -19,19 +24,22 @@ services:
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
     command: ["uv", "run", "python", "-m", "backend.asr.qwen_realtime", "--host", "0.0.0.0", "--port", "8765"]
     ports:
-      - "9100:8765"
+      - "${ASR_PORT:-9785}:8765"
 
   frontend:
     build:
       context: .
-      dockerfile: frontend/Dockerfile
-    env_file: .env
-    environment:
-      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:9000}
-      VITE_ASR_WS_URL: ${VITE_ASR_WS_URL:-ws://127.0.0.1:9100/}
-      VITE_ASR_PROVIDER: ${VITE_ASR_PROVIDER:-qwen}
+      dockerfile: Dockerfile.frontend
+      target: prod
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:8000}
+        VITE_ASR_WS_URL: ${VITE_ASR_WS_URL:-ws://127.0.0.1:9785/}
+        VITE_ASR_PROVIDER: ${VITE_ASR_PROVIDER:-qwen}
+        VITE_REQUIRE_AUTH: ${VITE_REQUIRE_AUTH:-false}
+        VITE_INTERVIEW_FILLER_WORDS: ${VITE_INTERVIEW_FILLER_WORDS:-}
+        VITE_APP_ENV: production
     depends_on:
       - backend
       - asr
     ports:
-      - "5173:5173"
+      - "${FRONTEND_PORT:-5173}:5173"

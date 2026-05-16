@@ -73,11 +73,20 @@ cd frontend
 pnpm test
 ```
 
-### E2E 测试（模拟摄像头、麦克风、TTS、STT、MinerU）
+### 生成 Mock 简历（PDF + Markdown）
 
 ```bash
-scripts/e2e.sh
+uv run python scripts/generate_mock_resumes.py
 ```
+
+输出文件在 `mock-resumes/`（PDF）和 `mock-resumes/sources/`（Markdown 源码）。
+
+### Playwright E2E 全流程测试
+
+通过 `/interview-e2e-testing` skill 运行完整的面试流程自动化测试（简历上传 → LLM 出题 → 候选人答题 → 报告页）。前置条件：
+- Dev 环境已启动（`docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build -d`）
+- Playwright 插件已加载
+- `mock-resumes/` 目录下有 PDF 简历
 
 ### Docker Compose（生产模式）
 
@@ -212,6 +221,9 @@ Dev 覆盖：后端挂载 `./backend` 源码 + `watchfiles` 热重载 + `DEBUG=t
 - `spec/video-recording-mvp-plan.md` — 视频录制 MVP 计划
 - `spec/stitch_elite_digital_presence/` — 设计参考文件（ai_9 至 ai_16）
 - `AGENTS.md` — 项目方向、产品红线和编码规范
+- `.claude/skills/` — 项目级 Claude Code skills（运行 `/interview-e2e-testing` 执行 Playwright E2E 全流程测试）
+- `scripts/generate_mock_resumes.py` — 生成 Mock 简历 PDF 和 Markdown 源码（输出到 `mock-resumes/`）
+- `mock-resumes/` — 预生成的 PDF 简历文件（前端、后端、AI 工程师、产品经理 4 个候选）
 
 产品范围变更时，先更新 `spec/`。实现遵循 TDD：先写测试，再写生产代码。
 

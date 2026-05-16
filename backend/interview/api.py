@@ -713,6 +713,9 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
     store = SessionStore(repo, prep_repo)
     auth_middleware = AuthMiddleware(require_auth=is_auth_required())
 
+    auth_status = "enabled" if auth_middleware.require_auth else "disabled"
+    print(f"[startup] Auth: {auth_status} (REQUIRE_AUTH={str(is_auth_required()).lower()})", flush=True)
+
     class InterviewApiHandler(BaseHTTPRequestHandler):
         def do_OPTIONS(self) -> None:
             _dbg(f"[REQ] OPTIONS {self.path}", flush=True)

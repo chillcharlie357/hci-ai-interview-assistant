@@ -9,7 +9,7 @@ import {
 
 import { fetchReport, getSession } from "@/apiClient";
 import type { InterviewSession } from "@/interviewFlow";
-import { buildReportFilename, downloadMarkdownReport } from "@/reportDownload";
+import { buildReportFilename, buildPdfFilename, downloadMarkdownReport, downloadPdfReport } from "@/reportDownload";
 import { useAppStore } from "@/store";
 
 import { computeDimensionScores, generateRatingSummary } from "./helpers/scoring";
@@ -84,8 +84,8 @@ export function ReportPage() {
   }
 
   const handleDownload = () => {
-    if (!session || !report) return;
-    downloadMarkdownReport(buildReportFilename(session.candidateName, session.id), report);
+    if (!session) return;
+    void downloadPdfReport(session.candidateName, session.id, ".report-page");
   };
 
   // 数据计算 memo 化
