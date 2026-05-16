@@ -333,6 +333,7 @@
   display: flex;
   gap: var(--space-sm);
   justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .interview-toolbar {
@@ -370,6 +371,46 @@
   gap: var(--space-sm);
   overflow-y: auto;
   min-width: 0;
+}
+
+.help-drawer-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.help-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.help-reference-answer {
+  white-space: pre-wrap;
+  color: #191c1e;
+  background: #f7f9fb;
+  border: 1px solid rgba(190, 199, 212, 0.3);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  margin-bottom: 0;
+}
+
+.help-outline-list,
+.help-point-list {
+  margin: 0;
+  padding-left: 20px;
+  color: #404854;
+}
+
+.help-outline-list li,
+.help-point-list li {
+  margin-bottom: 8px;
+}
+
+.help-drawer-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
 }
 
 .question-panel {

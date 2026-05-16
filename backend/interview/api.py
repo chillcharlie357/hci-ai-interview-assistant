@@ -23,6 +23,7 @@ from backend.auth import (
     WeakPasswordError,
 )
 from backend.interview.answer_analysis import analyze_answer_text
+from backend.interview.answer_help import generate_answer_help
 from backend.interview.config import is_auth_required, get_log_level
 from backend.interview.exceptions import PersistenceError
 from backend.interview.document_extractor import DocumentExtractionError, extract_resume_markdown
@@ -31,6 +32,7 @@ from backend.interview.llm_client import LlmClient
 from backend.interview.prep_session import PrepSession, advance_followup, create_prep_session, serialize_prep_session
 from backend.interview.question_engine import InterviewQuestion, generate_interview_questions
 from backend.interview.session import (
+    InterviewEvent,
     InterviewSession,
     create_interview_session,
     generate_markdown_report,
@@ -292,6 +294,53 @@ class SessionStore:
         # 视频事件仅更新内存，持久化在答题时一并进行，避免高频写入打爆数据库
         return updated
 
+    def request_answer_help(self, session_id: str, payload: dict[str, Any], user_id: str = "") -> tuple[int, dict[str, Any]]:
+        session = self.sessions.get(session_id)
+        if session is None and self.repo:
+            session = self.repo.get_session(session_id, user_id)
+            if session is not None:
+                self.sessions[session_id] = session
+                if session_id not in self.speech_aggregates:
+                    agg = self.repo.get_speech_aggregate(session_id)
+                    self.speech_aggregates[session_id] = agg if agg is not None else SpeechAggregateState()
+        if session is None:
+            return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
+        if session.current_question is None:
+            return HTTPStatus.BAD_REQUEST, {"error": "no_current_question", "message": "当前没有可求助的问题。"}
+
+        draft_text = str(payload.get("draft_text", ""))
+        updated = generate_answer_help(session, draft_text)
+        updated_session = replace(
+            session,
+            events=[
+                *session.events,
+                InterviewEvent(
+                    type="answer_help_requested",
+                    timestamp=updated.generated_at,
+                    question_id=session.current_question.id,
+                    message="候选人请求参考答案。",
+                ),
+            ],
+        )
+        self.sessions[session_id] = updated_session
+        if self.repo:
+            if not self.repo.save_session(updated_session, user_id):
+                from backend.interview.exceptions import PersistenceError
+                raise PersistenceError(f"Failed to save session {session_id}")
+
+        return HTTPStatus.OK, {
+            "mode": "llm" if updated.llm_status == "ok" else "fallback",
+            "llm_status": updated.llm_status,
+            "question_id": session.current_question.id,
+            "question_prompt": session.current_question.prompt,
+            "summary": updated.summary,
+            "reference_answer": updated.reference_answer,
+            "outline": updated.outline,
+            "key_points": updated.key_points,
+            "cautions": updated.cautions,
+            "generated_at": updated.generated_at,
+        }
+
     def record_speech_chunk(self, session_id: str, payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         session = self.sessions.get(session_id)
         if session is None:
@@ -485,6 +534,14 @@ def handle_api_request(
         if session is None:
             return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
         return HTTPStatus.OK, serialize_session(session, _get_speech_cumulative(store, path_parts[2]))
+
+    if (
+        method == "POST"
+        and len(path_parts) == 4
+        and path_parts[:2] == ["api", "sessions"]
+        and path_parts[3] == "help"
+    ):
+        return store.request_answer_help(path_parts[2], body, user_id)
 
     # 健康检查端点
     if method == "GET" and path_parts == ["api", "health"]:

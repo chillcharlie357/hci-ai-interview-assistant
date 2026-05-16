@@ -5,6 +5,7 @@ import {
   createSession,
   fetchReport,
   getSession,
+  requestAnswerHelp,
   requestLiveKitToken,
   submitAnswer,
   submitPrepFollowup,
@@ -90,6 +91,31 @@ describe("apiClient", () => {
 
     expect(result.session.answers[0].questionId).toBe("q_001");
     expect(result.report).toBe("# 智能面试纪要");
+  });
+
+  it("requests answer help and maps the backend response", async () => {
+    const fetcher = async () =>
+      new Response(
+        JSON.stringify({
+          mode: "llm",
+          llm_status: "ok",
+          question_id: "q_001",
+          question_prompt: "请介绍项目。",
+          summary: "可按背景、方法、结果回答。",
+          reference_answer: "参考答案",
+          outline: ["背景", "方法", "结果"],
+          key_points: ["项目目标", "职责"],
+          cautions: ["不要照抄"],
+          generated_at: "2026-05-16T00:00:00Z"
+        }),
+        { status: 200 }
+      );
+
+    const help = await requestAnswerHelp("session_1", { draftText: "我先讲项目背景。" }, { fetcher });
+
+    expect(help.mode).toBe("llm");
+    expect(help.reference_answer).toBe("参考答案");
+    expect(help.outline[0]).toBe("背景");
   });
 
   it("submits a video event and maps video summary", async () => {

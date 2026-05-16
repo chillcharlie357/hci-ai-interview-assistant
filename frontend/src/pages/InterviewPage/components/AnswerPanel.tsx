@@ -1,7 +1,7 @@
 import { memo, type RefObject } from "react";
 import { Button, Tag, Input } from "antd";
 import type { TextAreaRef } from "antd/es/input/TextArea";
-import { StopOutlined, ForwardOutlined } from "@ant-design/icons";
+import { StopOutlined, ForwardOutlined, QuestionCircleOutlined } from "@ant-design/icons";
 
 import type { DigitalInterviewerState } from "@/digitalInterviewer";
 import type { InterviewQuestion } from "@/interviewFlow";
@@ -18,7 +18,9 @@ interface AnswerPanelProps {
   interviewerState: DigitalInterviewerState;
   onStartAnswer: () => void;
   onFinishAnswer: () => void;
+  onRequestHelp: () => void;
   finishingAnswer: boolean;
+  helpLoading: boolean;
   answerInputRef?: RefObject<TextAreaRef | null>;
 }
 
@@ -32,7 +34,9 @@ export const AnswerPanel = memo(function AnswerPanel({
   interviewerState,
   onStartAnswer,
   onFinishAnswer,
+  onRequestHelp,
   finishingAnswer,
+  helpLoading,
   answerInputRef,
 }: AnswerPanelProps) {
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -66,9 +70,20 @@ export const AnswerPanel = memo(function AnswerPanel({
 
       <div className="caption-actions">
         {!isAnswering ? (
-          <Button type="primary" size="large" onClick={onStartAnswer} disabled={!currentQuestion || interviewerState === "speaking"}>
-            开始回答
-          </Button>
+          <>
+            <Button type="primary" size="large" onClick={onStartAnswer} disabled={!currentQuestion || interviewerState === "speaking"}>
+              开始回答
+            </Button>
+            <Button
+              size="large"
+              onClick={onRequestHelp}
+              loading={helpLoading}
+              icon={<QuestionCircleOutlined />}
+              disabled={!currentQuestion || interviewerState === "speaking"}
+            >
+              求助参考答案
+            </Button>
+          </>
         ) : (
           <>
             <Button
@@ -89,6 +104,9 @@ export const AnswerPanel = memo(function AnswerPanel({
               disabled={interviewerState === "speaking"}
             >
               进入下一题
+            </Button>
+            <Button size="large" onClick={onRequestHelp} loading={helpLoading} icon={<QuestionCircleOutlined />}>
+              求助参考答案
             </Button>
           </>
         )}
