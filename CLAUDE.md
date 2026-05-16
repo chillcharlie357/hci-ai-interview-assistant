@@ -28,19 +28,27 @@ AI 辅助面试 MVP，包含两条用户流程：
 
 ## 常用命令
 
-### 一键本地启动（同时启动 API 和前端）
+### 首选：Docker/Podman Compose（一键启动）
 
 ```bash
-scripts/dev.sh
+./compose.sh up       # 开发模式（源码热重载，推荐）
+./compose.sh prod     # 生产模式（前端构建后 nginx 部署）
+./compose.sh down     # 关闭所有服务
+./compose.sh logs     # 查看所有容器日志
+./compose.sh logs backend   # 只看后端日志
 ```
 
-### 仅启动后端
+`compose.sh` 自动检测 podman 或 docker。支持 `COMPOSE_BIN=docker ./compose.sh up` 强制指定。
+
+Dev 覆盖：后端挂载 `./backend` 源码 + `watchfiles` 热重载 + `DEBUG=true`；前端挂载 `./frontend/src`，Vite HMR 生效。
+
+### 仅启动后端（本地开发调试）
 
 ```bash
 uv run python -m backend.interview.api --host 127.0.0.1 --port 8000
 ```
 
-### 仅启动前端
+### 仅启动前端（本地开发调试）
 
 ```bash
 cd frontend
@@ -66,6 +74,12 @@ uv run python -m unittest discover -s backend/tests
 uv run python -m unittest backend/tests/test_session.py
 ```
 
+### 运行功能测试（真实 HTTP 请求，需后端运行中）
+
+```bash
+uv run python -m unittest backend.tests.test_functional -v
+```
+
 ### 仅运行前端测试
 
 ```bash
@@ -84,23 +98,9 @@ uv run python scripts/generate_mock_resumes.py
 ### Playwright E2E 全流程测试
 
 通过 `/interview-e2e-testing` skill 运行完整的面试流程自动化测试（简历上传 → LLM 出题 → 候选人答题 → 报告页）。前置条件：
-- Dev 环境已启动（`docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build -d`）
+- 容器环境已启动（`./compose.sh up`）
 - Playwright 插件已加载
 - `mock-resumes/` 目录下有 PDF 简历
-
-### Docker Compose（生产模式）
-
-```bash
-docker compose up --build
-```
-
-### Docker Compose（开发模式，热重载）
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
-```
-
-Dev 覆盖：后端挂载 `./backend` 源码 + `watchfiles` 热重载 + `DEBUG=true`；前端挂载 `./frontend/src`，Vite HMR 生效。
 
 ## 架构
 
@@ -235,6 +235,7 @@ Dev 覆盖：后端挂载 `./backend` 源码 + `watchfiles` 热重载 + `DEBUG=t
 - `.claude/skills/` — 项目级 Claude Code skills（运行 `/interview-e2e-testing` 执行 Playwright E2E 全流程测试）
 - `scripts/generate_mock_resumes.py` — 生成 Mock 简历 PDF 和 Markdown 源码（输出到 `mock-resumes/`）
 - `mock-resumes/` — 预生成的 PDF 简历文件（前端、后端、AI 工程师、产品经理 4 个候选）
+- `backend/tests/test_functional.py` — 真实 HTTP 请求功能测试（需运行中的后端）
 
 产品范围变更时，先更新 `spec/`。实现遵循 TDD：先写测试，再写生产代码。
 
