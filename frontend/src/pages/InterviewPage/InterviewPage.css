@@ -335,6 +335,20 @@
   justify-content: flex-end;
 }
 
+.followup-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  padding: var(--space-xs) var(--space-sm);
+  margin-bottom: var(--space-xs);
+  border: 1px solid rgba(114, 46, 209, 0.16);
+  border-radius: var(--radius-md);
+  background: rgba(245, 240, 255, 0.78);
+  color: var(--color-text-primary);
+  font-size: 13px;
+}
+
 .interview-toolbar {
   display: flex;
   justify-content: center;

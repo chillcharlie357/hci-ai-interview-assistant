@@ -45,6 +45,10 @@ type ApiAnswer = {
   speech_rate_wpm?: number | null;
   audio_rms_db?: number | null;
   audio_f0_std_hz?: number | null;
+  audio_f0_std_semitones?: number | null;
+  is_followup?: boolean;
+  followup_round?: number;
+  followup_prompt?: string;
 };
 
 type ApiEvent = {
@@ -125,10 +129,24 @@ type ApiSession = {
   speech_summary?: ApiSpeechSummary;
   meeting_room?: string;
   enable_video_observation?: boolean;
+  current_followup?: string | null;
 };
 
 type ApiSessionWithReport = ApiSession & {
   report: string;
+  followup?: ApiFollowupResponse;
+};
+
+type ApiFollowupResponse = {
+  asked: boolean;
+  question: string;
+  round: number;
+};
+
+export type FollowupResponse = {
+  asked: boolean;
+  question: string;
+  round: number;
 };
 
 type ApiSessionSummary = {
@@ -267,7 +285,7 @@ export async function submitAnswer(
   sessionId: string,
   answer: { text: string; durationSec: number },
   options: ClientOptions = {}
-): Promise<{ session: InterviewSession; report: string }> {
+): Promise<{ session: InterviewSession; report: string; followup: FollowupResponse }> {
   const response = await request<ApiSessionWithReport>(
     `/api/sessions/${sessionId}/answers`,
     {
@@ -277,9 +295,17 @@ export async function submitAnswer(
     200,
     options
   );
+  const followup: FollowupResponse = response.followup
+    ? {
+        asked: Boolean(response.followup.asked),
+        question: response.followup.question ?? "",
+        round: response.followup.round ?? 0
+      }
+    : { asked: false, question: "", round: 0 };
   return {
     session: mapSession(response),
-    report: response.report
+    report: response.report,
+    followup
   };
 }
 
@@ -504,7 +530,8 @@ function mapSession(session: ApiSession): InterviewSession {
     videoSummary: mapVideoSummary(session.video_summary),
     speechSummary: mapSpeechSummary(session.speech_summary),
     meetingRoom: session.meeting_room ?? "",
-    enableVideoObservation: session.enable_video_observation ?? true
+    enableVideoObservation: session.enable_video_observation ?? true,
+    currentFollowup: session.current_followup ?? null
   };
 }
 
@@ -555,7 +582,10 @@ function mapAnswer(answer: ApiAnswer): AnswerRecord {
     speechRateWpm: answer.speech_rate_wpm,
     audioRmsDb: answer.audio_rms_db,
     audioF0StdHz: answer.audio_f0_std_hz,
-    audioF0StdSemitones: answer.audio_f0_std_semitones
+    audioF0StdSemitones: answer.audio_f0_std_semitones,
+    isFollowup: answer.is_followup ?? false,
+    followupRound: answer.followup_round ?? 0,
+    followupPrompt: answer.followup_prompt ?? ""
   };
 }
 

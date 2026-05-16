@@ -32,7 +32,7 @@ export function InterviewPage() {
   );
 
   const sessionHandle = useInterviewSession(sessionId, speech.chunkUploadFailCount);
-  const { session, loading, report, answerText, setAnswerText, answerStartedAt, startAnswer, finishAnswer, finishingAnswer, updateSession, appendAnswerText } = sessionHandle;
+  const { session, loading, report, answerText, setAnswerText, answerStartedAt, startAnswer, finishAnswer, finishingAnswer, updateSession, appendAnswerText, lastFollowup } = sessionHandle;
 
   const video = useVideoAnalysis(sessionId, session, updateSession);
   const liveKit = useLiveKit(sessionId, session);
@@ -63,11 +63,13 @@ export function InterviewPage() {
       setInterviewerState("unsupported");
       return;
     }
-    if (shouldAutoSpeakQuestion(session.currentQuestion.id, lastAutoSpokenQuestionIdRef.current, true)) {
-      lastAutoSpokenQuestionIdRef.current = session.currentQuestion.id;
+    // 复合 key：主问 ID + 追问文本，让追问触发独立朗读
+    const speakKey = `${session.currentQuestion.id}::${session.currentFollowup ?? ""}`;
+    if (shouldAutoSpeakQuestion(speakKey, lastAutoSpokenQuestionIdRef.current, true)) {
+      lastAutoSpokenQuestionIdRef.current = speakKey;
       speakQuestion("auto");
     }
-  }, [session?.currentQuestion?.id, session?.answers?.length, session?.id, navigate]);
+  }, [session?.currentQuestion?.id, session?.currentFollowup, session?.answers?.length, session?.id, navigate]);
 
   // 问题切换后自动聚焦输入框
   useEffect(() => {
@@ -180,6 +182,8 @@ export function InterviewPage() {
           onFinishAnswer={handleFinishCandidateAnswer}
           finishingAnswer={finishingAnswer}
           answerInputRef={answerInputRef}
+          currentFollowup={session.currentFollowup ?? null}
+          followupRound={lastFollowup?.asked ? lastFollowup.round : 0}
         />
       </section>
 

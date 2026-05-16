@@ -4,10 +4,14 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 import re
 import time
+from typing import TYPE_CHECKING
 
 from backend.interview.answer_analysis import analyze_answer_text
 from backend.interview.question_engine import InterviewQuestion
 from backend.speech_analysis.aggregate import SpeechCumulativeMetrics
+
+if TYPE_CHECKING:
+    from backend.interview.followup_engine import FollowupDecision  # noqa: F401
 
 
 @dataclass(frozen=True)
@@ -32,6 +36,27 @@ class AnswerRecord:
     audio_rms_db: float | None = None
     audio_f0_std_hz: float | None = None
     audio_f0_std_semitones: float | None = None
+    is_followup: bool = False
+    followup_round: int = 0          # 0 表示主问题回答；1/2 表示第几轮追问的回答
+    followup_prompt: str = ""        # 当 is_followup=True 时记录追问问题文本
+
+
+@dataclass(frozen=True)
+class FollowupTurn:
+    """追问对话窗口里的一条消息。"""
+    role: str          # "interviewer" | "candidate"
+    text: str
+    timestamp: str
+
+
+@dataclass(frozen=True)
+class FollowupState:
+    """单道主问题的追问状态。"""
+    question_id: str
+    turns: list[FollowupTurn]
+    asked_count: int = 0                # 已经发出的追问次数（不含主问题）
+    finished: bool = False              # True 表示这题不再追问
+    pending_question: str | None = None # 下一句要朗读给候选人的追问文本
 
 
 @dataclass(frozen=True)
@@ -86,12 +111,24 @@ class InterviewSession:
     keyframes: list[KeyframeRecord] | None = None
     meeting_room: str = ""
     enable_video_observation: bool = True
+    followup_states: dict[str, FollowupState] | None = None
 
     @property
     def current_question(self) -> InterviewQuestion | None:
         if self.current_index >= len(self.questions):
             return None
         return self.questions[self.current_index]
+
+    @property
+    def current_followup(self) -> str | None:
+        """当前主问题尚未结束、且 LLM 决定追问时，返回应朗读给候选人的追问文本。"""
+        question = self.current_question
+        if question is None:
+            return None
+        state = (self.followup_states or {}).get(question.id)
+        if state is None or state.finished:
+            return None
+        return state.pending_question
 
 
 def create_interview_session(
@@ -116,6 +153,7 @@ def create_interview_session(
         keyframes=[],
         meeting_room=f"interview-{session_id}",
         enable_video_observation=enable_video_observation,
+        followup_states={},
         events=[
             InterviewEvent(
                 type="session_started",
@@ -141,7 +179,13 @@ def record_answer(
     audio_rms_db: float | None = None,
     audio_f0_std_hz: float | None = None,
     audio_f0_std_semitones: float | None = None,
+    followup_decision: "FollowupDecision | None" = None,
 ) -> InterviewSession:
+    """记录一次回答。
+
+    若 ``followup_decision`` 为 ``None`` 或 ``finished=True``，按原有逻辑推进 ``current_index``；
+    若决定继续追问，则当前题保持不动，并在 ``followup_states`` 中记录待发追问。
+    """
     question = session.current_question
     if question is None:
         return session
@@ -150,6 +194,14 @@ def record_answer(
     analysis = analyze_answer_text(text) if filler_word_count is None else None
     word_count = _count_words(text)
     speech_rate_wpm = round(word_count / (duration_sec / 60), 1) if duration_sec >= 5 else None
+
+    # 当前题在记录前已处于第 N 轮追问对话状态：
+    #   N == 0 -> 这是对主问题的首答
+    #   N >= 1 -> 这是对第 N 轮追问的回答
+    prev_state = (session.followup_states or {}).get(question.id)
+    answered_round = prev_state.asked_count if prev_state else 0
+    answered_followup_prompt = prev_state.pending_question if (prev_state and answered_round > 0) else ""
+
     answer = AnswerRecord(
         question_id=question.id,
         dimension=question.dimension,
@@ -163,20 +215,91 @@ def record_answer(
         audio_rms_db=audio_rms_db,
         audio_f0_std_hz=audio_f0_std_hz,
         audio_f0_std_semitones=audio_f0_std_semitones,
+        is_followup=answered_round > 0,
+        followup_round=answered_round,
+        followup_prompt=answered_followup_prompt or "",
+    )
+    event_message = (
+        f"已记录 {question.dimension} 第 {answered_round} 轮追问回答，用时 {duration_sec} 秒。"
+        if answered_round > 0
+        else f"已记录 {question.dimension} 回答，用时 {duration_sec} 秒。"
     )
     event = InterviewEvent(
         type="answer_recorded",
         timestamp=recorded_at,
         question_id=question.id,
-        message=f"已记录 {question.dimension} 回答，用时 {duration_sec} 秒。",
+        message=event_message,
     )
+
+    next_states = dict(session.followup_states or {})
+    next_index = session.current_index
+    extra_events: list[InterviewEvent] = []
+
+    if followup_decision is None or followup_decision.finished:
+        # 不再追问，推进到下一题。状态标记 finished，便于报告检查。
+        new_state = FollowupState(
+            question_id=question.id,
+            turns=_append_followup_turns(prev_state, question, text, recorded_at, append_pending=False),
+            asked_count=answered_round,
+            finished=True,
+            pending_question=None,
+        )
+        next_states[question.id] = new_state
+        next_index = session.current_index + 1
+    else:
+        new_state = FollowupState(
+            question_id=question.id,
+            turns=_append_followup_turns(
+                prev_state,
+                question,
+                text,
+                recorded_at,
+                append_pending=True,
+                pending_text=followup_decision.followup_question,
+            ),
+            asked_count=answered_round + 1,
+            finished=False,
+            pending_question=followup_decision.followup_question,
+        )
+        next_states[question.id] = new_state
+        extra_events.append(
+            InterviewEvent(
+                type="followup_asked",
+                timestamp=recorded_at,
+                question_id=question.id,
+                message=f"针对 {question.dimension} 触发第 {new_state.asked_count} 轮追问。",
+            )
+        )
 
     return replace(
         session,
-        current_index=session.current_index + 1,
+        current_index=next_index,
         answers=[*session.answers, answer],
-        events=[*session.events, event],
+        events=[*session.events, event, *extra_events],
+        followup_states=next_states,
     )
+
+
+def _append_followup_turns(
+    prev_state: "FollowupState | None",
+    question: InterviewQuestion,
+    candidate_text: str,
+    timestamp: str,
+    *,
+    append_pending: bool,
+    pending_text: str = "",
+) -> list[FollowupTurn]:
+    """根据上一次的状态拼接最新的对话窗口。"""
+    if prev_state is None:
+        turns: list[FollowupTurn] = [
+            FollowupTurn(role="interviewer", text=question.prompt, timestamp=timestamp),
+        ]
+    else:
+        turns = list(prev_state.turns)
+    turns.append(FollowupTurn(role="candidate", text=candidate_text.strip(), timestamp=timestamp))
+    if append_pending and pending_text:
+        turns.append(FollowupTurn(role="interviewer", text=pending_text, timestamp=timestamp))
+    return turns
 
 
 def record_video_event(
@@ -232,33 +355,52 @@ def generate_markdown_report(
         f"- 候选人：{session.candidate_name}",
         f"- 岗位：{session.role}",
         f"- 问题数：{len(session.questions)}",
-        f"- 已回答：{len(session.answers)}",
+        f"- 已回答：{len([a for a in session.answers if not a.is_followup])}",
+        f"- 触发追问回合：{len([a for a in session.answers if a.is_followup])}",
         "",
         "## 2. 问答记录",
     ]
 
-    for index, answer in enumerate(session.answers, start=1):
-        question = _find_question(session.questions, answer.question_id)
+    # 按主问题聚合：主回答 + 该题所有追问回答
+    main_answers = [a for a in session.answers if not a.is_followup]
+    answers_by_question: dict[str, list[AnswerRecord]] = {}
+    for a in session.answers:
+        answers_by_question.setdefault(a.question_id, []).append(a)
+
+    for index, main_answer in enumerate(main_answers, start=1):
+        question = _find_question(session.questions, main_answer.question_id)
         answer_lines = [
             "",
-            f"### {index}. {answer.dimension}",
-            f"- 问题：{answer.prompt}",
-            f"- 回答摘要：{answer.text or '未记录回答'}",
-            f"- 回答用时：{answer.duration_sec} 秒",
-            f"- 字数/字符数：{answer.word_count}",
-            f"- 语速：{format_speech_rate(answer.speech_rate_wpm)}",
+            f"### {index}. {main_answer.dimension}",
+            f"- 问题：{main_answer.prompt}",
+            f"- 回答摘要：{main_answer.text or '未记录回答'}",
+            f"- 回答用时：{main_answer.duration_sec} 秒",
+            f"- 字数/字符数：{main_answer.word_count}",
+            f"- 语速：{format_speech_rate(main_answer.speech_rate_wpm)}",
         ]
-        if answer.audio_rms_db is not None:
-            answer_lines.append(f"- 音频响度：{answer.audio_rms_db:.1f} dBFS")
-        if answer.audio_f0_std_semitones is not None:
-            answer_lines.append(f"- 语调起伏：{answer.audio_f0_std_semitones:.1f} st")
-        elif answer.audio_f0_std_hz is not None:
-            answer_lines.append(f"- 语调起伏：{answer.audio_f0_std_hz:.0f} Hz")
-        answer_lines.extend([
-            f"- 填充词数量：{answer.filler_word_count}",
-            f"- 建议追问：{question.follow_ups[0] if question and question.follow_ups else '无'}",
-            f"- 观察点：{question.evidence_hints[0] if question and question.evidence_hints else '无'}",
-        ])
+        if main_answer.audio_rms_db is not None:
+            answer_lines.append(f"- 音频响度：{main_answer.audio_rms_db:.1f} dBFS")
+        if main_answer.audio_f0_std_semitones is not None:
+            answer_lines.append(f"- 语调起伏：{main_answer.audio_f0_std_semitones:.1f} st")
+        elif main_answer.audio_f0_std_hz is not None:
+            answer_lines.append(f"- 语调起伏：{main_answer.audio_f0_std_hz:.0f} Hz")
+        answer_lines.append(f"- 填充词数量：{main_answer.filler_word_count}")
+
+        # 展开 LLM 追问轨迹（按 followup_round 排序）
+        followups = sorted(
+            [a for a in answers_by_question.get(main_answer.question_id, []) if a.is_followup],
+            key=lambda a: a.followup_round,
+        )
+        for fa in followups:
+            answer_lines.append(f"- 追问 {fa.followup_round}：{fa.followup_prompt or '（未知追问）'}")
+            answer_lines.append(f"  - 候选人回答：{fa.text or '未记录回答'}（用时 {fa.duration_sec} 秒）")
+
+        answer_lines.append(
+            f"- 备用追问参考：{question.follow_ups[0] if question and question.follow_ups else '无'}"
+        )
+        answer_lines.append(
+            f"- 观察点：{question.evidence_hints[0] if question and question.evidence_hints else '无'}"
+        )
         lines.extend(answer_lines)
 
     lines.extend(["", "## 3. 实时事件"])
@@ -298,10 +440,12 @@ def _build_review_items(
     unanswered_questions: list[InterviewQuestion],
 ) -> list[str]:
     items: list[str] = []
+    # 只对主回答做长度复核提示，追问回答仅看填充词
     for answer in answers:
         if answer.filler_word_count >= 3:
-            items.append(f"- {answer.dimension} 回答填充词较多，建议人工复核表达流畅度。")
-        if answer.word_count < 8:
+            scope = f"{answer.dimension} 第 {answer.followup_round} 轮追问" if answer.is_followup else answer.dimension
+            items.append(f"- {scope} 回答填充词较多，建议人工复核表达流畅度。")
+        if not answer.is_followup and answer.word_count < 8:
             items.append(f"- {answer.dimension} 回答较短，建议确认是否需要追问。")
     for question in unanswered_questions:
         items.append(f"- 问题「{question.prompt}」尚未回答，建议确认是否跳过。")

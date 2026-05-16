@@ -52,6 +52,9 @@ export type AnswerRecord = {
   audioRmsDb?: number | null;
   audioF0StdHz?: number | null;
   audioF0StdSemitones?: number | null;
+  isFollowup?: boolean;
+  followupRound?: number;
+  followupPrompt?: string;
 };
 
 export type InterviewEvent = {
@@ -132,6 +135,8 @@ export type InterviewSession = {
   speechSummary?: SpeechSummary | null;
   meetingRoom: string;
   enableVideoObservation: boolean;
+  /** 当前主问题尚未结束、且 LLM 决定追问时，待朗读给候选人的追问文本；否则为 null */
+  currentFollowup?: string | null;
 };
 
 export function createDraft(): DraftInput {
@@ -165,6 +170,7 @@ export function createSessionFromDraft(draft: DraftInput): InterviewSession {
     },
     meetingRoom: "",
     enableVideoObservation: true,
+    currentFollowup: null,
     events: [
       {
         type: "session_started",
@@ -178,6 +184,10 @@ export function createSessionFromDraft(draft: DraftInput): InterviewSession {
 export function buildAvatarPrompt(session: InterviewSession): string {
   if (!session.currentQuestion) {
     return "本轮问题已经结束，请确认是否生成面试纪要。";
+  }
+  // 优先朗读 LLM 追问；否则朗读主问题
+  if (session.currentFollowup && session.currentFollowup.trim()) {
+    return session.currentFollowup.trim();
   }
   return `${session.candidateName}，你好。接下来是 ${session.currentQuestion.dimension} 相关问题。${session.currentQuestion.prompt}`;
 }

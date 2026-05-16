@@ -26,6 +26,7 @@ from backend.interview.answer_analysis import analyze_answer_text
 from backend.interview.config import is_auth_required, get_log_level
 from backend.interview.exceptions import PersistenceError
 from backend.interview.document_extractor import DocumentExtractionError, extract_resume_markdown
+from backend.interview.followup_engine import decide_followup
 from backend.interview.livekit_token import LiveKitConfigError, create_livekit_token
 from backend.interview.llm_client import LlmClient
 from backend.interview.prep_session import PrepSession, advance_followup, create_prep_session, serialize_prep_session
@@ -306,7 +307,8 @@ class SessionStore:
         session = self.sessions.get(session_id)
         if session is None:
             return None
-        answer_analysis = analyze_answer_text(str(payload.get("text", "")))
+        text = str(payload.get("text", ""))
+        answer_analysis = analyze_answer_text(text)
         # 从语音聚合状态快照音频指标
         audio_rms_db = None
         audio_f0_std_hz = None
@@ -317,14 +319,32 @@ class SessionStore:
             audio_rms_db = cumulative.rms_db_mean
             audio_f0_std_hz = cumulative.f0_std_hz
             audio_f0_std_semitones = cumulative.f0_std_semitones
+
+        # 让 LLM 决定是否追问当前题
+        question = session.current_question
+        followup_decision = None
+        if question is not None:
+            prev_state = (session.followup_states or {}).get(question.id)
+            try:
+                followup_decision = decide_followup(
+                    question_prompt=question.prompt,
+                    question_dimension=question.dimension,
+                    prev_state=prev_state,
+                    latest_answer=text,
+                )
+            except Exception:
+                log.exception("decide_followup raised, defaulting to finished=True")
+                followup_decision = None
+
         updated = record_answer(
             session,
-            text=str(payload.get("text", "")),
+            text=text,
             duration_sec=int(payload.get("duration_sec", 0)),
             filler_word_count=answer_analysis.filler_word_count,
             audio_rms_db=audio_rms_db,
             audio_f0_std_hz=audio_f0_std_hz,
             audio_f0_std_semitones=audio_f0_std_semitones,
+            followup_decision=followup_decision,
         )
         if answer_analysis.llm_status == "ok":
             updated = replace(updated, llm_status="ok")
@@ -502,9 +522,13 @@ def handle_api_request(
             return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
         speech_metrics = _get_speech_cumulative(store, path_parts[2])
         response = serialize_session(session, speech_metrics)
+        # 仅在仍处于追问对话中时才生成报告（追问中报告意义不大且耗时），
+        # 但为保持向后兼容字段，仍生成；如果追问中则跳过 LLM 报告增强以省成本。
         report, report_llm_status = generate_report(session, speech_metrics)
         response["report"] = report
         response["llm_status"] = report_llm_status if report_llm_status == "ok" else response.get("llm_status", "fallback")
+        # 透出本次回答触发的追问（前端用它播放追问 / 显示提示）
+        response["followup"] = _build_followup_response(session)
         return HTTPStatus.OK, response
 
     if (
@@ -928,10 +952,26 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
 def serialize_session(session: InterviewSession, speech_metrics: SpeechCumulativeMetrics | None = None) -> dict[str, Any]:
     body = asdict(session)
     body["current_question"] = asdict(session.current_question) if session.current_question else None
+    body["current_followup"] = session.current_followup
     body["video_summary"] = summarize_video(session)
     if speech_metrics is not None:
         body["speech_summary"] = speech_metrics.to_dict()
     return body
+
+
+def _build_followup_response(session: InterviewSession) -> dict[str, Any]:
+    """构造 POST /answers 响应里的 followup 字段，描述本次回答触发的追问状态。"""
+    question = session.current_question
+    if question is None:
+        return {"asked": False, "question": "", "round": 0}
+    state = (session.followup_states or {}).get(question.id)
+    if state is None or state.finished or not state.pending_question:
+        return {"asked": False, "question": "", "round": 0}
+    return {
+        "asked": True,
+        "question": state.pending_question,
+        "round": state.asked_count,
+    }
 
 
 def _get_speech_cumulative(store: SessionStore, session_id: str) -> SpeechCumulativeMetrics | None:

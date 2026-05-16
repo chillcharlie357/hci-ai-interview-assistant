@@ -45,15 +45,16 @@ export function describeDigitalInterviewerState(
 
 export function buildConversationCaptions(session: InterviewSession, draftAnswer: string): ConversationCaption[] {
   const captions: ConversationCaption[] = [];
-  session.answers.forEach((answer) => {
+  session.answers.forEach((answer, index) => {
+    const questionText = answer.isFollowup ? answer.followupPrompt || answer.prompt : answer.prompt;
     captions.push({
-      id: `${answer.questionId}-ai`,
+      id: `${answer.questionId}-ai-${index}`,
       speaker: "ai",
-      label: "AI 面试官",
-      text: answer.prompt
+      label: answer.isFollowup ? "AI 面试官追问" : "AI 面试官",
+      text: questionText
     });
     captions.push({
-      id: `${answer.questionId}-candidate`,
+      id: `${answer.questionId}-candidate-${index}`,
       speaker: "candidate",
       label: session.candidateName,
       text: answer.text || "未记录回答"
@@ -61,11 +62,12 @@ export function buildConversationCaptions(session: InterviewSession, draftAnswer
   });
 
   if (session.currentQuestion) {
+    const currentPrompt = session.currentFollowup?.trim() || session.currentQuestion.prompt;
     captions.push({
-      id: `${session.currentQuestion.id}-ai-current`,
+      id: `${session.currentQuestion.id}-ai-current-${session.currentFollowup ?? "main"}`,
       speaker: "ai",
-      label: "AI 面试官",
-      text: session.currentQuestion.prompt
+      label: session.currentFollowup ? "AI 面试官追问" : "AI 面试官",
+      text: currentPrompt
     });
     if (draftAnswer.trim()) {
       captions.push({
