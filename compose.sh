@@ -34,11 +34,28 @@ detect_compose_bin() {
 COMPOSE_BIN="${COMPOSE_BIN:-$(detect_compose_bin)}"
 
 # ============================
+# 前置检查：面部分析资源
+# ============================
+ensure_face_assets() {
+  local public_dir="$ROOT_DIR/frontend/public"
+  if [[ -f "$public_dir/models/face_landmarker.task" && -d "$public_dir/mediapipe/wasm" ]]; then
+    return 0
+  fi
+  echo ">>> 面部分析资源缺失，运行 scripts/setup_face_assets.sh..."
+  bash "$ROOT_DIR/scripts/setup_face_assets.sh"
+}
+
+# ============================
 # 启动服务
 # ============================
 compose_up() {
   local profile="${1:-dev}"
   local compose_cmd
+
+  # 开发模式下确保面部分析资源存在（dev 挂载 host public/ 会覆盖镜像内资源）
+  if [[ "$profile" == "dev" ]]; then
+    ensure_face_assets
+  fi
 
   if [[ "$profile" == "prod" ]]; then
     # 生产模式：仅 docker-compose.yml
