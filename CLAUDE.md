@@ -237,6 +237,7 @@ uv run python scripts/generate_mock_resumes.py
 - `scripts/generate_mock_resumes.py` — 生成 Mock 简历 PDF 和 Markdown 源码（输出到 `mock-resumes/`）
 - `mock-resumes/` — 预生成的 PDF 简历文件（前端、后端、AI 工程师、产品经理 4 个候选）
 - `backend/tests/test_functional.py` — 真实 HTTP 请求功能测试（需运行中的后端）
+- `TROUBLESHOOTING.md` — 常见排错指南（端口冲突、MinerU 超时、health check 等）
 
 产品范围变更时，先更新 `spec/`。实现遵循 TDD：先写测试，再写生产代码。
 
