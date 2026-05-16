@@ -32,6 +32,10 @@ export function getFillerWords(): string[] {
  * 检查是否启用认证
  * 前端通过环境变量 VITE_REQUIRE_AUTH 控制，后端通过 REQUIRE_AUTH 控制
  */
+export function getLogLevel(): string {
+  return (import.meta.env.VITE_LOG_LEVEL as string) || "info";
+}
+
 export function isAuthEnabled(): boolean {
   const value = import.meta.env.VITE_REQUIRE_AUTH;
   if (value === undefined) {

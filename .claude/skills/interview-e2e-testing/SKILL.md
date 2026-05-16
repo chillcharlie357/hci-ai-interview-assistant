@@ -15,6 +15,59 @@ description: E2E test the full interview flow via Playwright: resume upload (PDF
 - Playwright 插件已加载
 - `mock-resumes/` 目录下有 PDF 简历（通过 `scripts/generate_mock_resumes.py` 生成）
 
+## 可观测性检查（运行前验证）
+
+在开始完整测试前，确认基础可观测性设施正常：
+
+### 1. 健康端点检查
+
+```bash
+curl http://localhost:8000/api/health | python -m json.tool
+```
+
+期望输出格式：
+```json
+{
+  "status": "ok",
+  "components": {
+    "database": {"status": "connected", "type": "supabase"},
+    "llm": {"configured": true, ...},
+    "asr": {"dashscope_configured": ...},
+    "livekit": {"url": ..., "accepted": ...},
+    "mineru": {"command": "mineru-open-api"}
+  },
+  "runtime": {
+    "uptime_sec": 3600,
+    "memory_sessions": 0,
+    "memory_prep_sessions": 0,
+    "memory_speech_aggregates": 0
+  }
+}
+```
+
+验证：`status` 为 `"ok"`，database 和 llm 组件状态正确。
+
+### 2. 后端日志格式验证
+
+启动后查看后端日志：
+```bash
+./compose.sh logs backend 2>&1 | head -10
+```
+
+期望日志格式：
+```
+2026-05-16 10:30:15 [INFO   ] [backend.http] Supabase service client initialized, DB persistence enabled
+2026-05-16 10:30:15 [INFO   ] [backend.startup] Auth: enabled (REQUIRE_AUTH=true)
+2026-05-16 10:30:15 [INFO   ] [backend.http] Serving interview API on http://0.0.0.0:8000
+```
+
+### 3. 前端日志格式验证（浏览器 DevTools）
+
+打开浏览器 DevTools → Console，过滤 `[HCI:`。验证启动时出现：
+```
+[HCI:app] App started (mode: development, auth: enabled)
+```
+
 ## 测试步骤
 
 ### 1. 打开招募端配置页
@@ -40,7 +93,8 @@ description: E2E test the full interview flow via Playwright: resume upload (PDF
 检查要点：
 - 上传后文件名显示在页面上
 - "上传并解析"按钮变为可用
-- 点击后等待 MinerU 解析完成（检查后端日志 `[create_prep] saving prep session to DB...` + `[RES] ... -> 201`）
+- 点击后等待 MinerU 解析完成
+- 检查后端日志结构化输出：`[INFO] [backend.http] POST /api/sessions.../answers -> 200`
 - 解析后的简历 markdown 内容回显到页面上
 
 ### 4. 生成面试大纲
@@ -48,7 +102,7 @@ description: E2E test the full interview flow via Playwright: resume upload (PDF
 点击"生成面试大纲并开启"。
 
 检查要点：
-- 后端日志出现 `[create_from_prep]` 并返回 HTTP 201
+- 后端日志出现 `[INFO] [backend.http] POST /api/mock-session -> 201` 或 `[INFO] [backend.http] SessionStore.create_from_prep`
 - 页面显示"面试已创建"区块
 - 面试链接形如 `http://localhost:5173/interview/session_xxxxxxxxxxxx`
 - 页面显示 6 道面试题（由 LLM 生成），覆盖不同维度
@@ -68,7 +122,7 @@ description: E2E test the full interview flow via Playwright: resume upload (PDF
 1. 等待 AI 状态变为"等待回答"（约 3-8 秒）
 2. 在输入框填写回答内容
 3. 点击"结束回答"
-4. 检查后端日志出现 `[RES] POST /api/sessions/.../answers -> 200`
+4. 检查后端日志出现 `[INFO] [backend.http] POST /api/sessions/{id}/answers -> 200`
 5. 点击"进入下一题"
 6. 等待下一题加载
 
@@ -88,12 +142,47 @@ description: E2E test the full interview flow via Playwright: resume upload (PDF
 - 完整 Markdown 报告在页面底部
 - "下载 PDF 报告"按钮可用
 
+## 健康端点验证（完成 E2E 后）
+
+### 运行时指标验证
+
+```bash
+curl -s http://localhost:8000/api/health | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+assert data['runtime']['memory_sessions'] >= 1, '至少 1 个面试 session'
+assert data['runtime']['memory_prep_sessions'] >= 1, '至少 1 个 prep session（使用 Mock 模式时为 1）'
+print(f'Sessions: {data[\"runtime\"][\"memory_sessions\"]}')
+print(f'Prep sessions: {data[\"runtime\"][\"memory_prep_sessions\"]}')
+print('健康端点验证通过')
+"
+```
+
+## 验证清单
+
+完成后逐项确认：
+
+- [ ] 健康端点返回 `status: "ok"`
+- [ ] 健康端点运行时指标反映 session 数量
+- [ ] 后端日志输出格式包含 `[INFO] [backend.http]` 组件标识
+- [ ] 日志级别可通过 `LOG_LEVEL` 环境变量控制
+- [ ] 简历上传返回 201
+- [ ] 简历内容正确回显
+- [ ] LLM 生成 6 道面试题
+- [ ] 面试链接可访问
+- [ ] 所有 6 题均可回答并提交
+- [ ] 后端日志全部返回 200 或 201
+- [ ] 报告页展示完整面试数据
+- [ ] 雷达图正常渲染
+- [ ] 无浏览器控制台错误（红色）
+- [ ] 前端 `[HCI:api]` 日志显示每次请求的方法、状态码和耗时
+
 ## 常见问题
 
 ### MinerU 解析超时
 
 ```
-[create_prep] extraction failed: mineru_timeout
+[WARNING] [backend.db] SessionStore.create_prep extraction failed: mineru_timeout
 ```
 
 **原因**: `mineru-open-api flash-extract` 对 docx 格式在云端处理超时（>5分钟）。
@@ -102,11 +191,7 @@ description: E2E test the full interview flow via Playwright: resume upload (PDF
 
 ### 简历上传 400 错误
 
-```
-[RES] POST /api/prep-sessions/resume -> 400
-```
-
-查看后端日志中 `[create_prep] extraction failed:` 后面的错误码：
+查看后端日志中 `SessionStore.create_prep extraction failed:` 后面的错误码：
 - `mineru_timeout` — MinerU 云端超时，换 PDF 格式
 - `mineru_not_found` — 容器中未安装 `mineru-open-api`，检查 Dockerfile
 - `unsupported_resume_format` — 文件后缀不在支持列表（.pdf/.docx/.png/.jpg/.jpeg/.webp）
@@ -125,7 +210,7 @@ description: E2E test the full interview flow via Playwright: resume upload (PDF
 ### 数据库保存警告
 
 ```
-[save_session] WARNING: user_id='dev_user' 不是合法 UUID，跳过数据库持久化
+[WARNING] [backend.db] save_session: user_id='dev_user' is not valid UUID, skipping DB persistence
 ```
 
 当 `REQUIRE_AUTH=false` 时，在内存中保存 session 而非写入 Supabase，不影响功能。
@@ -133,7 +218,7 @@ description: E2E test the full interview flow via Playwright: resume upload (PDF
 ### speech_aggregates 列缺失
 
 ```
-Failed to save speech aggregate: 'semitone_weight_sum' column not found
+[WARNING] [backend.db] save_speech_aggregate failed for session_id=...: ...
 ```
 
 Supabase 数据库迁移未完成。运行 `backend/database/migrations/` 中的对应 SQL。不影响核心面试流程。
@@ -141,17 +226,3 @@ Supabase 数据库迁移未完成。运行 `backend/database/migrations/` 中的
 ### 面试页卡在"提问中"
 
 AI 面试官的"提问"是模拟超时等待（约 3-8 秒自动切换）。如果长时间无响应，刷新页面重试。
-
-## 验证清单
-
-完成后逐项确认：
-
-- [ ] 简历上传返回 201
-- [ ] 简历内容正确回显
-- [ ] LLM 生成 6 道面试题
-- [ ] 面试链接可访问
-- [ ] 所有 6 题均可回答并提交
-- [ ] 后端日志全部返回 200 或 201
-- [ ] 报告页展示完整面试数据
-- [ ] 雷达图正常渲染
-- [ ] 无浏览器控制台错误（红色）

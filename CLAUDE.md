@@ -126,6 +126,7 @@ Dev 覆盖：后端挂载 `./backend` 源码 + `watchfiles` 热重载 + `DEBUG=t
 - `interview/livekit_token.py` — LiveKit 参与者令牌生成。
 - `interview/config.py` — 集中式环境变量配置。
 - `interview/exceptions.py` — 业务异常类型（PersistenceError）。
+- `interview/logging_config.py` — 全局日志配置（configure_logging），所有模块共享同一格式和 handler。日志格式：`%(asctime)s [%(levelname)-7s] [%(name)s] %(message)s`，通过 `LOG_LEVEL` 环境变量控制级别（默认 INFO）。
 - `speech_analysis/` — 音频语音分析模块（特征、分析器、聚合）。
 
 ### 前端 (`frontend/src/`)
@@ -144,7 +145,8 @@ Dev 覆盖：后端挂载 `./backend` 源码 + `watchfiles` 热重载 + `DEBUG=t
   - `ReportPage/` — 评价报告（雷达图、问答时间线、完整报告）
   - `NoSessionPage/` — 无会话提示页
 - `components/layout/` — 布局组件（TopNavBar 含用户菜单和主题切换、SideNavBar、AppLayout）
-- `apiClient.ts` — 后端 API 客户端函数，包含 Mock session 创建和认证 header。
+- `logger.ts` — 前端结构化日志工具（`createLogger`），日志以 `[HCI:component]` 前缀输出，通过 `VITE_LOG_LEVEL` 控制级别。
+- `apiClient.ts` — 后端 API 客户端函数，包含 Mock session 创建和认证 header。所有请求自动记录 `[HCI:api]` 日志。
 - `config.ts` — 前端配置（API 基础 URL、认证开关等）。
 - `interviewFlow.ts` — 面试状态机/流程逻辑。
 - `digitalInterviewer.ts` — 数字人面试官提示处理（TTS 集成）。
@@ -191,6 +193,15 @@ Dev 覆盖：后端挂载 `./backend` 源码 + `watchfiles` 热重载 + `DEBUG=t
 - `DATABASE_URL` — 数据库直连 URL（可选，现有代码通过 Supabase API 操作）
 - `VITE_API_BASE_URL` — 前端 API 端点（默认 `http://127.0.0.1:8000`）
 - `VITE_INTERVIEW_FILLER_WORDS` — 逗号分隔的填充词列表，用于语音分析
+
+### 日志级别（可选）
+
+- `LOG_LEVEL` — 后端日志级别：`DEBUG`、`INFO`、`WARNING`、`ERROR`（默认 `INFO`）
+- `VITE_LOG_LEVEL` — 前端日志级别：`debug`、`info`、`warn`、`error`（默认 `info`）
+
+### 健康检查
+
+- `GET /api/health` — 公共路由（无需认证），返回组件状态（database、LLM、ASR、LiveKit、MinerU）和运行时指标（uptime、内存会话数）
 
 ### ASR 语音识别（可选）
 
