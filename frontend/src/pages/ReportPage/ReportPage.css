@@ -502,3 +502,24 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ===== 深色模式 ===== */
+@media (prefers-color-scheme: dark) {
+  .speech-metric-card {
+    background: #2a2a2a;
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .speech-metric-bar-track {
+    background: #333;
+  }
+
+  .qa-marker {
+    background: #2a2a2a;
+    border-color: #1f1f1f;
+  }
+
+  .keyframe-item {
+    background: linear-gradient(135deg, #1f1f1f, #2a2a2a);
+  }
+}

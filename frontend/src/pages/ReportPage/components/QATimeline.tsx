@@ -33,10 +33,10 @@ export const QATimeline = memo(function QATimeline({ session }: QATimelineProps)
                     : "暂无回答记录"}
                 </p>
                 <div className="qa-meta">
-                  <Tag icon={<StarOutlined style={{ color: "#1677ff" }} />}>
+                  <Tag icon={<StarOutlined style={{ color: "var(--color-primary)" }} />}>
                     评分: {score !== null ? score.toFixed(1) : "未评"}
                   </Tag>
-                  <Tag icon={<ClockCircleOutlined style={{ color: "#00677f" }} />}>
+                  <Tag icon={<ClockCircleOutlined style={{ color: "var(--color-primary)" }} />}>
                     耗时: {answer ? `${Math.floor(answer.durationSec / 60)}m ${answer.durationSec % 60}s` : "-"}
                   </Tag>
                 </div>

@@ -68,7 +68,7 @@ export function RegisterPage() {
   };
 
   return (
-    <main style={{ backgroundColor: "#f5f5f5", height: "100vh" }}>
+    <main style={{ backgroundColor: "var(--login-page-bg)", height: "100vh" }}>
       <LoginFormPage
         backgroundImageUrl="https://mdn.alipayobjects.com/huamei_gcee1x/afts/img/A*y0ZTS6WLwvgAAAAAAAAAAAAADml6AQ/fmt.webp"
         logo={
@@ -86,9 +86,9 @@ export function RegisterPage() {
         backgroundVideoUrl="https://gw.alipayobjects.com/v/huamei_gcee1x/afts/video/jXRBRK_VAwoAAAAAAAAAAAAAK4eUAQBr"
         title="创建账户"
         subTitle="开始您的 AI 面试训练之旅"
-        // 玻璃拟态容器 - 浅色半透明背景
+        // 玻璃拟态容器 - use CSS variable for dark mode support
         containerStyle={{
-          backgroundColor: "rgba(255, 255, 255, 0.85)",
+          backgroundColor: "var(--login-container-bg)",
           backdropFilter: "blur(12px)",
           borderRadius: 16,
           border: "1px solid rgba(0, 0, 0, 0.08)",
@@ -98,7 +98,7 @@ export function RegisterPage() {
             boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
             color: token.colorText,
             borderRadius: 12,
-            backgroundColor: "rgba(255, 255, 255, 0.9)",
+            backgroundColor: "var(--login-activity-bg)",
             backdropFilter: "blur(8px)",
           },
           title: "已有账号？",

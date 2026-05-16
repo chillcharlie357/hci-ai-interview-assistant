@@ -128,11 +128,11 @@ export function SideNavBar() {
           display: flex;
           flex-direction: column;
           padding: 16px;
-          background: rgba(255, 255, 255, 0.7);
+          background: var(--sidenav-bg);
           backdrop-filter: blur(24px);
           -webkit-backdrop-filter: blur(24px);
           border-right: 1px solid rgba(255, 255, 255, 0.2);
-          box-shadow: 20px 0 50px rgba(0, 71, 255, 0.05);
+          box-shadow: var(--sidenav-shadow);
           border-radius: 0 24px 0 0;
           transition: width 0.3s ease, padding 0.3s ease;
         }
@@ -216,7 +216,7 @@ export function SideNavBar() {
         }
 
         .side-nav-bar-collapse-btn:hover {
-          background: rgba(22, 119, 255, 0.08);
+          background: var(--sidenav-hover-bg);
           color: var(--color-primary);
         }
 
@@ -250,18 +250,18 @@ export function SideNavBar() {
         }
 
         .side-nav-bar-menu-item:hover {
-          background: rgba(22, 119, 255, 0.08);
+          background: var(--sidenav-hover-bg);
           color: var(--color-primary);
         }
 
         .side-nav-bar-menu-item.active {
-          background: rgba(22, 119, 255, 0.1);
+          background: var(--sidenav-active-bg);
           color: var(--color-primary);
           font-weight: 600;
         }
 
         .side-nav-bar.collapsed .side-nav-bar-menu-item.active {
-          background: rgba(22, 119, 255, 0.15);
+          background: var(--sidenav-active-bg);
         }
 
         .side-nav-bar-menu-icon {
@@ -271,7 +271,7 @@ export function SideNavBar() {
 
         .side-nav-bar-footer {
           padding-top: 16px;
-          border-top: 1px solid rgba(0, 0, 0, 0.06);
+          border-top: 1px solid var(--sidenav-footer-border);
         }
 
         .side-nav-bar-support-btn {

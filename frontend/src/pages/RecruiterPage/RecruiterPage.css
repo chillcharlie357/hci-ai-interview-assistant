@@ -191,7 +191,7 @@
 
 .question-item-meta {
   padding: var(--space-sm);
-  background: white;
+  background: var(--color-bg-container);
   border-radius: var(--radius);
   font-size: 13px;
 }

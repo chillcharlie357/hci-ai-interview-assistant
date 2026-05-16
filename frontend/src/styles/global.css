@@ -48,12 +48,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.15);
+  background-color: var(--scrollbar-thumb);
   border-radius: 20px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(0, 0, 0, 0.25);
+  background-color: var(--scrollbar-thumb-hover);
 }
 
 /* ===== 玻璃拟态效果 ===== */
@@ -184,25 +184,16 @@ body {
 }
 
 @media (prefers-color-scheme: dark) {
+  .glass-panel {
+    background: rgba(30, 30, 30, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .glass-card {
+    background-color: rgba(30, 30, 30, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
   .dev-badge {
     background: #d97706;
     box-shadow: 0 2px 8px rgba(217, 119, 6, 0.4);
-  }
-}
-
-/* ===== 响应式工具类 ===== */
-@media (max-width: 800px) {
-  .page-container-center,
-  .report-container {
-    padding: var(--space-md);
-  }
-}
-
-/* ===== 深色模式适配 ===== */
-@media (prefers-color-scheme: dark) {
-  .glass-panel,
-  .glass-card {
-    background: rgba(30, 30, 30, 0.8);
-    border: 1px solid rgba(255, 255, 255, 0.1);
   }
 }
