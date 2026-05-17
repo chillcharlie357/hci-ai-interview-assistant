@@ -230,6 +230,7 @@ class SessionRepository:
             'video_duration_sec': data.get('video_duration_sec'),
             'video_upload_failed': data.get('video_upload_failed', False),
             'followup_states': followup_states,
+            'egress_id': data.get('egress_id'),
         })
 
 

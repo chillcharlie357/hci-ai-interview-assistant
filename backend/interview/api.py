@@ -1007,6 +1007,7 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
                         self._send_json({"error": "authentication_required"}, HTTPStatus.UNAUTHORIZED)
                         return
 
+                payload = self._read_json()
                 user_id = auth.user_id if auth else ""
                 log.info("POST %s (user_id=%s)", self.path, user_id)
                 status, body = handle_api_request(store, "POST", self.path, payload, user_id=user_id, auth=auth)
