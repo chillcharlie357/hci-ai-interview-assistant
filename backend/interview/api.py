@@ -28,6 +28,7 @@ from backend.interview.answer_help import generate_answer_help
 from backend.interview.config import is_auth_required, get_log_level
 from backend.interview.exceptions import PersistenceError
 from backend.interview.document_extractor import DocumentExtractionError, extract_resume_markdown
+from backend.interview.egress import start_recording, stop_recording, EgressError
 from backend.interview.followup_engine import decide_followup
 from backend.interview.livekit_token import LiveKitConfigError, create_livekit_token
 from backend.interview.llm_client import LlmClient
@@ -459,6 +460,14 @@ class SessionStore:
         }
 
 
+def transfer_egress_file(local_path: str, user_id: str, session_id: str) -> str:
+    """将 Egress 输出的本地文件上传到 Supabase Storage。"""
+    from backend.storage.video import upload_video
+    with open(local_path, "rb") as f:
+        video_bytes = f.read()
+    return upload_video(user_id, session_id, video_bytes)
+
+
 def handle_api_request(
     store: SessionStore,
     method: str,
@@ -601,6 +610,65 @@ def handle_api_request(
         except LiveKitConfigError as error:
             return HTTPStatus.SERVICE_UNAVAILABLE, {"error": "livekit_not_configured", "message": str(error)}
         return HTTPStatus.OK, token
+
+    # 启动 Egress 录制
+    if (
+        method == "POST"
+        and len(path_parts) == 5
+        and path_parts[:2] == ["api", "sessions"]
+        and path_parts[3] == "recording"
+        and path_parts[4] == "start"
+    ):
+        session = store.get(path_parts[2], user_id)
+        if session is None:
+            return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
+        try:
+            egress_id = start_recording(session.meeting_room)
+        except EgressError as error:
+            return HTTPStatus.SERVICE_UNAVAILABLE, {"error": "livekit_not_configured", "message": str(error)}
+        updated = replace(session, egress_id=egress_id)
+        store.sessions[session.id] = updated
+        if store.repo:
+            store.repo.save_session(updated, user_id)
+        return HTTPStatus.OK, {"egress_id": egress_id}
+
+    # 停止 Egress 录制
+    if (
+        method == "POST"
+        and len(path_parts) == 5
+        and path_parts[:2] == ["api", "sessions"]
+        and path_parts[3] == "recording"
+        and path_parts[4] == "stop"
+    ):
+        session = store.get(path_parts[2], user_id)
+        if session is None:
+            return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
+        if not session.egress_id:
+            return HTTPStatus.BAD_REQUEST, {"error": "no_active_recording"}
+        try:
+            result = stop_recording(session.egress_id)
+        except EgressError as error:
+            return HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "egress_stop_failed", "message": str(error)}
+        # 将 Egress 本地文件上传到 Supabase Storage
+        video_path = ""
+        try:
+            video_path = transfer_egress_file(result["file_path"], user_id, session.id)
+        except Exception as error:
+            log.warning("Failed to transfer egress file to storage: %s", error)
+        updated = replace(
+            session,
+            egress_id=None,
+            video_path=video_path or None,
+            video_duration_sec=result.get("duration_sec", 0.0),
+            video_upload_failed=not video_path,
+        )
+        store.sessions[session.id] = updated
+        if store.repo:
+            store.repo.save_session(updated, user_id)
+        return HTTPStatus.OK, {
+            "video_path": video_path,
+            "video_duration_sec": updated.video_duration_sec,
+        }
 
     if (
         method == "POST"

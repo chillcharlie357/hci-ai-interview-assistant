@@ -6,10 +6,14 @@ import unittest
 from unittest.mock import patch
 import wave
 
+from dataclasses import replace
+
 from backend.interview.api import SessionStore, _handle_health, handle_api_request
+from backend.interview.egress import EgressError
 from backend.interview.followup_engine import FollowupDecision
 from backend.interview.answer_help import AnswerHelpResult
 from backend.interview.llm_client import LlmResult
+from backend.interview.session import create_interview_session
 
 
 class ApiTest(unittest.TestCase):
@@ -720,6 +724,99 @@ class FollowupApiTest(unittest.TestCase):
         # decide_followup 抛异常时按 finished 处理，正常推进，主流程不卡死
         self.assertNotEqual(updated["current_question"]["id"], first_qid)
         self.assertFalse(updated["followup"]["asked"])
+
+
+class TestRecordingEndpoints(unittest.TestCase):
+    """Egress 服务端录制 API 测试。"""
+
+    def test_start_recording_stores_egress_id(self):
+        """启动录制后 session 中应存储 egress_id"""
+        store = SessionStore()
+        session = create_interview_session(user_id="user-1")
+        store.sessions[session.id] = session
+
+        with patch("backend.interview.api.start_recording", return_value="egress-abc"):
+            status, body = handle_api_request(
+                store, "POST",
+                f"/api/sessions/{session.id}/recording/start",
+                payload={}, user_id="user-1",
+            )
+        self.assertEqual(status, 200)
+        self.assertEqual(body["egress_id"], "egress-abc")
+        self.assertEqual(store.sessions[session.id].egress_id, "egress-abc")
+
+    def test_start_recording_livekit_unconfigured(self):
+        """LiveKit 未配置时返回 503"""
+        store = SessionStore()
+        session = create_interview_session(user_id="user-1")
+        store.sessions[session.id] = session
+
+        with patch("backend.interview.api.start_recording", side_effect=EgressError("not configured")):
+            status, body = handle_api_request(
+                store, "POST",
+                f"/api/sessions/{session.id}/recording/start",
+                payload={}, user_id="user-1",
+            )
+        self.assertEqual(status, 503)
+        self.assertIn("livekit_not_configured", body.get("error", ""))
+
+    def test_stop_recording_updates_session(self):
+        """停止录制后 session 应更新 video_path 和 video_duration_sec"""
+        store = SessionStore()
+        session = create_interview_session(user_id="user-1")
+        session = replace(session, egress_id="egress-abc")
+        store.sessions[session.id] = session
+
+        with patch("backend.interview.api.stop_recording", return_value={
+            "file_path": "/out/interview-session_123.webm",
+            "duration_sec": 120.0,
+        }), patch("backend.interview.api.transfer_egress_file", return_value="user-1/session_123.webm"):
+            status, body = handle_api_request(
+                store, "POST",
+                f"/api/sessions/{session.id}/recording/stop",
+                payload={}, user_id="user-1",
+            )
+        self.assertEqual(status, 200)
+        self.assertIn("video_path", body)
+        self.assertEqual(body["video_duration_sec"], 120.0)
+        self.assertIsNone(store.sessions[session.id].egress_id)
+
+    def test_stop_recording_no_egress_id(self):
+        """没有进行中的录制时返回 400"""
+        store = SessionStore()
+        session = create_interview_session(user_id="user-1")
+        store.sessions[session.id] = session
+
+        status, body = handle_api_request(
+            store, "POST",
+            f"/api/sessions/{session.id}/recording/stop",
+            payload={}, user_id="user-1",
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(body["error"], "no_active_recording")
+
+    def test_stop_recording_transfers_file_to_storage(self):
+        """停止录制时应将本地文件上传到 Supabase Storage"""
+        store = SessionStore()
+        session = create_interview_session(user_id="user-1")
+        session = replace(session, egress_id="egress-abc")
+        store.sessions[session.id] = session
+
+        with patch("backend.interview.api.stop_recording", return_value={
+            "file_path": "/out/interview-session_123.webm",
+            "duration_sec": 60.0,
+        }), patch("backend.interview.api.transfer_egress_file") as mock_transfer:
+            mock_transfer.return_value = "user-1/session_123.webm"
+            status, body = handle_api_request(
+                store, "POST",
+                f"/api/sessions/{session.id}/recording/stop",
+                payload={}, user_id="user-1",
+            )
+        self.assertEqual(status, 200)
+        mock_transfer.assert_called_once_with(
+            "/out/interview-session_123.webm",
+            "user-1", session.id,
+        )
 
 
 if __name__ == "__main__":
