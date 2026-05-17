@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { App, Spin, Drawer, Divider, Tag, Typography } from "antd";
 import { VideoCameraOutlined } from "@ant-design/icons";
 
+import { startRecording as startEgressRecording } from "@/apiClient";
 import { requestAnswerHelp, type AnswerHelpResult } from "@/answerHelp";
 import { buildAvatarPrompt } from "@/interviewFlow";
 import { buildConversationCaptions, shouldAutoSpeakQuestion, type DigitalInterviewerState } from "@/digitalInterviewer";
@@ -134,6 +135,10 @@ export function InterviewPage() {
     // 第一次回答时启动录制
     if (!recorder.isRecording) {
       recorder.startRecording(video.analysisStreamRef.current, video.analysisCanvasRef.current);
+      // 异步启动 Egress 服务端录制（不阻塞面试流程）
+      startEgressRecording(session.id).catch(() => {
+        // Egress 不可用，客户端录制仍在进行
+      });
     }
   }
 
