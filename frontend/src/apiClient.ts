@@ -130,6 +130,7 @@ type ApiSession = {
   video_summary?: ApiVideoSummary;
   speech_summary?: ApiSpeechSummary;
   meeting_room?: string;
+  egress_id?: string | null;
   enable_video_observation?: boolean;
   video_path?: string | null;
   video_duration_sec?: number | null;
@@ -386,6 +387,30 @@ export async function requestLiveKitToken(
   );
 }
 
+export async function startRecording(
+  sessionId: string,
+  options: ClientOptions = {}
+): Promise<{ egressId: string }> {
+  return await request<{ egressId: string }>(
+    `/api/sessions/${sessionId}/recording/start`,
+    {},
+    200,
+    options
+  );
+}
+
+export async function stopRecording(
+  sessionId: string,
+  options: ClientOptions = {}
+): Promise<{ videoPath: string; videoDurationSec: number }> {
+  return await request<{ videoPath: string; videoDurationSec: number }>(
+    `/api/sessions/${sessionId}/recording/stop`,
+    {},
+    200,
+    options
+  );
+}
+
 export async function submitSpeechChunk(
   sessionId: string,
   payload: { audioBase64: string; targetSampleRate?: number },
@@ -635,6 +660,7 @@ function mapSession(session: ApiSession): InterviewSession {
     videoSummary: mapVideoSummary(session.video_summary),
     speechSummary: mapSpeechSummary(session.speech_summary),
     meetingRoom: session.meeting_room ?? "",
+    egressId: session.egress_id ?? null,
     enableVideoObservation: session.enable_video_observation ?? true,
     videoPath: session.video_path ?? null,
     videoDurationSec: session.video_duration_sec ?? null,

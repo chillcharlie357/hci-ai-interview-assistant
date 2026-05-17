@@ -136,6 +136,7 @@ export type InterviewSession = {
   videoSummary: VideoSummary;
   speechSummary?: SpeechSummary | null;
   meetingRoom: string;
+  egressId?: string | null;
   enableVideoObservation: boolean;
   videoPath?: string | null;
   videoDurationSec?: number | null;
