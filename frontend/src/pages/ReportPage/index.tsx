@@ -143,7 +143,7 @@ export function ReportPage() {
             </span>
             <span className="meta-divider">|</span>
             <span className="meta-item">
-              <CalendarOutlined /> {new Date().toLocaleDateString("zh-CN")}
+              <CalendarOutlined /> {session.createdAt ? new Date(session.createdAt).toLocaleDateString("zh-CN") : "日期未知"}
             </span>
           </div>
         </div>

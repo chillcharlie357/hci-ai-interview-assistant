@@ -11,7 +11,16 @@ from supabase import Client
 
 from backend.database.utils import is_valid_uuid
 from backend.interview.question_engine import InterviewQuestion
-from backend.interview.session import AnswerRecord, InterviewEvent, InterviewSession, KeyframeRecord, VideoEvent, VideoMetrics
+from backend.interview.session import (
+    AnswerRecord,
+    FollowupState,
+    FollowupTurn,
+    InterviewEvent,
+    InterviewSession,
+    KeyframeRecord,
+    VideoEvent,
+    VideoMetrics,
+)
 from backend.speech_analysis.aggregate import SpeechAggregateState
 
 
@@ -169,16 +178,25 @@ class SessionRepository:
             data['video_events'] = json.dumps(data['video_events'], ensure_ascii=False)
         if data.get('keyframes'):
             data['keyframes'] = json.dumps(data['keyframes'], ensure_ascii=False)
+        # followup_states 仅活在内存里：DB schema 未必有该列，丢弃以避免 upsert 报错；
+        # 历史/重启场景里恢复 session 时缺失即可，每题完成后 finished=True 不再触发追问。
+        data.pop('followup_states', None)
+        # 空字符串的 created_at 会让 PostgreSQL 报错，删除让数据库使用默认值
+        if not data.get('created_at'):
+            data.pop('created_at', None)
         return data
 
     def _dict_to_session(self, data: dict[str, Any]) -> InterviewSession:
-        """将数据库字典转换为 InterviewSession"""
-        for field in ['questions', 'answers', 'events', 'video_events', 'keyframes']:
+        """将数据库字典转换为 InterviewSession（兼容老记录缺失追问字段）"""
+        for field in ['questions', 'answers', 'events', 'video_events', 'keyframes', 'followup_states']:
             if isinstance(data.get(field), str):
-                data[field] = json.loads(data[field])
+                try:
+                    data[field] = json.loads(data[field])
+                except json.JSONDecodeError:
+                    data[field] = None
 
         questions = [InterviewQuestion(**q) for q in (data.get('questions') or [])]
-        answers = [AnswerRecord(**a) for a in (data.get('answers') or [])]
+        answers = [_answer_from_dict(a) for a in (data.get('answers') or [])]
         events = [InterviewEvent(**e) for e in (data.get('events') or [])]
         keyframes = [KeyframeRecord(**k) for k in (data.get('keyframes') or [])]
         video_events = [
@@ -191,6 +209,7 @@ class SessionRepository:
             )
             for ve in (data.get('video_events') or [])
         ]
+        followup_states = _followup_states_from_dict(data.get('followup_states'))
 
         return InterviewSession(**{
             'id': data['id'],
@@ -201,6 +220,7 @@ class SessionRepository:
             'answers': answers,
             'events': events,
             'user_id': data.get('user_id', ''),
+            'created_at': data.get('created_at', ''),
             'llm_status': data.get('llm_status', 'fallback'),
             'video_events': video_events if video_events else None,
             'keyframes': keyframes if keyframes else None,
@@ -209,4 +229,53 @@ class SessionRepository:
             'video_path': data.get('video_path'),
             'video_duration_sec': data.get('video_duration_sec'),
             'video_upload_failed': data.get('video_upload_failed', False),
+            'followup_states': followup_states,
         })
+
+
+def _answer_from_dict(raw: dict[str, Any]) -> AnswerRecord:
+    """兼容旧记录缺少 is_followup / followup_round / followup_prompt 字段。"""
+    return AnswerRecord(
+        question_id=raw.get('question_id', ''),
+        dimension=raw.get('dimension', ''),
+        prompt=raw.get('prompt', ''),
+        text=raw.get('text', ''),
+        duration_sec=int(raw.get('duration_sec', 0)),
+        word_count=int(raw.get('word_count', 0)),
+        filler_word_count=int(raw.get('filler_word_count', 0)),
+        recorded_at=raw.get('recorded_at', ''),
+        speech_rate_wpm=raw.get('speech_rate_wpm'),
+        audio_rms_db=raw.get('audio_rms_db'),
+        audio_f0_std_hz=raw.get('audio_f0_std_hz'),
+        audio_f0_std_semitones=raw.get('audio_f0_std_semitones'),
+        is_followup=bool(raw.get('is_followup', False)),
+        followup_round=int(raw.get('followup_round', 0)),
+        followup_prompt=str(raw.get('followup_prompt', '') or ''),
+    )
+
+
+def _followup_states_from_dict(raw: Any) -> dict[str, FollowupState] | None:
+    if not isinstance(raw, dict):
+        return {} if raw is None else None
+    states: dict[str, FollowupState] = {}
+    for question_id, value in raw.items():
+        if not isinstance(value, dict):
+            continue
+        turns_raw = value.get('turns') or []
+        turns = [
+            FollowupTurn(
+                role=str(t.get('role', '')),
+                text=str(t.get('text', '')),
+                timestamp=str(t.get('timestamp', '')),
+            )
+            for t in turns_raw
+            if isinstance(t, dict)
+        ]
+        states[str(question_id)] = FollowupState(
+            question_id=str(value.get('question_id', question_id)),
+            turns=turns,
+            asked_count=int(value.get('asked_count', 0)),
+            finished=bool(value.get('finished', False)),
+            pending_question=value.get('pending_question'),
+        )
+    return states

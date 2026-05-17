@@ -45,6 +45,10 @@ type ApiAnswer = {
   speech_rate_wpm?: number | null;
   audio_rms_db?: number | null;
   audio_f0_std_hz?: number | null;
+  audio_f0_std_semitones?: number | null;
+  is_followup?: boolean;
+  followup_round?: number;
+  followup_prompt?: string;
 };
 
 type ApiEvent = {
@@ -112,6 +116,7 @@ type ApiSpeechSummary = {
 type ApiSession = {
   id: string;
   user_id?: string;
+  created_at?: string;
   candidate_name: string;
   role: string;
   questions: ApiQuestion[];
@@ -129,10 +134,37 @@ type ApiSession = {
   video_path?: string | null;
   video_duration_sec?: number | null;
   video_upload_failed?: boolean;
+  current_followup?: string | null;
 };
 
 type ApiSessionWithReport = ApiSession & {
   report: string;
+  followup?: ApiFollowupResponse;
+};
+
+type ApiFollowupResponse = {
+  asked: boolean;
+  question: string;
+  round: number;
+};
+
+export type FollowupResponse = {
+  asked: boolean;
+  question: string;
+  round: number;
+};
+
+type ApiAnswerHelp = {
+  mode: "llm" | "fallback";
+  llm_status: "ok" | "fallback";
+  question_id: string;
+  question_prompt: string;
+  summary: string;
+  reference_answer: string;
+  outline: string[];
+  key_points: string[];
+  cautions: string[];
+  generated_at: string;
 };
 
 type ApiSessionSummary = {
@@ -271,7 +303,7 @@ export async function submitAnswer(
   sessionId: string,
   answer: { text: string; durationSec: number },
   options: ClientOptions = {}
-): Promise<{ session: InterviewSession; report: string }> {
+): Promise<{ session: InterviewSession; report: string; followup: FollowupResponse }> {
   const response = await request<ApiSessionWithReport>(
     `/api/sessions/${sessionId}/answers`,
     {
@@ -281,10 +313,33 @@ export async function submitAnswer(
     200,
     options
   );
+  const followup: FollowupResponse = response.followup
+    ? {
+        asked: Boolean(response.followup.asked),
+        question: response.followup.question ?? "",
+        round: response.followup.round ?? 0
+      }
+    : { asked: false, question: "", round: 0 };
   return {
     session: mapSession(response),
-    report: response.report
+    report: response.report,
+    followup
   };
+}
+
+export async function requestAnswerHelp(
+  sessionId: string,
+  payload: { draftText: string },
+  options: ClientOptions = {}
+): Promise<ApiAnswerHelp> {
+  return await request<ApiAnswerHelp>(
+    `/api/sessions/${sessionId}/help`,
+    {
+      draft_text: payload.draftText
+    },
+    200,
+    options
+  );
 }
 
 export async function submitVideoEvent(
@@ -566,6 +621,7 @@ function mapSession(session: ApiSession): InterviewSession {
   return {
     id: session.id,
     userId: session.user_id,
+    createdAt: session.created_at,
     candidateName: session.candidate_name,
     role: session.role,
     questions,
@@ -582,7 +638,8 @@ function mapSession(session: ApiSession): InterviewSession {
     enableVideoObservation: session.enable_video_observation ?? true,
     videoPath: session.video_path ?? null,
     videoDurationSec: session.video_duration_sec ?? null,
-    videoUploadFailed: session.video_upload_failed ?? false
+    videoUploadFailed: session.video_upload_failed ?? false,
+    currentFollowup: session.current_followup ?? null
   };
 }
 
@@ -633,7 +690,10 @@ function mapAnswer(answer: ApiAnswer): AnswerRecord {
     speechRateWpm: answer.speech_rate_wpm,
     audioRmsDb: answer.audio_rms_db,
     audioF0StdHz: answer.audio_f0_std_hz,
-    audioF0StdSemitones: answer.audio_f0_std_semitones
+    audioF0StdSemitones: answer.audio_f0_std_semitones,
+    isFollowup: answer.is_followup ?? false,
+    followupRound: answer.followup_round ?? 0,
+    followupPrompt: answer.followup_prompt ?? ""
   };
 }
 

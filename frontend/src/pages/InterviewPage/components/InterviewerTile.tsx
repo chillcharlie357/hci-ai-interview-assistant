@@ -3,6 +3,8 @@ import { memo } from "react";
 import type { DigitalInterviewerState } from "@/digitalInterviewer";
 import { describeDigitalInterviewerState } from "@/digitalInterviewer";
 
+import { AnimatedAvatar } from "./AnimatedAvatar";
+
 interface InterviewerTileProps {
   candidateName: string;
   currentStep: number;
@@ -22,7 +24,9 @@ export const InterviewerTile = memo(function InterviewerTile({
     <div className={`digital-interviewer-tile ${description.isAnimated ? "speaking" : ""}`}>
       <div className="digital-avatar">
         <div className="avatar-orbit" />
-        <div className="avatar-core">AI</div>
+        <div className="avatar-core">
+          <AnimatedAvatar state={state} />
+        </div>
       </div>
       <div className="digital-name-row">
         <strong>AI 面试官</strong>

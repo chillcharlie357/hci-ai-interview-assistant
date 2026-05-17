@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { App, Spin } from "antd";
+import { App, Spin, Drawer, Divider, Tag, Typography } from "antd";
 import { VideoCameraOutlined } from "@ant-design/icons";
 
+import { requestAnswerHelp, type AnswerHelpResult } from "@/answerHelp";
 import { buildAvatarPrompt } from "@/interviewFlow";
 import { buildConversationCaptions, shouldAutoSpeakQuestion, type DigitalInterviewerState } from "@/digitalInterviewer";
 
@@ -34,7 +35,7 @@ export function InterviewPage() {
   );
 
   const sessionHandle = useInterviewSession(sessionId, speech.chunkUploadFailCount);
-  const { session, loading, report, answerText, setAnswerText, answerStartedAt, startAnswer, finishAnswer, finishingAnswer, updateSession, appendAnswerText } = sessionHandle;
+  const { session, loading, report, answerText, setAnswerText, answerStartedAt, startAnswer, finishAnswer, finishingAnswer, updateSession, appendAnswerText, lastFollowup } = sessionHandle;
 
   const recorder = useVideoRecorder();
   const video = useVideoAnalysis(sessionId, session, updateSession, recorder.recordingStartTimeRef);
@@ -44,6 +45,11 @@ export function InterviewPage() {
   const lastAutoSpokenQuestionIdRef = useRef<string | null>(null);
   const danmakuScrollRef = useRef<HTMLDivElement | null>(null);
   const answerInputRef = useRef<import("antd/es/input/TextArea").TextAreaRef | null>(null);
+  const latestQuestionIdRef = useRef<string | null>(null);
+  const [helpLoading, setHelpLoading] = useState(false);
+  const [helpVisible, setHelpVisible] = useState(false);
+  const [helpResult, setHelpResult] = useState<AnswerHelpResult | null>(null);
+  const [helpError, setHelpError] = useState("");
 
   function setAnswerTextFromAsr(text: string) {
     appendAnswerText(text);
@@ -66,11 +72,13 @@ export function InterviewPage() {
       setInterviewerState("unsupported");
       return;
     }
-    if (shouldAutoSpeakQuestion(session.currentQuestion.id, lastAutoSpokenQuestionIdRef.current, true)) {
-      lastAutoSpokenQuestionIdRef.current = session.currentQuestion.id;
+    // 复合 key：主问 ID + 追问文本，让追问触发独立朗读
+    const speakKey = `${session.currentQuestion.id}::${session.currentFollowup ?? ""}`;
+    if (shouldAutoSpeakQuestion(speakKey, lastAutoSpokenQuestionIdRef.current, true)) {
+      lastAutoSpokenQuestionIdRef.current = speakKey;
       speakQuestion("auto");
     }
-  }, [session?.currentQuestion?.id, session?.answers?.length, session?.id, navigate]);
+  }, [session?.currentQuestion?.id, session?.currentFollowup, session?.answers?.length, session?.id, navigate]);
 
   // 问题切换后自动聚焦输入框
   useEffect(() => {
@@ -78,6 +86,13 @@ export function InterviewPage() {
       answerInputRef.current.focus();
     }
   }, [interviewerState]);
+
+  useEffect(() => {
+    latestQuestionIdRef.current = session?.currentQuestion?.id ?? null;
+    setHelpResult(null);
+    setHelpError("");
+    setHelpVisible(false);
+  }, [session?.currentQuestion?.id]);
 
   // 清理
   useEffect(() => {
@@ -134,6 +149,32 @@ export function InterviewPage() {
       }
     }
     await finishAnswer();
+  }
+
+  async function handleRequestHelp() {
+    if (!session?.currentQuestion || helpLoading) {
+      return;
+    }
+    const requestedQuestionId = session.currentQuestion.id;
+    setHelpLoading(true);
+    setHelpError("");
+    try {
+      const result = await requestAnswerHelp(session, answerText);
+      if (latestQuestionIdRef.current !== requestedQuestionId) {
+        return;
+      }
+      setHelpResult(result);
+      setHelpVisible(true);
+    } catch (error) {
+      if (latestQuestionIdRef.current !== requestedQuestionId) {
+        return;
+      }
+      const message = error instanceof Error ? error.message : "生成参考答案失败";
+      setHelpError(message);
+      setHelpVisible(true);
+    } finally {
+      setHelpLoading(false);
+    }
   }
 
   const captions = useMemo(() => (session ? buildConversationCaptions(session, answerText) : []), [session, answerText]);
@@ -201,8 +242,12 @@ export function InterviewPage() {
           interviewerState={interviewerState}
           onStartAnswer={handleStartCandidateAnswer}
           onFinishAnswer={handleFinishCandidateAnswer}
+          onRequestHelp={handleRequestHelp}
           finishingAnswer={finishingAnswer}
+          helpLoading={helpLoading}
           answerInputRef={answerInputRef}
+          currentFollowup={session.currentFollowup ?? null}
+          followupRound={lastFollowup?.asked ? lastFollowup.round : 0}
         />
       </section>
 
@@ -214,6 +259,67 @@ export function InterviewPage() {
         questionProgress={questionProgress}
         report={report}
       />
+
+      <Drawer
+        title="求助参考答案"
+        open={helpVisible}
+        onClose={() => setHelpVisible(false)}
+        width={560}
+        destroyOnClose={false}
+      >
+        {helpError ? (
+          <div className="help-drawer-empty">
+            <Typography.Paragraph type="danger">{helpError}</Typography.Paragraph>
+            <Typography.Paragraph type="secondary">当前请求失败，已保留本地降级逻辑。</Typography.Paragraph>
+          </div>
+        ) : helpResult ? (
+          <div className="help-drawer-content">
+            <Tag color={helpResult.mode === "llm" ? "green" : "orange"}>
+              {helpResult.mode === "llm" ? "后端生成" : "本地降级"}
+            </Tag>
+            <Typography.Title level={5}>{helpResult.questionPrompt}</Typography.Title>
+            <Typography.Paragraph type="secondary">{helpResult.summary}</Typography.Paragraph>
+
+            <Divider />
+
+            <section className="help-section">
+              <Typography.Title level={5}>参考答案</Typography.Title>
+              <Typography.Paragraph className="help-reference-answer">
+                {helpResult.referenceAnswer}
+              </Typography.Paragraph>
+            </section>
+
+            <section className="help-section">
+              <Typography.Title level={5}>回答提纲</Typography.Title>
+              <ol className="help-outline-list">
+                {helpResult.outline.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ol>
+            </section>
+
+            <section className="help-section">
+              <Typography.Title level={5}>关键点</Typography.Title>
+              <ul className="help-point-list">
+                {helpResult.keyPoints.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </section>
+
+            <section className="help-section">
+              <Typography.Title level={5}>注意事项</Typography.Title>
+              <ul className="help-point-list">
+                {helpResult.cautions.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </section>
+          </div>
+        ) : (
+          <Typography.Paragraph type="secondary">还没有生成参考答案。</Typography.Paragraph>
+        )}
+      </Drawer>
     </div>
   );
 }

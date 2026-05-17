@@ -150,13 +150,10 @@
   width: 72px;
   height: 72px;
   border-radius: 50%;
-  background: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 26px;
-  font-weight: 900;
-  color: #00629d;
+  overflow: hidden;
   position: relative;
 }
 
@@ -333,6 +330,21 @@
   display: flex;
   gap: var(--space-sm);
   justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.followup-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  padding: var(--space-xs) var(--space-sm);
+  margin-bottom: var(--space-xs);
+  border: 1px solid rgba(114, 46, 209, 0.16);
+  border-radius: var(--radius-md);
+  background: rgba(245, 240, 255, 0.78);
+  color: var(--color-text-primary);
+  font-size: 13px;
 }
 
 .interview-toolbar {
@@ -370,6 +382,46 @@
   gap: var(--space-sm);
   overflow-y: auto;
   min-width: 0;
+}
+
+.help-drawer-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.help-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.help-reference-answer {
+  white-space: pre-wrap;
+  color: #191c1e;
+  background: #f7f9fb;
+  border: 1px solid rgba(190, 199, 212, 0.3);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  margin-bottom: 0;
+}
+
+.help-outline-list,
+.help-point-list {
+  margin: 0;
+  padding-left: 20px;
+  color: #404854;
+}
+
+.help-outline-list li,
+.help-point-list li {
+  margin-bottom: 8px;
+}
+
+.help-drawer-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
 }
 
 .question-panel {
@@ -725,6 +777,22 @@
 @keyframes interview-voice-bounce {
   0%, 100% { height: 8px; }
   50% { height: 20px; }
+}
+
+@keyframes headSway {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-1.5deg); }
+  75% { transform: rotate(1.5deg); }
+}
+
+.animated-avatar-wrapper {
+  animation: headSway 4s ease-in-out infinite;
+  transform-origin: center center;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ===== 响应式 ===== */

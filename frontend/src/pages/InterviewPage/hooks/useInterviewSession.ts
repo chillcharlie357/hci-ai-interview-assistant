@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { App } from "antd";
 
-import { fetchReport, getSession, submitAnswer } from "@/apiClient";
+import { fetchReport, getSession, submitAnswer, type FollowupResponse } from "@/apiClient";
 import type { InterviewSession } from "@/interviewFlow";
 import { useAppStore } from "@/store";
 
@@ -18,6 +18,8 @@ export type InterviewSessionHandle = {
   finishingAnswer: boolean;
   updateSession: (updated: InterviewSession) => void;
   appendAnswerText: (text: string) => void;
+  /** 最近一次 finishAnswer 触发的追问描述，未追问时 asked=false */
+  lastFollowup: FollowupResponse | null;
 };
 
 export function useInterviewSession(
@@ -35,6 +37,7 @@ export function useInterviewSession(
   const [answerText, setAnswerText] = useState("");
   const [answerStartedAt, setAnswerStartedAt] = useState<number | null>(null);
   const [finishingAnswer, setFinishingAnswer] = useState(false);
+  const [lastFollowup, setLastFollowup] = useState<FollowupResponse | null>(null);
 
   const updateSession = useCallback((updated: InterviewSession) => {
     setSession((current) => (current && current.id === updated.id ? updated : current));
@@ -89,8 +92,10 @@ export function useInterviewSession(
       setSession(result.session);
       setAnswerText("");
       setAnswerStartedAt(null);
+      setLastFollowup(result.followup);
 
-      if (!result.session.currentQuestion) {
+      // 触发追问时不跳转，等候选人回答完追问后再判断
+      if (!result.followup.asked && !result.session.currentQuestion) {
         if (chunkUploadFailCount > 0) {
           message.warning(`有 ${chunkUploadFailCount} 个语音片段上传失败，报告中的语音分析可能不完整`);
         }
@@ -127,5 +132,6 @@ export function useInterviewSession(
     finishingAnswer,
     updateSession,
     appendAnswerText,
+    lastFollowup,
   };
 }

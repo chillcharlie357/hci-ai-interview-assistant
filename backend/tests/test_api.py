@@ -7,6 +7,8 @@ from unittest.mock import patch
 import wave
 
 from backend.interview.api import SessionStore, _handle_health, handle_api_request
+from backend.interview.followup_engine import FollowupDecision
+from backend.interview.answer_help import AnswerHelpResult
 from backend.interview.llm_client import LlmResult
 
 
@@ -152,6 +154,31 @@ class ApiTest(unittest.TestCase):
         self.assertNotIn("录用", updated["report"])
         self.assertNotIn("不录用", updated["report"])
 
+    def test_answer_help_falls_back_when_llm_is_not_configured(self):
+        created = self.request(
+            "POST",
+            "/api/sessions",
+            {
+                "candidate_name": "张三",
+                "resume": "候选人负责 AI 面试平台。",
+                "job_description": "岗位是 AI 产品全栈工程师。",
+                "interview_goal": "评估项目经验。",
+            },
+            expected_status=201,
+        )
+
+        response = self.request(
+            "POST",
+            f"/api/sessions/{created['id']}/help",
+            {"draft_text": "我先讲项目背景。"},
+        )
+
+        self.assertEqual(response["mode"], "fallback")
+        self.assertEqual(response["llm_status"], "fallback")
+        self.assertEqual(response["question_id"], "q_001")
+        self.assertGreater(len(response["reference_answer"]), 0)
+        self.assertIn("answer_help_requested", [event.type for event in self.store.sessions[created["id"]].events])
+
     @patch("backend.interview.api.LlmClient.from_env")
     def test_answer_report_can_be_enhanced_by_openai_compatible_llm(self, from_env_mock):
         class FakeLlmClient:
@@ -184,6 +211,42 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(updated["llm_status"], "ok")
         self.assertIn("report_markdown", fake_client.system_prompt)
         self.assertIn("我负责问题生成", fake_client.user_prompt)
+
+    @patch("backend.interview.api.generate_answer_help")
+    def test_answer_help_route_returns_llm_response(self, help_mock):
+        help_mock.return_value = AnswerHelpResult(
+            llm_status="ok",
+            summary="可以按背景、方法、结果回答。",
+            reference_answer="参考答案",
+            outline=["背景", "方法", "结果"],
+            key_points=["背景", "职责"],
+            cautions=["不要照抄"],
+            generated_at="2026-05-16T00:00:00Z",
+        )
+        created = self.request(
+            "POST",
+            "/api/sessions",
+            {
+                "candidate_name": "张三",
+                "resume": "候选人负责 AI 面试平台。",
+                "job_description": "岗位是 AI 产品全栈工程师。",
+                "interview_goal": "评估项目经验。",
+            },
+            expected_status=201,
+        )
+
+        response = self.request(
+            "POST",
+            f"/api/sessions/{created['id']}/help",
+            {"draft_text": "我先讲项目背景。"},
+        )
+
+        self.assertEqual(response["mode"], "llm")
+        self.assertEqual(response["llm_status"], "ok")
+        self.assertEqual(response["reference_answer"], "参考答案")
+        self.assertEqual(response["outline"], ["背景", "方法", "结果"])
+        self.assertEqual(response["generated_at"], "2026-05-16T00:00:00Z")
+        help_mock.assert_called_once()
 
     @patch("backend.interview.api.analyze_answer_text")
     def test_answer_metrics_use_llm_analysis_before_rule_fallback(self, analyze_mock):
@@ -533,6 +596,130 @@ class ApiTest(unittest.TestCase):
             handle.writeframes(bytes(data))
 
         return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+class FollowupApiTest(unittest.TestCase):
+    """API 层追问行为：/answers 响应 + session 序列化 + 推进控制。"""
+
+    def setUp(self):
+        self.env_patcher = patch.dict(
+            "os.environ",
+            {"OPENAI_API_KEY": "", "OPENAI_MODEL": "", "OPENAI_BASE_URL": ""},
+        )
+        self.env_patcher.start()
+        self.addCleanup(self.env_patcher.stop)
+        self.store = SessionStore()
+
+    def _create_session(self) -> dict:
+        return self.request(
+            "POST",
+            "/api/sessions",
+            {
+                "candidate_name": "张三",
+                "resume": "候选人负责 AI 面试平台。",
+                "job_description": "岗位是 AI 产品全栈工程师。",
+                "interview_goal": "评估项目经验。",
+            },
+            expected_status=201,
+        )
+
+    def request(self, method, path, payload=None, expected_status=200):
+        status, body = handle_api_request(self.store, method, path, payload or {})
+        self.assertEqual(status, expected_status, json.dumps(body, ensure_ascii=False))
+        return body
+
+    @patch("backend.interview.api.decide_followup")
+    def test_answer_response_exposes_followup_when_llm_decides_to_ask(self, decide_mock):
+        decide_mock.return_value = FollowupDecision(
+            finished=False,
+            followup_question="你具体负责哪一块？",
+            reason="needs detail",
+            llm_status="ok",
+        )
+        created = self._create_session()
+        first_qid = created["current_question"]["id"]
+
+        updated = self.request(
+            "POST",
+            f"/api/sessions/{created['id']}/answers",
+            {"text": "我做过一个面试平台。", "duration_sec": 20},
+        )
+
+        # current_question 不变
+        self.assertEqual(updated["current_question"]["id"], first_qid)
+        # followup 字段
+        self.assertTrue(updated["followup"]["asked"])
+        self.assertEqual(updated["followup"]["question"], "你具体负责哪一块？")
+        self.assertEqual(updated["followup"]["round"], 1)
+        # session 序列化也带 current_followup
+        self.assertEqual(updated["current_followup"], "你具体负责哪一块？")
+        decide_mock.assert_called_once()
+
+    @patch("backend.interview.api.decide_followup")
+    def test_followup_finished_advances_to_next_question(self, decide_mock):
+        decide_mock.return_value = FollowupDecision(finished=True, llm_status="ok")
+        created = self._create_session()
+        first_qid = created["current_question"]["id"]
+
+        updated = self.request(
+            "POST",
+            f"/api/sessions/{created['id']}/answers",
+            {"text": "我负责问题生成模块和报告。", "duration_sec": 35},
+        )
+
+        self.assertNotEqual(updated["current_question"]["id"], first_qid)
+        self.assertFalse(updated["followup"]["asked"])
+        self.assertEqual(updated["followup"]["question"], "")
+        self.assertIsNone(updated["current_followup"])
+
+    @patch("backend.interview.api.decide_followup")
+    def test_followup_records_independent_answer_record(self, decide_mock):
+        # 第一次：触发追问；第二次：结束追问
+        decide_mock.side_effect = [
+            FollowupDecision(finished=False, followup_question="再具体说说？", llm_status="ok"),
+            FollowupDecision(finished=True, llm_status="ok"),
+        ]
+        created = self._create_session()
+        sid = created["id"]
+        first_qid = created["current_question"]["id"]
+
+        # 主问题首答 -> 触发追问
+        after_main = self.request(
+            "POST",
+            f"/api/sessions/{sid}/answers",
+            {"text": "做过一个面试平台。", "duration_sec": 15},
+        )
+        self.assertEqual(len(after_main["answers"]), 1)
+        self.assertEqual(after_main["current_question"]["id"], first_qid)
+
+        # 追问回答 -> 推进
+        after_followup = self.request(
+            "POST",
+            f"/api/sessions/{sid}/answers",
+            {"text": "主要负责问题生成模块。", "duration_sec": 18},
+        )
+        self.assertEqual(len(after_followup["answers"]), 2)
+        followup_record = after_followup["answers"][1]
+        self.assertTrue(followup_record["is_followup"])
+        self.assertEqual(followup_record["followup_round"], 1)
+        self.assertEqual(followup_record["followup_prompt"], "再具体说说？")
+        self.assertNotEqual(after_followup["current_question"]["id"], first_qid)
+
+    @patch("backend.interview.api.decide_followup")
+    def test_followup_decision_exception_falls_back_to_advance(self, decide_mock):
+        decide_mock.side_effect = RuntimeError("boom")
+        created = self._create_session()
+        first_qid = created["current_question"]["id"]
+
+        updated = self.request(
+            "POST",
+            f"/api/sessions/{created['id']}/answers",
+            {"text": "我负责问题生成。", "duration_sec": 30},
+        )
+
+        # decide_followup 抛异常时按 finished 处理，正常推进，主流程不卡死
+        self.assertNotEqual(updated["current_question"]["id"], first_qid)
+        self.assertFalse(updated["followup"]["asked"])
 
 
 if __name__ == "__main__":

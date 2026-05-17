@@ -39,6 +39,9 @@ export function SideNavBar() {
   const setCollapsed = useAppStore((state) => state.setSidebarCollapsed);
   const sessionId = interviewSession?.id ?? null;
 
+  // 没有活跃面试时隐藏"面试间"导航项
+  const visibleNavItems = navItems.filter((item) => item.key !== "interview" || sessionId);
+
   // 根据路由自动更新激活项
   const getActiveKey = (pathname: string) => {
     if (pathname.startsWith("/interview")) return "interview";
@@ -92,7 +95,7 @@ export function SideNavBar() {
 
       {/* 导航菜单 */}
       <nav className="side-nav-bar-menu">
-        {navItems.map((item) => (
+        {visibleNavItems.map((item) => (
           <button
             key={item.key}
             className={`side-nav-bar-menu-item ${activeKey === item.key ? "active" : ""}`}
