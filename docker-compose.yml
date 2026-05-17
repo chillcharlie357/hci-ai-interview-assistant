@@ -39,6 +39,33 @@ services:
         max-file: "3"
     restart: unless-stopped
 
+  livekit:
+    image: livekit/livekit-server:v1.8
+    command: --config /etc/livekit.yaml
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      - "${LIVEKIT_PORT:-7880}:7880"
+      - "7882:7882"
+      - "7882:7882/udp"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7880 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  egress:
+    image: livekit/egress:v1.8
+    command: --config /etc/egress.yaml
+    volumes:
+      - ./egress.yaml:/etc/egress.yaml:ro
+      - egress-output:/out
+    depends_on:
+      livekit:
+        condition: service_healthy
+    restart: unless-stopped
+
   frontend:
     build:
       context: .
@@ -62,3 +89,6 @@ services:
         max-size: "10m"
         max-file: "3"
     restart: unless-stopped
+
+volumes:
+  egress-output:

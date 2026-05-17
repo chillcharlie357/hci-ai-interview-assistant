@@ -1,0 +1,6 @@
+# egress.yaml — Egress 录制服务配置
+api_key: devkey
+api_secret: devsecret
+livekit_url: ws://livekit:7880
+# 录制文件输出到本地卷
+file_output_path: /out
