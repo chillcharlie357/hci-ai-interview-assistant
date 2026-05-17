@@ -893,6 +893,10 @@ def _handle_health(store: SessionStore) -> tuple[int, dict[str, Any]]:
                 "url": bool(os.environ.get("LIVEKIT_URL")),
                 "accepted": all(os.environ.get(k) for k in ("LIVEKIT_API_KEY", "LIVEKIT_API_SECRET")),
             },
+            "egress": {
+                "configured": bool(os.environ.get("LIVEKIT_URL")),
+                "description": "服务端视频录制（需要 LiveKit + Egress）",
+            },
             "mineru": {
                 "api_token_configured": bool(os.environ.get("MINERU_API_TOKEN")),
                 "mode": "precision_api" if os.environ.get("MINERU_API_TOKEN") else ("agent_api" if not os.environ.get("MINERU_COMMAND") else "cli_deprecated"),
