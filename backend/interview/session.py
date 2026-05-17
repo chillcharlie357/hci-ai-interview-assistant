@@ -117,6 +117,7 @@ class InterviewSession:
     video_duration_sec: float | None = None
     video_upload_failed: bool = False
     followup_states: dict[str, FollowupState] | None = None
+    egress_id: str | None = None  # LiveKit Egress 录制 ID
 
     @property
     def current_question(self) -> InterviewQuestion | None:
