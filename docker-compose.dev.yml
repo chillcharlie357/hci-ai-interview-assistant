@@ -10,6 +10,7 @@ services:
     environment:
       DEBUG: "true"
       LIVEKIT_URL: ws://livekit:7880
+      LIVEKIT_PUBLIC_URL: ws://127.0.0.1:${LIVEKIT_PORT:-7880}
       LIVEKIT_API_KEY: devkey
       LIVEKIT_API_SECRET: devsecret
 

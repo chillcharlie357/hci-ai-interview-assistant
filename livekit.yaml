@@ -7,3 +7,6 @@ rtc:
   node_ip: 127.0.0.1
 keys:
   devkey: devsecret
+# Redis 消息总线（psrpc 依赖，Egress 服务发现）
+redis:
+  address: redis:6379

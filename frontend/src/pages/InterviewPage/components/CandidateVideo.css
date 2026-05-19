@@ -1,0 +1,45 @@
+.candidate-video-tile {
+  aspect-ratio: 4 / 3;
+  background: var(--color-bg-container, #141414);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.candidate-livekit-room {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.candidate-video-grid {
+  flex: 1;
+  min-height: 0;
+}
+
+.video-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--color-text-tertiary, #666);
+  padding: 24px;
+  text-align: center;
+}
+
+.video-placeholder .anticon {
+  font-size: 48px;
+  opacity: 0.6;
+}
+
+.video-error {
+  color: var(--color-error, #ff4d4f);
+}
+
+.video-error .anticon {
+  font-size: 48px;
+}

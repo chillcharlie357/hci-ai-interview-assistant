@@ -4,3 +4,6 @@ api_secret: devsecret
 livekit_url: ws://livekit:7880
 # 录制文件输出到本地卷
 file_output_path: /out
+# Redis 消息总线（psrpc 依赖）
+redis:
+  address: redis:6379

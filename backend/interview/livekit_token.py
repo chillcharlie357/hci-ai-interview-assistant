@@ -21,6 +21,7 @@ def _get_livekit_config() -> tuple[str, str, str]:
 
 def create_livekit_token(room: str, participant_name: str, participant_role: str) -> dict[str, str]:
     url, api_key, api_secret = _get_livekit_config()
+    public_url = get_env("LIVEKIT_PUBLIC_URL") or url
 
     token = (
         AccessToken(api_key, api_secret)
@@ -37,4 +38,4 @@ def create_livekit_token(room: str, participant_name: str, participant_role: str
             )
         )
     )
-    return {"url": url, "token": token.to_jwt(), "room": room}
+    return {"url": public_url, "token": token.to_jwt(), "room": room}
