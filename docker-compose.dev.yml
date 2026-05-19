@@ -9,10 +9,6 @@ services:
     command: ["uv", "run", "watchfiles", "--filter", "python", "python -m backend.interview.api --host 0.0.0.0 --port 8000"]
     environment:
       DEBUG: "true"
-      LIVEKIT_URL: ws://livekit:7880
-      LIVEKIT_PUBLIC_URL: ws://127.0.0.1:${LIVEKIT_PORT:-7880}
-      LIVEKIT_API_KEY: devkey
-      LIVEKIT_API_SECRET: devsecret
 
   frontend:
     build:
