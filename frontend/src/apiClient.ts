@@ -295,14 +295,15 @@ export async function createInterviewSessionFromPrep(
 
 export async function submitAnswer(
   sessionId: string,
-  answer: { text: string; durationSec: number },
+  answer: { text: string; durationSec: number; videoTimestampSec?: number },
   options: ClientOptions = {}
 ): Promise<{ session: InterviewSession; report: string; followup: FollowupResponse }> {
   const response = await request<ApiSessionWithReport>(
     `/api/sessions/${sessionId}/answers`,
     {
       text: answer.text,
-      duration_sec: answer.durationSec
+      duration_sec: answer.durationSec,
+      video_timestamp_sec: answer.videoTimestampSec,
     },
     200,
     options

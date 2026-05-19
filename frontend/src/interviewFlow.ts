@@ -55,6 +55,7 @@ export type AnswerRecord = {
   isFollowup?: boolean;
   followupRound?: number;
   followupPrompt?: string;
+  videoTimestampSec?: number | null;
 };
 
 export type InterviewEvent = {

@@ -137,6 +137,13 @@ export function InterviewPage() {
 
   async function handleFinishCandidateAnswer() {
     await speech.stopMediaStream();
+
+    // 计算当前答案的视频时间戳偏移（必须在 stopAndUpload 之前计算）
+    const videoTimestampSec = recorder.accumulatedDurationRef.current
+      + (recorder.recordingStartTimeRef.current
+        ? (performance.now() - recorder.recordingStartTimeRef.current) / 1000
+        : 0);
+
     const isLastQuestion = session?.currentQuestion && session.currentIndex >= session.questions.length - 1;
     // 最后一题：先完成录制上传，再提交答案（避免上传未完成即跳转报告页）
     if (isLastQuestion && sessionId && recorder.isRecording) {
@@ -146,7 +153,7 @@ export function InterviewPage() {
         // 上传失败已在 recorder.uploadError 中处理
       }
     }
-    await finishAnswer();
+    await finishAnswer({ videoTimestampSec });
   }
 
   async function handleRequestHelp() {
