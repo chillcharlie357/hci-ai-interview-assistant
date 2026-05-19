@@ -903,6 +903,20 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
 
         def do_POST(self) -> None:
             try:
+                # 视频上传使用 raw binary body，不能走 JSON 解析
+                if self._is_video_upload_route():
+                    if self._is_public_auth_route():
+                        auth = None
+                    else:
+                        auth = self._authenticate()
+                        if auth is None and auth_middleware.require_auth:
+                            self._send_json({"error": "authentication_required"}, HTTPStatus.UNAUTHORIZED)
+                            return
+                    user_id = auth.user_id if auth else ""
+                    status, body = self._handle_video_upload_raw(user_id)
+                    self._send_json(body, HTTPStatus(status))
+                    return
+
                 if self._is_public_auth_route():
                     auth = None
                 else:
