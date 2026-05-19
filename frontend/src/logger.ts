@@ -27,7 +27,7 @@ const LOG_LEVELS: Record<LogLevel, number> = {
 function getConfiguredLevel(): LogLevel {
   const env =
     typeof import.meta !== "undefined" &&
-    (import.meta as Record<string, unknown>).env
+    (import.meta as unknown as Record<string, unknown>).env
       ? (
           import.meta.env as Record<string, string | undefined>
         ).VITE_LOG_LEVEL
