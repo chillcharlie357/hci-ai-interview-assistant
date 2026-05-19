@@ -40,14 +40,14 @@ services:
     restart: unless-stopped
 
   livekit:
-    image: livekit/livekit-server:v1.8
+    image: livekit/livekit-server:v1.9
     command: --config /etc/livekit.yaml
     volumes:
       - ./livekit.yaml:/etc/livekit.yaml:ro
     ports:
       - "${LIVEKIT_PORT:-7880}:7880"
-      - "7882:7882"
-      - "7882:7882/udp"
+      - "7882-7888:7882-7888"
+      - "7882-7888:7882-7888/udp"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:7880 || exit 1"]
@@ -55,13 +55,25 @@ services:
       timeout: 5s
       retries: 3
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
   egress:
-    image: livekit/egress:v1.8
-    command: --config /etc/egress.yaml
+    image: livekit/egress:v1.9
+    environment:
+      EGRESS_CONFIG_FILE: /etc/egress.yaml
     volumes:
       - ./egress.yaml:/etc/egress.yaml:ro
       - egress-output:/out
     depends_on:
+      redis:
+        condition: service_healthy
       livekit:
         condition: service_healthy
     restart: unless-stopped
