@@ -7,9 +7,10 @@ import type { KeyframeRecord } from "@/interviewFlow";
 interface KeyframesGalleryProps {
   keyframes: KeyframeRecord[];
   sessionId: string;
+  hasVideo: boolean;
 }
 
-export const KeyframesGallery = memo(function KeyframesGallery({ keyframes, sessionId }: KeyframesGalleryProps) {
+export const KeyframesGallery = memo(function KeyframesGallery({ keyframes, sessionId, hasVideo }: KeyframesGalleryProps) {
   const hasRealKeyframes = keyframes && keyframes.length > 0;
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -51,7 +52,7 @@ export const KeyframesGallery = memo(function KeyframesGallery({ keyframes, sess
       <h3>面试关键时刻</h3>
 
       {/* 视频播放器 */}
-      {!videoUrl && !videoLoading && hasRealKeyframes && (
+      {!videoUrl && !videoLoading && hasVideo && (
         <div className="video-player-placeholder" onClick={() => loadVideo()} style={{ cursor: "pointer" }}>
           <PlayCircleOutlined style={{ fontSize: 32, color: "var(--color-text-tertiary)" }} />
           <span style={{ marginLeft: 8, color: "var(--color-text-secondary)" }}>点击加载面试视频回放</span>
@@ -87,7 +88,7 @@ export const KeyframesGallery = memo(function KeyframesGallery({ keyframes, sess
                 color: "var(--color-text-tertiary)",
                 fontSize: "24px",
               }}>
-                {kf.dataUrl && kf.videoTimestampSec == null ? (
+                {kf.dataUrl ? (
                   <img src={kf.dataUrl} alt={kf.reason} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 ) : kf.videoTimestampSec != null ? (
                   <PlayCircleOutlined />
