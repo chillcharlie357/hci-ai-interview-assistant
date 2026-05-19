@@ -537,3 +537,29 @@
 .video-playback-placeholder:hover {
   background: var(--color-bg-elevated);
 }
+
+/* PDF 导出分页优化 */
+@media print {
+  .report-page {
+    max-width: 100%;
+    padding: 0;
+  }
+
+  .report-body > * {
+    page-break-inside: avoid;
+  }
+
+  .rating-card,
+  .skills-card,
+  .video-playback-card,
+  .keyframes-card,
+  .qa-card,
+  .full-report-card {
+    break-inside: avoid;
+  }
+
+  .video-playback-placeholder,
+  .download-btn {
+    display: none;
+  }
+}
