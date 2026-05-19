@@ -11,7 +11,7 @@ import {
   useLocalParticipant,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
-import { Track } from "livekit-client";
+import { Track, type TrackPublication } from "livekit-client";
 import "./CandidateVideo.css";
 
 interface CandidateVideoProps {
@@ -58,12 +58,31 @@ function CandidateLiveKitConference({
 }) {
   const [connectionError, setConnectionError] = useState<string>("");
   const connectionState = useConnectionState();
-  const { isMicrophoneEnabled } = useLocalParticipant();
-  const isMicMuted = !isMicrophoneEnabled;
+  const { localParticipant } = useLocalParticipant();
 
+  // 监听 LiveKit 麦克风 track 的静音/取消静音事件
   useEffect(() => {
-    onMicrophoneMutedChange?.(isMicMuted);
-  }, [isMicMuted, onMicrophoneMutedChange]);
+    if (!localParticipant) return;
+
+    const handleTrackMuted = (pub: TrackPublication) => {
+      if (pub.source === Track.Source.Microphone) {
+        onMicrophoneMutedChange?.(true);
+      }
+    };
+    const handleTrackUnmuted = (pub: TrackPublication) => {
+      if (pub.source === Track.Source.Microphone) {
+        onMicrophoneMutedChange?.(false);
+      }
+    };
+
+    localParticipant.on("trackMuted", handleTrackMuted);
+    localParticipant.on("trackUnmuted", handleTrackUnmuted);
+
+    return () => {
+      localParticipant.off("trackMuted", handleTrackMuted);
+      localParticipant.off("trackUnmuted", handleTrackUnmuted);
+    };
+  }, [localParticipant, onMicrophoneMutedChange]);
 
   useEffect(() => {
     if (connectionState === "disconnected") {
@@ -73,7 +92,6 @@ function CandidateLiveKitConference({
     }
   }, [connectionState]);
 
-  // 关闭 withPlaceholder 以避免 track 断开时 GridLayout 内部状态不同步崩溃
   const cameraTracks = useTracks(
     [{ source: Track.Source.Camera, withPlaceholder: false }],
     { onlySubscribed: false },
