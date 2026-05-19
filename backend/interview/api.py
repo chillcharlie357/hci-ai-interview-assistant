@@ -989,45 +989,17 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
                 return HTTPStatus.UNAUTHORIZED, {"error": "authentication_required"}
 
             session_id = self._extract_session_id()
-            session = store.get(session_id, user_id)
-            if session is None:
-                return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
-
             content_length = int(self.headers.get("Content-Length", "0"))
-            if content_length == 0:
-                return HTTPStatus.BAD_REQUEST, {"error": "empty_body"}
-            if content_length > MAX_VIDEO_SIZE:
-                return HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "video_too_large", "message": f"视频文件超过 {MAX_VIDEO_SIZE // (1024 * 1024)}MB 上限"}
 
             try:
                 video_bytes = self.rfile.read(content_length)
             except Exception as error:
                 return HTTPStatus.BAD_REQUEST, {"error": "read_failed", "message": str(error)}
 
-            try:
-                video_path = storage_upload_video(user_id, session_id, video_bytes)
-            except Exception as error:
-                _dbg(f"[video_upload] Storage upload failed: {error}", flush=True)
-                updated = replace(session, video_upload_failed=True)
-                store.sessions[session_id] = updated
-                if store.repo:
-                    store.repo.save_session(updated, user_id)
-                return HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "storage_upload_failed", "message": str(error)}
-
-            # 优先使用前端上报的真实录制时长，fallback 为码率估算
-            query_params = parse_qs(urlparse(self.path).query)
-            client_duration = query_params.get("duration_sec", [None])[0]
-            duration_sec = float(client_duration) if client_duration else None
-            if duration_sec is None:
-                estimated_duration = content_length / (200_000 / 8) if content_length > 0 else 0
-                duration_sec = round(estimated_duration, 1)
-
-            updated = replace(session, video_path=video_path, video_duration_sec=duration_sec, video_upload_failed=False)
-            store.sessions[session_id] = updated
-            if store.repo:
-                store.repo.save_session(updated, user_id)
-
-            return HTTPStatus.OK, {"video_path": video_path, "video_duration_sec": updated.video_duration_sec}
+            query_string = urlparse(self.path).query
+            return _handle_video_upload_bytes(
+                store, session_id, user_id, content_length, video_bytes, query_string,
+            )
 
         def _authenticate(self) -> AuthContext | None:
             """从请求头中提取并验证认证信息"""
@@ -1160,6 +1132,49 @@ def _decode_audio_base64(value: str) -> bytes:
 
 
 MAX_VIDEO_SIZE = 200 * 1024 * 1024  # 200MB
+
+
+def _handle_video_upload_bytes(
+    store: SessionStore,
+    session_id: str,
+    user_id: str,
+    content_length: int,
+    video_bytes: bytes,
+    query_string: str = "",
+) -> tuple[int, dict[str, Any]]:
+    """处理 raw binary 视频上传（独立函数，方便测试）"""
+    session = store.get(session_id, user_id)
+    if session is None:
+        return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
+
+    if content_length == 0:
+        return HTTPStatus.BAD_REQUEST, {"error": "empty_body"}
+    if content_length > MAX_VIDEO_SIZE:
+        return HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "video_too_large", "message": f"视频文件超过 {MAX_VIDEO_SIZE // (1024 * 1024)}MB 上限"}
+
+    try:
+        video_path = storage_upload_video(user_id, session_id, video_bytes)
+    except Exception as error:
+        log.warning("[video_upload] Storage upload failed: %s", error)
+        updated = replace(session, video_upload_failed=True)
+        store.sessions[session_id] = updated
+        if store.repo:
+            store.repo.save_session(updated, user_id)
+        return HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "storage_upload_failed", "message": str(error)}
+
+    # 优先使用前端上报的真实录制时长，fallback 为码率估算
+    client_duration = parse_qs(query_string).get("duration_sec", [None])[0]
+    duration_sec = float(client_duration) if client_duration else None
+    if duration_sec is None:
+        estimated_duration = content_length / (200_000 / 8) if content_length > 0 else 0
+        duration_sec = round(estimated_duration, 1)
+
+    updated = replace(session, video_path=video_path, video_duration_sec=duration_sec, video_upload_failed=False)
+    store.sessions[session_id] = updated
+    if store.repo:
+        store.repo.save_session(updated, user_id)
+
+    return HTTPStatus.OK, {"video_path": video_path, "video_duration_sec": updated.video_duration_sec}
 
 
 def _handle_video_download(store: SessionStore, session_id: str, user_id: str) -> tuple[int, dict[str, Any]]:
