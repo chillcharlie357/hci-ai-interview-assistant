@@ -28,11 +28,13 @@ export function InterviewPage() {
   const { message } = App.useApp();
 
   const [interimTranscriptDisplay, setInterimTranscriptDisplay] = useState("");
+  const [liveKitMicMuted, setLiveKitMicMuted] = useState(false);
 
   const speech = useSpeechRecognition(
     sessionId,
     (interim) => setInterimTranscriptDisplay(interim),
-    (finalText) => setAnswerTextFromAsr(finalText)
+    (finalText) => setAnswerTextFromAsr(finalText),
+    liveKitMicMuted
   );
 
   const sessionHandle = useInterviewSession(sessionId, speech.chunkUploadFailCount);
@@ -232,7 +234,7 @@ export function InterviewPage() {
             totalSteps={session.questions.length}
             state={interviewerState}
           />
-          <CandidateVideo liveKit={liveKit.liveKit} meetingError={liveKit.meetingError} />
+          <CandidateVideo liveKit={liveKit.liveKit} meetingError={liveKit.meetingError} onMicrophoneMutedChange={setLiveKitMicMuted} />
         </div>
 
         <CaptionBar captions={captions} scrollRef={danmakuScrollRef} />
