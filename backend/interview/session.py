@@ -111,13 +111,11 @@ class InterviewSession:
     llm_status: str = "fallback"
     video_events: list[VideoEvent] | None = None
     keyframes: list[KeyframeRecord] | None = None
-    meeting_room: str = ""
     enable_video_observation: bool = True
     video_path: str | None = None
     video_duration_sec: float | None = None
     video_upload_failed: bool = False
     followup_states: dict[str, FollowupState] | None = None
-    egress_id: str | None = None  # LiveKit Egress 录制 ID
 
     @property
     def current_question(self) -> InterviewQuestion | None:
@@ -157,7 +155,6 @@ def create_interview_session(
         llm_status="fallback",
         video_events=[],
         keyframes=[],
-        meeting_room=f"interview-{session_id}",
         enable_video_observation=enable_video_observation,
         followup_states={},
         events=[
