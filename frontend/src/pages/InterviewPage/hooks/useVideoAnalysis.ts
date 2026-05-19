@@ -32,7 +32,8 @@ export function useVideoAnalysis(
   sessionId: string | undefined,
   session: InterviewSession | null,
   onSessionUpdate: (updated: InterviewSession) => void,
-  recordingStartTimeRef: React.RefObject<number | null>
+  recordingStartTimeRef: React.RefObject<number | null>,
+  accumulatedDurationRef: React.RefObject<number>
 ): VideoAnalysisHandle {
   const analysisVideoRef = useRef<HTMLVideoElement | null>(null);
   const analysisCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -138,7 +139,9 @@ export function useVideoAnalysis(
         const keyframe = event.shouldCaptureKeyframe
           ? {
               reason: event.keyframeReason ?? event.eventType,
-              videoTimestampSec: recordingStartTimeRef.current ? (timestampMs - recordingStartTimeRef.current) / 1000 : null,
+              videoTimestampSec: recordingStartTimeRef.current
+                ? (accumulatedDurationRef.current + (timestampMs - recordingStartTimeRef.current) / 1000)
+                : null,
             }
           : undefined;
         void submitVideoEvent(session.id, {
