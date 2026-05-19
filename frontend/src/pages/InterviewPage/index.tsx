@@ -133,9 +133,11 @@ export function InterviewPage() {
     if (!recorder.isRecording && session?.id) {
       await recorder.startRecording(session.id, video.analysisStreamRef.current, video.analysisCanvasRef.current);
     }
+    video.captureKeyframe("answer_start");
   }
 
   async function handleFinishCandidateAnswer() {
+    video.captureKeyframe("answer_end");
     await speech.stopMediaStream();
 
     // 计算当前答案的视频时间戳偏移（必须在 stopAndUpload 之前计算）
