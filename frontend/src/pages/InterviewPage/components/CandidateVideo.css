@@ -8,16 +8,10 @@
   justify-content: center;
 }
 
-.candidate-livekit-room {
+.candidate-self-view {
   width: 100%;
   height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.candidate-video-grid {
-  flex: 1;
-  min-height: 0;
+  object-fit: cover;
 }
 
 .video-placeholder {
@@ -34,12 +28,4 @@
 .video-placeholder .anticon {
   font-size: 48px;
   opacity: 0.6;
-}
-
-.video-error {
-  color: var(--color-error, #ff4d4f);
-}
-
-.video-error .anticon {
-  font-size: 48px;
 }
