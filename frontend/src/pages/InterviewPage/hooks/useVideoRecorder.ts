@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 
+import { createLogger } from "@/logger";
 import { uploadInterviewVideo } from "@/apiClient";
 import {
   saveChunk,
@@ -7,6 +8,8 @@ import {
   updateAccumulatedDuration,
   mergeAndClear,
 } from "./videoStorage";
+
+const log = createLogger("videoRecorder");
 
 export type VideoRecorderHandle = {
   startRecording: (
@@ -37,22 +40,36 @@ export function useVideoRecorder(): VideoRecorderHandle {
       cameraStream: MediaStream | null,
       canvas: HTMLCanvasElement | null
     ) => {
-      if (mediaRecorderRef.current?.state === "recording") return;
+      if (mediaRecorderRef.current?.state === "recording") {
+        log.debug("startRecording: already recording, skipping");
+        return;
+      }
+
+      log.info("startRecording session=%s camera=%s canvas=%s",
+        sessionId,
+        cameraStream ? `active(${cameraStream.getTracks().length}t)` : "none",
+        canvas ? `${canvas.width}x${canvas.height}` : "none");
 
       // 恢复已有的录制数据
       const existing = await getRecordingData(sessionId);
       if (existing) {
         accumulatedDurationRef.current = existing.accumulatedDuration;
         chunksSeqRef.current = existing.chunks.length;
+        log.info("resumed from IndexedDB: %d chunks, %.1fs accumulated",
+          existing.chunks.length, existing.accumulatedDuration);
       } else {
         accumulatedDurationRef.current = 0;
         chunksSeqRef.current = 0;
+        log.info("new recording session");
       }
 
       recordingStartTimeRef.current = performance.now();
       setIsRecording(true);
 
-      if (!cameraStream && !canvas) return;
+      if (!cameraStream && !canvas) {
+        log.warn("no cameraStream or canvas, recording will be empty");
+        return;
+      }
 
       try {
         let recordingStream: MediaStream;
@@ -82,13 +99,23 @@ export function useVideoRecorder(): VideoRecorderHandle {
           if (event.data.size > 0) {
             const seq = chunksSeqRef.current++;
             void saveChunk(sessionId, seq, event.data);
+            // 每 6 个分片（约 60 秒）输出一次心跳，确认录制正常
+            if (seq > 0 && seq % 6 === 0) {
+              log.info("recording heartbeat: %d chunks saved (~%ds)",
+                seq + 1, Math.round((seq + 1) * 10));
+            }
           }
+        };
+
+        recorder.onerror = (event) => {
+          log.error("MediaRecorder error:", event);
         };
 
         recorder.start(10000);
         mediaRecorderRef.current = recorder;
-      } catch {
-        // 录制失败，静默降级
+        log.info("MediaRecorder started: mimeType=%s, 10s chunks", mimeType);
+      } catch (err) {
+        log.error("MediaRecorder init failed:", err);
       }
     },
     []
@@ -98,6 +125,7 @@ export function useVideoRecorder(): VideoRecorderHandle {
     async (
       sessionId: string
     ): Promise<{ videoPath: string; videoDurationSec: number } | null> => {
+      log.info("stopAndUpload: stopping recorder...");
       setIsRecording(false);
       setUploadError(null);
 
@@ -109,6 +137,8 @@ export function useVideoRecorder(): VideoRecorderHandle {
       if (startTime) {
         const segmentDuration = (performance.now() - startTime) / 1000;
         accumulatedDurationRef.current += segmentDuration;
+        log.info("segment duration: %.1fs, total accumulated: %.1fs",
+          segmentDuration, accumulatedDurationRef.current);
         await updateAccumulatedDuration(
           sessionId,
           accumulatedDurationRef.current
@@ -118,9 +148,14 @@ export function useVideoRecorder(): VideoRecorderHandle {
 
       // 合并 IndexedDB 中的所有分片
       const merged = await mergeAndClear(sessionId);
-      if (!merged || merged.blob.size === 0) return null;
+      if (!merged || merged.blob.size === 0) {
+        log.warn("no video data to upload (empty or missing chunks)");
+        return null;
+      }
 
       const durationSec = accumulatedDurationRef.current;
+      log.info("uploading %.1f MB, duration=%.1fs → Supabase Storage",
+        merged.blob.size / 1024 / 1024, durationSec);
 
       // 上传（重试 1 次）
       for (let attempt = 0; attempt < 2; attempt++) {
@@ -129,15 +164,18 @@ export function useVideoRecorder(): VideoRecorderHandle {
             durationSec,
           });
           accumulatedDurationRef.current = 0;
+          log.info("upload success: path=%s", result.videoPath);
           return {
             videoPath: result.videoPath,
             videoDurationSec: durationSec,
           };
         } catch (error) {
+          log.warn("upload attempt %d failed:", attempt, error);
           if (attempt === 0) continue;
           const msg =
             error instanceof Error ? error.message : "视频上传失败";
           setUploadError(msg);
+          log.error("upload failed after retry: %s", msg);
         }
       }
 

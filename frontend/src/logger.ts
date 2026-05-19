@@ -41,18 +41,20 @@ const minLevel = LOG_LEVELS[currentLevel];
 
 export function createLogger(component: string) {
   const prefix = `[HCI:${component}]`;
+  const fmt = (message: string, ...rest: unknown[]) =>
+    `${prefix} ${message}` as unknown as typeof message;
   return {
-    debug: (...args: unknown[]) => {
-      if (minLevel <= 0) console.debug(prefix, ...args);
+    debug: (message: string, ...args: unknown[]) => {
+      if (minLevel <= 0) console.debug(fmt(message), ...args);
     },
-    info: (...args: unknown[]) => {
-      if (minLevel <= 1) console.info(prefix, ...args);
+    info: (message: string, ...args: unknown[]) => {
+      if (minLevel <= 1) console.info(fmt(message), ...args);
     },
-    warn: (...args: unknown[]) => {
-      if (minLevel <= 2) console.warn(prefix, ...args);
+    warn: (message: string, ...args: unknown[]) => {
+      if (minLevel <= 2) console.warn(fmt(message), ...args);
     },
-    error: (...args: unknown[]) => {
-      if (minLevel <= 3) console.error(prefix, ...args);
+    error: (message: string, ...args: unknown[]) => {
+      if (minLevel <= 3) console.error(fmt(message), ...args);
     },
   };
 }

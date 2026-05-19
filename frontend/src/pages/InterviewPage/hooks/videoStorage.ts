@@ -1,5 +1,9 @@
 // frontend/src/pages/InterviewPage/hooks/videoStorage.ts
 
+import { createLogger } from "@/logger";
+
+const log = createLogger("videoStorage");
+
 const DB_NAME = "interview-video";
 const DB_VERSION = 1;
 const STORE_NAME = "recording-chunks";
@@ -17,10 +21,17 @@ function openDB(): Promise<IDBDatabase> {
       const db = request.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME);
+        log.info("IndexedDB store created:", STORE_NAME);
       }
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      log.debug("IndexedDB opened, stores:", [...request.result.objectStoreNames]);
+      resolve(request.result);
+    };
+    request.onerror = () => {
+      log.error("IndexedDB open failed:", request.error);
+      reject(request.error);
+    };
   });
 }
 
@@ -45,6 +56,9 @@ export async function saveChunk(
   };
   data.chunks.push({ seq, blob });
 
+  log.debug("chunk #%d saved (%d KB), total chunks: %d",
+    seq, Math.round(blob.size / 1024), data.chunks.length);
+
   return new Promise((resolve, reject) => {
     const req = store.put(data, sessionId);
     req.onsuccess = () => resolve();
@@ -60,7 +74,16 @@ export async function getRecordingData(
   const store = tx.objectStore(STORE_NAME);
   return new Promise((resolve) => {
     const req = store.get(sessionId);
-    req.onsuccess = () => resolve(req.result ?? null);
+    req.onsuccess = () => {
+      const data = req.result ?? null;
+      if (data) {
+        log.info("resumed recording: %d chunks, %.1fs accumulated",
+          data.chunks.length, data.accumulatedDuration);
+      } else {
+        log.debug("no existing recording for session:", sessionId);
+      }
+      resolve(data);
+    };
     req.onerror = () => resolve(null);
   });
 }
@@ -69,6 +92,7 @@ export async function updateAccumulatedDuration(
   sessionId: string,
   durationSec: number
 ): Promise<void> {
+  log.debug("updateAccumulatedDuration: %.1fs", durationSec);
   const db = await openDB();
   const tx = db.transaction(STORE_NAME, "readwrite");
   const store = tx.objectStore(STORE_NAME);
@@ -98,13 +122,18 @@ export async function mergeAndClear(
     req.onsuccess = () => resolve(req.result);
   });
 
-  if (!data || data.chunks.length === 0) return null;
+  if (!data || data.chunks.length === 0) {
+    log.warn("mergeAndClear: no chunks for session:", sessionId);
+    return null;
+  }
 
   const sorted = [...data.chunks].sort((a, b) => a.seq - b.seq);
   const blob = new Blob(
     sorted.map((c) => c.blob),
     { type: data.mimeType || "video/webm" }
   );
+
+  log.info("merged %d chunks → %.1f MB", sorted.length, blob.size / 1024 / 1024);
 
   // 合并成功后清除 IndexedDB
   return new Promise((resolve, reject) => {
