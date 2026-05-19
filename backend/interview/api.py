@@ -312,6 +312,7 @@ class SessionStore:
         if session is None:
             return None
         text = str(payload.get("text", ""))
+        video_timestamp_sec = payload.get("video_timestamp_sec")
         answer_analysis = analyze_answer_text(text)
         # 从语音聚合状态快照音频指标
         audio_rms_db = None
@@ -349,6 +350,9 @@ class SessionStore:
             audio_f0_std_hz=audio_f0_std_hz,
             audio_f0_std_semitones=audio_f0_std_semitones,
             followup_decision=followup_decision,
+            video_timestamp_sec=(
+                float(video_timestamp_sec) if video_timestamp_sec is not None else None
+            ),
         )
         if answer_analysis.llm_status == "ok":
             updated = replace(updated, llm_status="ok")

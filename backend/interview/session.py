@@ -39,6 +39,7 @@ class AnswerRecord:
     is_followup: bool = False
     followup_round: int = 0          # 0 表示主问题回答；1/2 表示第几轮追问的回答
     followup_prompt: str = ""        # 当 is_followup=True 时记录追问问题文本
+    video_timestamp_sec: float | None = None  # 答题时刻在面试录制视频中的时间戳（秒）
 
 
 @dataclass(frozen=True)
@@ -183,6 +184,7 @@ def record_answer(
     audio_f0_std_hz: float | None = None,
     audio_f0_std_semitones: float | None = None,
     followup_decision: "FollowupDecision | None" = None,
+    video_timestamp_sec: float | None = None,
 ) -> InterviewSession:
     """记录一次回答。
 
@@ -221,6 +223,7 @@ def record_answer(
         is_followup=answered_round > 0,
         followup_round=answered_round,
         followup_prompt=answered_followup_prompt or "",
+        video_timestamp_sec=video_timestamp_sec,
     )
     event_message = (
         f"已记录 {question.dimension} 第 {answered_round} 轮追问回答，用时 {duration_sec} 秒。"

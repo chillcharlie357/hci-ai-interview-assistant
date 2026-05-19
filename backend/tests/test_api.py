@@ -281,6 +281,33 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(updated["llm_status"], "ok")
         analyze_mock.assert_called_once_with("我负责问题生成。")
 
+    def test_answer_with_video_timestamp_sec(self):
+        """提交答案时带 video_timestamp_sec，返回的 session 应保留该字段"""
+        created = self.request(
+            "POST",
+            "/api/sessions",
+            {
+                "candidate_name": "test",
+                "resume": "测试简历",
+                "job_description": "测试岗位",
+                "interview_goal": "测试目标",
+            },
+            expected_status=201,
+        )
+
+        updated = self.request(
+            "POST",
+            f"/api/sessions/{created['id']}/answers",
+            {
+                "text": "测试回答",
+                "duration_sec": 30,
+                "video_timestamp_sec": 42.5,
+            },
+        )
+        self.assertEqual(len(updated["answers"]), 1)
+        answer = updated["answers"][0]
+        self.assertEqual(answer["video_timestamp_sec"], 42.5)
+
     def test_records_speech_chunks_and_returns_chunk_and_cumulative_metrics(self):
         created = self.request(
             "POST",
