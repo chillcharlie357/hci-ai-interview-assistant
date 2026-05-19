@@ -3,14 +3,12 @@ import { useNavigate, useParams } from "react-router-dom";
 import { App, Spin, Drawer, Divider, Tag, Typography } from "antd";
 import { VideoCameraOutlined } from "@ant-design/icons";
 
-import { startRecording as startEgressRecording } from "@/apiClient";
 import { requestAnswerHelp, type AnswerHelpResult } from "@/answerHelp";
 import { buildAvatarPrompt } from "@/interviewFlow";
 import { buildConversationCaptions, shouldAutoSpeakQuestion, type DigitalInterviewerState } from "@/digitalInterviewer";
 
 import { useVideoAnalysis } from "./hooks/useVideoAnalysis";
 import { useSpeechRecognition } from "./hooks/useSpeechRecognition";
-import { useLiveKit } from "./hooks/useLiveKit";
 import { useInterviewSession } from "./hooks/useInterviewSession";
 import { useVideoRecorder } from "./hooks/useVideoRecorder";
 
@@ -39,8 +37,7 @@ export function InterviewPage() {
   const { session, loading, report, answerText, setAnswerText, answerStartedAt, startAnswer, finishAnswer, finishingAnswer, updateSession, appendAnswerText, lastFollowup } = sessionHandle;
 
   const recorder = useVideoRecorder();
-  const video = useVideoAnalysis(sessionId, session, updateSession, recorder.recordingStartTimeRef);
-  const liveKit = useLiveKit(sessionId, session);
+  const video = useVideoAnalysis(sessionId, session, updateSession, recorder.recordingStartTimeRef, recorder.accumulatedDurationRef);
 
   const [interviewerState, setInterviewerState] = useState<DigitalInterviewerState>("preparing");
   const lastAutoSpokenQuestionIdRef = useRef<string | null>(null);
@@ -133,12 +130,8 @@ export function InterviewPage() {
     startAnswer();
     await speech.startMediaStreamAndAsr();
     // 第一次回答时启动录制
-    if (!recorder.isRecording) {
-      recorder.startRecording(video.analysisStreamRef.current, video.analysisCanvasRef.current);
-      // 异步启动 Egress 服务端录制（不阻塞面试流程）
-      startEgressRecording(session.id).catch(() => {
-        // Egress 不可用，客户端录制仍在进行
-      });
+    if (!recorder.isRecording && session?.id) {
+      await recorder.startRecording(session.id, video.analysisStreamRef.current, video.analysisCanvasRef.current);
     }
   }
 
@@ -232,7 +225,10 @@ export function InterviewPage() {
             totalSteps={session.questions.length}
             state={interviewerState}
           />
-          <CandidateVideo liveKit={liveKit.liveKit} meetingError={liveKit.meetingError} />
+          <CandidateVideo
+            cameraStream={video.analysisStreamRef.current}
+            cameraEnabled={video.cameraEnabled}
+          />
         </div>
 
         <CaptionBar captions={captions} scrollRef={danmakuScrollRef} />
