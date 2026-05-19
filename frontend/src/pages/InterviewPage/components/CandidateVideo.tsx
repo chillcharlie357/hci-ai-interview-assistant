@@ -2,28 +2,24 @@ import { useState, useEffect } from "react";
 import { UserOutlined, DisconnectOutlined } from "@ant-design/icons";
 import {
   LiveKitRoom,
-  ControlBar,
   GridLayout,
   ParticipantTile,
   RoomAudioRenderer,
   useTracks,
   useConnectionState,
-  useLocalParticipant,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
-import { Track, type TrackPublication } from "livekit-client";
+import { Track } from "livekit-client";
 import "./CandidateVideo.css";
 
 interface CandidateVideoProps {
   liveKit: { url: string; token: string; room: string } | null;
   meetingError: string;
-  onMicrophoneMutedChange?: (muted: boolean) => void;
 }
 
 export function CandidateVideo({
   liveKit,
   meetingError,
-  onMicrophoneMutedChange,
 }: CandidateVideoProps) {
   if (!liveKit) {
     return (
@@ -45,44 +41,15 @@ export function CandidateVideo({
         audio
         video
       >
-        <CandidateLiveKitConference onMicrophoneMutedChange={onMicrophoneMutedChange} />
+        <CandidateLiveKitConference />
       </LiveKitRoom>
     </div>
   );
 }
 
-function CandidateLiveKitConference({
-  onMicrophoneMutedChange,
-}: {
-  onMicrophoneMutedChange?: (muted: boolean) => void;
-}) {
+function CandidateLiveKitConference() {
   const [connectionError, setConnectionError] = useState<string>("");
   const connectionState = useConnectionState();
-  const { localParticipant } = useLocalParticipant();
-
-  // 监听 LiveKit 麦克风 track 的静音/取消静音事件
-  useEffect(() => {
-    if (!localParticipant) return;
-
-    const handleTrackMuted = (pub: TrackPublication) => {
-      if (pub.source === Track.Source.Microphone) {
-        onMicrophoneMutedChange?.(true);
-      }
-    };
-    const handleTrackUnmuted = (pub: TrackPublication) => {
-      if (pub.source === Track.Source.Microphone) {
-        onMicrophoneMutedChange?.(false);
-      }
-    };
-
-    localParticipant.on("trackMuted", handleTrackMuted);
-    localParticipant.on("trackUnmuted", handleTrackUnmuted);
-
-    return () => {
-      localParticipant.off("trackMuted", handleTrackMuted);
-      localParticipant.off("trackUnmuted", handleTrackUnmuted);
-    };
-  }, [localParticipant, onMicrophoneMutedChange]);
 
   useEffect(() => {
     if (connectionState === "disconnected") {
@@ -122,16 +89,6 @@ function CandidateLiveKitConference({
           </div>
         )}
       </div>
-      <ControlBar
-        controls={{
-          microphone: true,
-          camera: true,
-          screenShare: false,
-          chat: false,
-          settings: false,
-          leave: true,
-        }}
-      />
       <RoomAudioRenderer />
     </div>
   );
