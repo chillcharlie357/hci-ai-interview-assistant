@@ -135,8 +135,6 @@ export type InterviewSession = {
   keyframes: KeyframeRecord[];
   videoSummary: VideoSummary;
   speechSummary?: SpeechSummary | null;
-  meetingRoom: string;
-  egressId?: string | null;
   enableVideoObservation: boolean;
   videoPath?: string | null;
   videoDurationSec?: number | null;
@@ -174,7 +172,6 @@ export function createSessionFromDraft(draft: DraftInput): InterviewSession {
       keyframeCount: 0,
       eventTypes: []
     },
-    meetingRoom: "",
     enableVideoObservation: true,
     currentFollowup: null,
     events: [
