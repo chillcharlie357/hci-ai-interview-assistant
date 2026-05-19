@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { App } from "antd";
 
 import { submitSpeechChunk, type SpeechChunkResponse } from "@/apiClient";
@@ -27,7 +27,6 @@ export function useSpeechRecognition(
   sessionId: string | undefined,
   onInterimTranscript: (text: string) => void,
   onFinalTranscript: (text: string) => void,
-  liveKitMicMuted: boolean = false,
 ): SpeechRecognitionHandle {
   const { message } = App.useApp();
 
@@ -165,48 +164,6 @@ export function useSpeechRecognition(
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
     mediaStreamRef.current = null;
   }, []);
-
-  // 同步 LiveKit 麦克风静音 → 暂停/恢复 ASR
-  const pausedByLiveKitRef = useRef(false);
-
-  useEffect(() => {
-    if (!mediaStreamRef.current) return; // ASR 未启动，无需操作
-
-    if (liveKitMicMuted) {
-      // 静音：暂停 ASR 和 PCM 录音，但保留媒体流
-      transcriberRef.current?.stop();
-      if (qwenAsrRef.current) {
-        void qwenAsrRef.current.stop();
-        qwenAsrRef.current = null;
-      }
-      const recorder = pcmRecorderRef.current;
-      if (recorder) {
-        void recorder.stop();
-        pcmRecorderRef.current = null;
-      }
-      setAudioChunkStatus("已静音");
-      setAsrProvider("none");
-      pausedByLiveKitRef.current = true;
-    } else if (pausedByLiveKitRef.current) {
-      // 取消静音：恢复 ASR 和 PCM 录音
-      pausedByLiveKitRef.current = false;
-      const stream = mediaStreamRef.current;
-      if (!stream) return;
-
-      void (async () => {
-        try {
-          const recorder = await startPcmRecorder(stream, (wavBlob) => {
-            enqueueSpeechChunkUpload(wavBlob);
-          });
-          pcmRecorderRef.current = recorder;
-          setAudioChunkStatus("采集中");
-        } catch {
-          setAudioChunkStatus("音频上传未启动");
-        }
-        await startAsrWithFallback(stream);
-      })();
-    }
-  }, [liveKitMicMuted, enqueueSpeechChunkUpload, startAsrWithFallback]);
 
   return {
     audioChunkStatus,
