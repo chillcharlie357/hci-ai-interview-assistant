@@ -139,6 +139,7 @@ export function useVideoAnalysis(
         const keyframe = event.shouldCaptureKeyframe
           ? {
               reason: event.keyframeReason ?? event.eventType,
+              dataUrl: canvasElement.toDataURL("image/jpeg", 0.7),
               videoTimestampSec: recordingStartTimeRef.current
                 ? (accumulatedDurationRef.current + (timestampMs - recordingStartTimeRef.current) / 1000)
                 : null,
