@@ -224,13 +224,11 @@ class SessionRepository:
             'llm_status': data.get('llm_status', 'fallback'),
             'video_events': video_events if video_events else None,
             'keyframes': keyframes if keyframes else None,
-            'meeting_room': data.get('meeting_room', ''),
             'enable_video_observation': data.get('enable_video_observation', True),
             'video_path': data.get('video_path'),
             'video_duration_sec': data.get('video_duration_sec'),
             'video_upload_failed': data.get('video_upload_failed', False),
             'followup_states': followup_states,
-            'egress_id': data.get('egress_id'),
         })
 
 
