@@ -181,6 +181,7 @@ export function ReportPage() {
 
         <QATimeline
           session={session}
+          onSeekVideo={(ts) => videoPlaybackRef.current?.seekTo(ts)}
         />
 
         <FullReportSection report={report} />

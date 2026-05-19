@@ -1,15 +1,16 @@
 import { memo } from "react";
-import { Tag } from "antd";
-import { StarOutlined, ClockCircleOutlined, CheckCircleOutlined } from "@ant-design/icons";
+import { Tag, Button } from "antd";
+import { StarOutlined, ClockCircleOutlined, CheckCircleOutlined, PlayCircleOutlined } from "@ant-design/icons";
 
 import type { InterviewSession } from "@/interviewFlow";
 import { computeAnswerScore } from "../helpers/scoring";
 
 interface QATimelineProps {
   session: InterviewSession;
+  onSeekVideo?: (timestampSec: number) => void;
 }
 
-export const QATimeline = memo(function QATimeline({ session }: QATimelineProps) {
+export const QATimeline = memo(function QATimeline({ session, onSeekVideo }: QATimelineProps) {
   return (
     <div className="glass-card qa-card">
       <h3>核心问答追踪</h3>
@@ -40,6 +41,19 @@ export const QATimeline = memo(function QATimeline({ session }: QATimelineProps)
                     耗时: {answer ? `${Math.floor(answer.durationSec / 60)}m ${answer.durationSec % 60}s` : "-"}
                   </Tag>
                 </div>
+                {answer?.videoTimestampSec != null && onSeekVideo && (
+                  <Button
+                    type="link"
+                    size="small"
+                    icon={<PlayCircleOutlined />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSeekVideo(answer.videoTimestampSec!);
+                    }}
+                  >
+                    回放
+                  </Button>
+                )}
               </div>
             </div>
           );
