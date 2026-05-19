@@ -1,4 +1,4 @@
-import { memo, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { UserOutlined, DisconnectOutlined } from "@ant-design/icons";
 import {
   LiveKitRoom,
@@ -20,7 +20,7 @@ interface CandidateVideoProps {
   onMicrophoneMutedChange?: (muted: boolean) => void;
 }
 
-export const CandidateVideo = memo(function CandidateVideo({
+export function CandidateVideo({
   liveKit,
   meetingError,
   onMicrophoneMutedChange,
@@ -49,7 +49,7 @@ export const CandidateVideo = memo(function CandidateVideo({
       </LiveKitRoom>
     </div>
   );
-});
+}
 
 function CandidateLiveKitConference({
   onMicrophoneMutedChange,
