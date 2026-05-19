@@ -13,7 +13,6 @@ dependencies = [
     "supabase>=2.29.0",
     # 开发热重载
     "watchfiles>=0.21",
-    "livekit-api>=1.1.0",
 ]
 
 [tool.uv]

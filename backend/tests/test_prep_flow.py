@@ -96,7 +96,6 @@ class PrepFlowTest(unittest.TestCase):
             expected_status=201,
         )
 
-        self.assertEqual(created["meeting_room"], f"interview-{created['id']}")
         self.assertTrue(created["enable_video_observation"])
         self.assertGreaterEqual(len(created["questions"]), 6)
 
@@ -113,32 +112,6 @@ class PrepFlowTest(unittest.TestCase):
         )
 
         self.assertEqual(updated["ready_summary"]["role"], "AI 产品工程师")
-
-    @patch.dict(
-        os.environ,
-        {
-            "INTERVIEW_DISABLE_DOTENV": "1",
-            "LIVEKIT_URL": "wss://livekit.example.test",
-            "LIVEKIT_API_KEY": "lk-key",
-            "LIVEKIT_API_SECRET": "lk-secret",
-            "MINERU_COMMAND": "mineru-open-api",
-        },
-        clear=True,
-    )
-    @patch("subprocess.run")
-    def test_generates_livekit_token_when_configured(self, run_mock):
-        run_mock.return_value = FakeCompletedProcess()
-        session = self.create_interview_session()
-
-        response = self.request(
-            "POST",
-            f"/api/sessions/{session['id']}/livekit-token",
-            {"participant_name": "张三", "participant_role": "candidate"},
-        )
-
-        self.assertEqual(response["url"], "wss://livekit.example.test")
-        self.assertEqual(response["room"], session["meeting_room"])
-        self.assertGreater(len(response["token"]), 40)
 
     @patch("subprocess.run")
     @patch.dict(os.environ, {"MINERU_COMMAND": "mineru-open-api", "MINERU_API_TOKEN": ""}, clear=False)
