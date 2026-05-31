@@ -14,7 +14,7 @@ export type InterviewSessionHandle = {
   setAnswerText: (text: string) => void;
   answerStartedAt: number | null;
   startAnswer: () => void;
-  finishAnswer: () => Promise<void>;
+  finishAnswer: (opts?: { videoTimestampSec?: number }) => Promise<void>;
   finishingAnswer: boolean;
   updateSession: (updated: InterviewSession) => void;
   appendAnswerText: (text: string) => void;
@@ -82,13 +82,13 @@ export function useInterviewSession(
     setAnswerStartedAt(Date.now());
   }, [session?.currentQuestion, answerStartedAt]);
 
-  const finishAnswer = useCallback(async () => {
+  const finishAnswer = useCallback(async (opts?: { videoTimestampSec?: number }) => {
     if (!session?.currentQuestion || finishingAnswer) return;
     setFinishingAnswer(true);
 
     try {
       const measuredDuration = answerStartedAt ? Math.max(1, Math.round((Date.now() - answerStartedAt) / 1000)) : 90;
-      const result = await submitAnswer(session.id, { text: answerText, durationSec: measuredDuration });
+      const result = await submitAnswer(session.id, { text: answerText, durationSec: measuredDuration, videoTimestampSec: opts?.videoTimestampSec });
       setSession(result.session);
       setAnswerText("");
       setAnswerStartedAt(null);

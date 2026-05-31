@@ -62,13 +62,20 @@
   box-shadow: 0 4px 15px rgba(22, 119, 255, 0.3);
 }
 
-/* 两列布局 */
-.report-grid {
-  display: grid;
-  grid-template-columns: 1fr 2fr;
+/* 单列布局 */
+.report-body {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-lg);
-  margin-bottom: var(--space-lg);
+  max-width: 800px;
+  margin: 0 auto;
 }
+
+.report-body > * {
+  width: 100%;
+}
+
+/* 移除两列 Grid 布局，改为上面的单栏 */
 
 /* 左列：评分 */
 .rating-card {
@@ -112,13 +119,6 @@
   text-align: left;
   line-height: 1.8;
   margin-top: auto;
-}
-
-/* 右列 */
-.report-right {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-lg);
 }
 
 /* 软技能 */
@@ -458,10 +458,6 @@
 
 /* 响应式 */
 @media (max-width: 1024px) {
-  .report-grid {
-    grid-template-columns: 1fr;
-  }
-
   .keyframes-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -521,5 +517,49 @@
 
   .keyframe-item {
     background: linear-gradient(135deg, #1f1f1f, #2a2a2a);
+  }
+}
+
+/* ===== 视频回放卡片 ===== */
+.video-playback-card {
+  text-align: center;
+}
+
+.video-playback-placeholder {
+  padding: var(--space-xl);
+  text-align: center;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-container);
+  transition: background 0.2s;
+}
+
+.video-playback-placeholder:hover {
+  background: var(--color-bg-elevated);
+}
+
+/* PDF 导出分页优化 */
+@media print {
+  .report-page {
+    max-width: 100%;
+    padding: 0;
+  }
+
+  .report-body > * {
+    page-break-inside: avoid;
+  }
+
+  .rating-card,
+  .skills-card,
+  .video-playback-card,
+  .keyframes-card,
+  .qa-card,
+  .full-report-card {
+    break-inside: avoid;
+  }
+
+  .video-playback-placeholder,
+  .download-btn {
+    display: none;
   }
 }

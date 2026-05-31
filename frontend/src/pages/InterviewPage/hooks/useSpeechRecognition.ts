@@ -26,7 +26,7 @@ export type SpeechRecognitionHandle = {
 export function useSpeechRecognition(
   sessionId: string | undefined,
   onInterimTranscript: (text: string) => void,
-  onFinalTranscript: (text: string) => void
+  onFinalTranscript: (text: string) => void,
 ): SpeechRecognitionHandle {
   const { message } = App.useApp();
 

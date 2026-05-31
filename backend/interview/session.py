@@ -39,6 +39,7 @@ class AnswerRecord:
     is_followup: bool = False
     followup_round: int = 0          # 0 表示主问题回答；1/2 表示第几轮追问的回答
     followup_prompt: str = ""        # 当 is_followup=True 时记录追问问题文本
+    video_timestamp_sec: float | None = None  # 答题时刻在面试录制视频中的时间戳（秒）
 
 
 @dataclass(frozen=True)
@@ -84,7 +85,8 @@ class VideoMetrics:
 class KeyframeRecord:
     timestamp: float
     reason: str
-    data_url: str
+    data_url: str = ""
+    video_timestamp_sec: float | None = None
 
 
 @dataclass(frozen=True)
@@ -110,8 +112,10 @@ class InterviewSession:
     llm_status: str = "fallback"
     video_events: list[VideoEvent] | None = None
     keyframes: list[KeyframeRecord] | None = None
-    meeting_room: str = ""
     enable_video_observation: bool = True
+    video_path: str | None = None
+    video_duration_sec: float | None = None
+    video_upload_failed: bool = False
     followup_states: dict[str, FollowupState] | None = None
 
     @property
@@ -152,7 +156,6 @@ def create_interview_session(
         llm_status="fallback",
         video_events=[],
         keyframes=[],
-        meeting_room=f"interview-{session_id}",
         enable_video_observation=enable_video_observation,
         followup_states={},
         events=[
@@ -181,6 +184,7 @@ def record_answer(
     audio_f0_std_hz: float | None = None,
     audio_f0_std_semitones: float | None = None,
     followup_decision: "FollowupDecision | None" = None,
+    video_timestamp_sec: float | None = None,
 ) -> InterviewSession:
     """记录一次回答。
 
@@ -219,6 +223,7 @@ def record_answer(
         is_followup=answered_round > 0,
         followup_round=answered_round,
         followup_prompt=answered_followup_prompt or "",
+        video_timestamp_sec=video_timestamp_sec,
     )
     event_message = (
         f"已记录 {question.dimension} 第 {answered_round} 轮追问回答，用时 {duration_sec} 秒。"
@@ -309,20 +314,23 @@ def record_video_event(
     event_type: str,
     confidence: float,
     metrics: dict[str, object] | VideoMetrics,
-    keyframe: dict[str, str] | None = None,
+    keyframe: dict[str, object] | None = None,
 ) -> InterviewSession:
     video_metrics = metrics if isinstance(metrics, VideoMetrics) else VideoMetrics(**_filter_metric_fields(metrics))
     keyframes = list(session.keyframes or [])
     keyframe_index: int | None = None
-    if keyframe and keyframe.get("data_url"):
-        keyframe_index = len(keyframes)
-        keyframes.append(
-            KeyframeRecord(
-                timestamp=timestamp,
-                reason=str(keyframe.get("reason") or event_type),
-                data_url=str(keyframe["data_url"]),
+    if keyframe:
+        has_data = keyframe.get("data_url") or keyframe.get("video_timestamp_sec") is not None
+        if has_data:
+            keyframe_index = len(keyframes)
+            keyframes.append(
+                KeyframeRecord(
+                    timestamp=timestamp,
+                    reason=str(keyframe.get("reason") or event_type),
+                    data_url=str(keyframe.get("data_url", "")),
+                    video_timestamp_sec=keyframe.get("video_timestamp_sec"),
+                )
             )
-        )
 
     video_events = [
         *(session.video_events or []),

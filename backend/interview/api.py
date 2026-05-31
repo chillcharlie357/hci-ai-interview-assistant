@@ -22,13 +22,13 @@ from backend.auth import (
     EmailAlreadyRegisteredError,
     WeakPasswordError,
 )
+from backend.storage import upload_video as storage_upload_video, get_video_signed_url
 from backend.interview.answer_analysis import analyze_answer_text
 from backend.interview.answer_help import generate_answer_help
 from backend.interview.config import is_auth_required, get_log_level
 from backend.interview.exceptions import PersistenceError
 from backend.interview.document_extractor import DocumentExtractionError, extract_resume_markdown
 from backend.interview.followup_engine import decide_followup
-from backend.interview.livekit_token import LiveKitConfigError, create_livekit_token
 from backend.interview.llm_client import LlmClient
 from backend.interview.prep_session import PrepSession, advance_followup, create_prep_session, serialize_prep_session
 from backend.interview.question_engine import InterviewQuestion, generate_interview_questions
@@ -50,6 +50,7 @@ from backend.speech_analysis.aggregate import (
 )
 from backend.database.prep_session_repo import PrepSessionRepository
 from backend.database.session_repo import SessionRepository
+from backend.database.utils import is_valid_uuid
 from backend.interview.logging_config import configure_logging
 import logging
 import os
@@ -311,6 +312,7 @@ class SessionStore:
         if session is None:
             return None
         text = str(payload.get("text", ""))
+        video_timestamp_sec = payload.get("video_timestamp_sec")
         answer_analysis = analyze_answer_text(text)
         # 从语音聚合状态快照音频指标
         audio_rms_db = None
@@ -348,6 +350,9 @@ class SessionStore:
             audio_f0_std_hz=audio_f0_std_hz,
             audio_f0_std_semitones=audio_f0_std_semitones,
             followup_decision=followup_decision,
+            video_timestamp_sec=(
+                float(video_timestamp_sec) if video_timestamp_sec is not None else None
+            ),
         )
         if answer_analysis.llm_status == "ok":
             updated = replace(updated, llm_status="ok")
@@ -585,25 +590,6 @@ def handle_api_request(
         method == "POST"
         and len(path_parts) == 4
         and path_parts[:2] == ["api", "sessions"]
-        and path_parts[3] == "livekit-token"
-    ):
-        session = store.get(path_parts[2], user_id)
-        if session is None:
-            return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
-        try:
-            token = create_livekit_token(
-                room=session.meeting_room,
-                participant_name=str(body.get("participant_name", session.candidate_name)),
-                participant_role=str(body.get("participant_role", "candidate")),
-            )
-        except LiveKitConfigError as error:
-            return HTTPStatus.SERVICE_UNAVAILABLE, {"error": "livekit_not_configured", "message": str(error)}
-        return HTTPStatus.OK, token
-
-    if (
-        method == "POST"
-        and len(path_parts) == 4
-        and path_parts[:2] == ["api", "sessions"]
         and path_parts[3] == "speech-chunks"
     ):
         return store.record_speech_chunk(path_parts[2], body)
@@ -618,6 +604,14 @@ def handle_api_request(
         if session is None:
             return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
         return HTTPStatus.OK, serialize_session(session, _get_speech_cumulative(store, path_parts[2]))
+
+    if (
+        method == "GET"
+        and len(path_parts) == 4
+        and path_parts[:2] == ["api", "sessions"]
+        and path_parts[3] == "video"
+    ):
+        return _handle_video_download(store, path_parts[2], user_id)
 
     if (
         method == "POST"
@@ -811,10 +805,6 @@ def _handle_health(store: SessionStore) -> tuple[int, dict[str, Any]]:
             "asr": {
                 "dashscope_configured": bool(os.environ.get("DASHSCOPE_API_KEY")),
             },
-            "livekit": {
-                "url": bool(os.environ.get("LIVEKIT_URL")),
-                "accepted": all(os.environ.get(k) for k in ("LIVEKIT_API_KEY", "LIVEKIT_API_SECRET")),
-            },
             "mineru": {
                 "api_token_configured": bool(os.environ.get("MINERU_API_TOKEN")),
                 "mode": "precision_api" if os.environ.get("MINERU_API_TOKEN") else ("agent_api" if not os.environ.get("MINERU_COMMAND") else "cli_deprecated"),
@@ -917,6 +907,20 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
 
         def do_POST(self) -> None:
             try:
+                # 视频上传使用 raw binary body，不能走 JSON 解析
+                if self._is_video_upload_route():
+                    if self._is_public_auth_route():
+                        auth = None
+                    else:
+                        auth = self._authenticate()
+                        if auth is None and auth_middleware.require_auth:
+                            self._send_json({"error": "authentication_required"}, HTTPStatus.UNAUTHORIZED)
+                            return
+                    user_id = auth.user_id if auth else ""
+                    status, body = self._handle_video_upload_raw(user_id)
+                    self._send_json(body, HTTPStatus(status))
+                    return
+
                 if self._is_public_auth_route():
                     auth = None
                 else:
@@ -927,10 +931,7 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
 
                 payload = self._read_json()
                 user_id = auth.user_id if auth else ""
-                log.info("POST %s payload=%s user_id=%s",
-                         self.path,
-                         json.dumps(_payload_for_log(payload), ensure_ascii=False),
-                         user_id)
+                log.info("POST %s (user_id=%s)", self.path, user_id)
                 status, body = handle_api_request(store, "POST", self.path, payload, user_id=user_id, auth=auth)
                 self._send_json(body, HTTPStatus(status))
             except PersistenceError as e:
@@ -969,6 +970,40 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
             path = self.path.split("?")[0]  # 去掉查询参数
             public_routes = ["/api/auth/login", "/api/auth/register", "/api/auth/refresh", "/api/auth/logout", "/api/health"]
             return path in public_routes
+
+        def _is_video_upload_route(self) -> bool:
+            """检查是否是视频上传路由（raw binary body）"""
+            path = self.path.split("?")[0]
+            parts = [p for p in path.split("/") if p]
+            return (
+                len(parts) == 4
+                and parts[:2] == ["api", "sessions"]
+                and parts[3] == "video"
+            )
+
+        def _extract_session_id(self) -> str:
+            """从路径中提取 session_id"""
+            path = self.path.split("?")[0]
+            parts = [p for p in path.split("/") if p]
+            return parts[2] if len(parts) >= 3 else ""
+
+        def _handle_video_upload_raw(self, user_id: str) -> tuple[int, dict[str, Any]]:
+            """处理 raw binary body 视频上传"""
+            if not is_valid_uuid(user_id):
+                return HTTPStatus.UNAUTHORIZED, {"error": "authentication_required"}
+
+            session_id = self._extract_session_id()
+            content_length = int(self.headers.get("Content-Length", "0"))
+
+            try:
+                video_bytes = self.rfile.read(content_length)
+            except Exception as error:
+                return HTTPStatus.BAD_REQUEST, {"error": "read_failed", "message": str(error)}
+
+            query_string = urlparse(self.path).query
+            return _handle_video_upload_bytes(
+                store, session_id, user_id, content_length, video_bytes, query_string,
+            )
 
         def _authenticate(self) -> AuthContext | None:
             """从请求头中提取并验证认证信息"""
@@ -1098,6 +1133,72 @@ def _decode_audio_base64(value: str) -> bytes:
     if not decoded:
         raise ValueError("audio_base64 解码后为空。")
     return decoded
+
+
+MAX_VIDEO_SIZE = 200 * 1024 * 1024  # 200MB
+
+
+def _handle_video_upload_bytes(
+    store: SessionStore,
+    session_id: str,
+    user_id: str,
+    content_length: int,
+    video_bytes: bytes,
+    query_string: str = "",
+) -> tuple[int, dict[str, Any]]:
+    """处理 raw binary 视频上传（独立函数，方便测试）"""
+    session = store.get(session_id, user_id)
+    if session is None:
+        return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
+
+    if content_length == 0:
+        return HTTPStatus.BAD_REQUEST, {"error": "empty_body"}
+    if content_length > MAX_VIDEO_SIZE:
+        return HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "video_too_large", "message": f"视频文件超过 {MAX_VIDEO_SIZE // (1024 * 1024)}MB 上限"}
+
+    try:
+        video_path = storage_upload_video(user_id, session_id, video_bytes)
+    except Exception as error:
+        log.warning("[video_upload] Storage upload failed: %s", error)
+        updated = replace(session, video_upload_failed=True)
+        store.sessions[session_id] = updated
+        if store.repo:
+            store.repo.save_session(updated, user_id)
+        return HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "storage_upload_failed", "message": str(error)}
+
+    # 优先使用前端上报的真实录制时长，fallback 为码率估算
+    client_duration = parse_qs(query_string).get("duration_sec", [None])[0]
+    duration_sec = float(client_duration) if client_duration else None
+    if duration_sec is None:
+        estimated_duration = content_length / (200_000 / 8) if content_length > 0 else 0
+        duration_sec = round(estimated_duration, 1)
+
+    updated = replace(session, video_path=video_path, video_duration_sec=duration_sec, video_upload_failed=False)
+    store.sessions[session_id] = updated
+    if store.repo:
+        store.repo.save_session(updated, user_id)
+
+    return HTTPStatus.OK, {"video_path": video_path, "video_duration_sec": updated.video_duration_sec}
+
+
+def _handle_video_download(store: SessionStore, session_id: str, user_id: str) -> tuple[int, dict[str, Any]]:
+    """返回面试视频的签名 URL"""
+    if not is_valid_uuid(user_id):
+        return HTTPStatus.UNAUTHORIZED, {"error": "authentication_required"}
+
+    session = store.get(session_id, user_id)
+    if session is None:
+        return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
+
+    if not session.video_path:
+        return HTTPStatus.NOT_FOUND, {"error": "video_not_found"}
+
+    try:
+        signed_url = get_video_signed_url(user_id, session_id, expires_in=14400)
+    except Exception as error:
+        return HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "storage_error", "message": str(error)}
+
+    return HTTPStatus.OK, {"video_url": signed_url}
 
 
 def main() -> None:

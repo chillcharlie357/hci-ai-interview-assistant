@@ -6,7 +6,6 @@ from supabase import create_client, Client
 
 from backend.interview.config import get_supabase_config
 
-
 _client: Client | None = None
 _service_client: Client | None = None
 

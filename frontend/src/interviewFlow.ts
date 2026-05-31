@@ -55,6 +55,7 @@ export type AnswerRecord = {
   isFollowup?: boolean;
   followupRound?: number;
   followupPrompt?: string;
+  videoTimestampSec?: number | null;
 };
 
 export type InterviewEvent = {
@@ -95,7 +96,8 @@ export type VideoSignalEvent = {
 export type KeyframeRecord = {
   timestamp: number;
   reason: string;
-  dataUrl: string;
+  dataUrl?: string;
+  videoTimestampSec?: number | null;
 };
 
 export type VideoSummary = {
@@ -134,8 +136,10 @@ export type InterviewSession = {
   keyframes: KeyframeRecord[];
   videoSummary: VideoSummary;
   speechSummary?: SpeechSummary | null;
-  meetingRoom: string;
   enableVideoObservation: boolean;
+  videoPath?: string | null;
+  videoDurationSec?: number | null;
+  videoUploadFailed?: boolean;
   /** 当前主问题尚未结束、且 LLM 决定追问时，待朗读给候选人的追问文本；否则为 null */
   currentFollowup?: string | null;
 };
@@ -169,7 +173,6 @@ export function createSessionFromDraft(draft: DraftInput): InterviewSession {
       keyframeCount: 0,
       eventTypes: []
     },
-    meetingRoom: "",
     enableVideoObservation: true,
     currentFollowup: null,
     events: [

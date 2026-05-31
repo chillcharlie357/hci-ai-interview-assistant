@@ -1,54 +1,61 @@
-import { memo } from "react";
+import { useEffect, useRef } from "react";
 import { UserOutlined } from "@ant-design/icons";
-import { LiveKitRoom, ControlBar, GridLayout, ParticipantTile, RoomAudioRenderer, useTracks } from "@livekit/components-react";
-import "@livekit/components-styles";
-import { Track } from "livekit-client";
+import "./CandidateVideo.css";
 
 interface CandidateVideoProps {
-  liveKit: { url: string; token: string; room: string } | null;
-  meetingError: string;
+  cameraStream: MediaStream | null;
+  cameraEnabled: boolean;
 }
 
-export const CandidateVideo = memo(function CandidateVideo({ liveKit, meetingError }: CandidateVideoProps) {
-  return (
-    <div className="candidate-video-tile">
-      {liveKit ? (
-        <LiveKitRoom token={liveKit.token} serverUrl={liveKit.url} connect audio video>
-          <CandidateLiveKitConference />
-        </LiveKitRoom>
-      ) : (
+export function CandidateVideo({
+  cameraStream,
+  cameraEnabled,
+}: CandidateVideoProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video && cameraStream && cameraEnabled) {
+      video.srcObject = cameraStream;
+    }
+    return () => {
+      if (video) {
+        video.srcObject = null;
+      }
+    };
+  }, [cameraStream, cameraEnabled]);
+
+  if (!cameraEnabled) {
+    return (
+      <div className="candidate-video-tile">
         <div className="video-placeholder">
           <UserOutlined />
-          <p>{meetingError || "会议服务未配置"}</p>
+          <p>摄像头已关闭</p>
         </div>
-      )}
-    </div>
-  );
-});
+      </div>
+    );
+  }
 
-function CandidateLiveKitConference() {
-  const cameraTracks = useTracks([{ source: Track.Source.Camera, withPlaceholder: true }], {
-    onlySubscribed: false,
-  });
+  if (!cameraStream) {
+    return (
+      <div className="candidate-video-tile">
+        <div className="video-placeholder">
+          <UserOutlined />
+          <p>正在启动摄像头...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="candidate-livekit-room">
-      <div className="candidate-video-grid">
-        <GridLayout tracks={cameraTracks}>
-          <ParticipantTile />
-        </GridLayout>
-      </div>
-      <ControlBar
-        controls={{
-          microphone: true,
-          camera: true,
-          screenShare: false,
-          chat: false,
-          settings: false,
-          leave: true,
-        }}
+    <div className="candidate-video-tile">
+      <video
+        ref={videoRef}
+        autoPlay
+        muted
+        playsInline
+        className="candidate-self-view"
       />
-      <RoomAudioRenderer />
     </div>
   );
 }

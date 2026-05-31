@@ -14,7 +14,7 @@ RUN apt-get update \
 
 # 依赖层（优先于源码，利用缓存）
 COPY pyproject.toml uv.lock* .python-version ./
-RUN uv sync --frozen --no-dev
+RUN uv sync --no-dev
 
 # 源码层
 COPY backend ./backend

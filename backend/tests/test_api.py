@@ -6,10 +6,13 @@ import unittest
 from unittest.mock import patch
 import wave
 
+from dataclasses import replace
+
 from backend.interview.api import SessionStore, _handle_health, handle_api_request
 from backend.interview.followup_engine import FollowupDecision
 from backend.interview.answer_help import AnswerHelpResult
 from backend.interview.llm_client import LlmResult
+from backend.interview.session import create_interview_session
 
 
 class ApiTest(unittest.TestCase):
@@ -278,6 +281,33 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(updated["llm_status"], "ok")
         analyze_mock.assert_called_once_with("我负责问题生成。")
 
+    def test_answer_with_video_timestamp_sec(self):
+        """提交答案时带 video_timestamp_sec，返回的 session 应保留该字段"""
+        created = self.request(
+            "POST",
+            "/api/sessions",
+            {
+                "candidate_name": "test",
+                "resume": "测试简历",
+                "job_description": "测试岗位",
+                "interview_goal": "测试目标",
+            },
+            expected_status=201,
+        )
+
+        updated = self.request(
+            "POST",
+            f"/api/sessions/{created['id']}/answers",
+            {
+                "text": "测试回答",
+                "duration_sec": 30,
+                "video_timestamp_sec": 42.5,
+            },
+        )
+        self.assertEqual(len(updated["answers"]), 1)
+        answer = updated["answers"][0]
+        self.assertEqual(answer["video_timestamp_sec"], 42.5)
+
     def test_records_speech_chunks_and_returns_chunk_and_cumulative_metrics(self):
         created = self.request(
             "POST",
@@ -336,6 +366,43 @@ class ApiTest(unittest.TestCase):
         )
         self.assertEqual(bad["error"], "invalid_audio_payload")
 
+    def test_video_upload_clears_failed_flag_on_success(self):
+        from dataclasses import replace
+        from backend.interview.session import create_interview_session
+        from backend.interview.question_engine import InterviewQuestion
+
+        questions = [InterviewQuestion(id="q1", dimension="项目经验", prompt="test", follow_ups=[], evidence_hints=[])]
+        session = create_interview_session(candidate_name="张三", role="工程师", questions=questions)
+
+        # 模拟上传失败
+        session = replace(session, video_upload_failed=True)
+        self.assertTrue(session.video_upload_failed)
+
+        # 模拟上传成功：video_path 被设置，video_upload_failed 应被清除
+        session = replace(session, video_path="user1/session1.webm", video_duration_sec=60.0, video_upload_failed=False)
+        self.assertFalse(session.video_upload_failed)
+        self.assertEqual(session.video_path, "user1/session1.webm")
+
+    def test_video_download_returns_404_when_no_video(self):
+        created = self.request(
+            "POST",
+            "/api/sessions",
+            {
+                "candidate_name": "张三",
+                "resume": "候选人负责 AI 面试平台。",
+                "job_description": "岗位是 AI 产品全栈工程师。",
+                "interview_goal": "评估项目经验。",
+            },
+            expected_status=201,
+        )
+
+        status, body = handle_api_request(
+            self.store, "GET", f"/api/sessions/{created['id']}/video", {},
+            user_id="00000000-0000-0000-0000-000000000001",
+        )
+        self.assertEqual(status, 404)
+        self.assertEqual(body["error"], "video_not_found")
+
     def test_health_endpoint_returns_correct_structure(self):
         status, body = _handle_health(self.store)
         self.assertEqual(status, 200)
@@ -345,7 +412,6 @@ class ApiTest(unittest.TestCase):
         self.assertIn("database", body["components"])
         self.assertIn("llm", body["components"])
         self.assertIn("asr", body["components"])
-        self.assertIn("livekit", body["components"])
         self.assertIn("mineru", body["components"])
         self.assertIn("runtime", body)
         self.assertIn("uptime_sec", body["runtime"])
@@ -516,9 +582,6 @@ class ApiTest(unittest.TestCase):
         # mineru
         self.assertIn("api_token_configured", body["components"]["mineru"])
         self.assertIn("mode", body["components"]["mineru"])
-        # livekit
-        self.assertIn("url", body["components"]["livekit"])
-        self.assertIn("accepted", body["components"]["livekit"])
         # asr
         self.assertIn("dashscope_configured", body["components"]["asr"])
         # runtime

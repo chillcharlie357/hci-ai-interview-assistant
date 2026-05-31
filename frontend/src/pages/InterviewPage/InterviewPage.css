@@ -723,34 +723,6 @@
   margin-bottom: var(--space-md);
 }
 
-/* ===== LiveKit 候选人视频 ===== */
-.candidate-livekit-room {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: #f7f9fb;
-}
-
-.candidate-video-grid {
-  flex: 1;
-  min-height: 200px;
-}
-
-.lk-button-group-menu {
-  display: none !important;
-}
-
-.lk-control-bar {
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 8px;
-}
-
-.lk-button {
-  font-size: 12px;
-  padding: 6px 10px;
-}
 
 /* ===== 关键帧动画 ===== */
 @keyframes interview-pulse {

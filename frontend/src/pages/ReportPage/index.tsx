@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { Button, Spin, Empty, App } from "antd";
 import {
@@ -18,6 +18,8 @@ import { SkillsRadar } from "./components/SkillsRadar";
 import { KeyframesGallery } from "./components/KeyframesGallery";
 import { QATimeline } from "./components/QATimeline";
 import { FullReportSection } from "./components/FullReportSection";
+import { VideoPlaybackCard } from "./components/VideoPlaybackCard";
+import type { VideoPlaybackCardHandle } from "./components/VideoPlaybackCard";
 
 import "./ReportPage.css";
 
@@ -29,6 +31,7 @@ export function ReportPage() {
   const [report, setReport] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const videoPlaybackRef = useRef<VideoPlaybackCardHandle>(null);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -152,24 +155,37 @@ export function ReportPage() {
         </Button>
       </header>
 
-      {/* 主内容区 - 两列布局 */}
-      <div className="report-grid">
-        <div className="report-left">
-          <RatingCard avgScore={avgScore} ratingSummary={ratingSummary} />
-        </div>
-
-        <div className="report-right">
-          <SkillsRadar
-            radarData={radarData}
-            topSkills={topSkills}
-            speechSummary={session.speechSummary}
+      {/* 主内容区 - 单列布局 */}
+      <div className="report-body">
+        {session.videoPath && (
+          <VideoPlaybackCard
+            ref={videoPlaybackRef}
+            sessionId={session.id}
+            videoDurationSec={session.videoDurationSec}
           />
-          <KeyframesGallery keyframes={session.keyframes} />
-        </div>
-      </div>
+        )}
 
-      <QATimeline session={session} />
-      <FullReportSection report={report} />
+        <RatingCard avgScore={avgScore} ratingSummary={ratingSummary} />
+
+        <SkillsRadar
+          radarData={radarData}
+          topSkills={topSkills}
+          speechSummary={session.speechSummary ?? null}
+        />
+
+        <KeyframesGallery
+          keyframes={session.keyframes || []}
+          sessionId={session.id}
+          hasVideo={!!session.videoPath}
+        />
+
+        <QATimeline
+          session={session}
+          onSeekVideo={(ts) => videoPlaybackRef.current?.seekTo(ts)}
+        />
+
+        <FullReportSection report={report} />
+      </div>
     </div>
   );
 }

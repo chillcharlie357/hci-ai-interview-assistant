@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Spin, Drawer, Divider, Tag, Typography } from "antd";
+import { App, Spin, Drawer, Divider, Tag, Typography } from "antd";
 import { VideoCameraOutlined } from "@ant-design/icons";
 
 import { requestAnswerHelp, type AnswerHelpResult } from "@/answerHelp";
@@ -9,8 +9,8 @@ import { buildConversationCaptions, shouldAutoSpeakQuestion, type DigitalIntervi
 
 import { useVideoAnalysis } from "./hooks/useVideoAnalysis";
 import { useSpeechRecognition } from "./hooks/useSpeechRecognition";
-import { useLiveKit } from "./hooks/useLiveKit";
 import { useInterviewSession } from "./hooks/useInterviewSession";
+import { useVideoRecorder } from "./hooks/useVideoRecorder";
 
 import { InterviewerTile } from "./components/InterviewerTile";
 import { CandidateVideo } from "./components/CandidateVideo";
@@ -23,20 +23,21 @@ import "./InterviewPage.css";
 export function InterviewPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
+  const { message } = App.useApp();
 
   const [interimTranscriptDisplay, setInterimTranscriptDisplay] = useState("");
 
   const speech = useSpeechRecognition(
     sessionId,
     (interim) => setInterimTranscriptDisplay(interim),
-    (finalText) => setAnswerTextFromAsr(finalText)
+    (finalText) => setAnswerTextFromAsr(finalText),
   );
 
   const sessionHandle = useInterviewSession(sessionId, speech.chunkUploadFailCount);
   const { session, loading, report, answerText, setAnswerText, answerStartedAt, startAnswer, finishAnswer, finishingAnswer, updateSession, appendAnswerText, lastFollowup } = sessionHandle;
 
-  const video = useVideoAnalysis(sessionId, session, updateSession);
-  const liveKit = useLiveKit(sessionId, session);
+  const recorder = useVideoRecorder();
+  const video = useVideoAnalysis(sessionId, session, updateSession, recorder.recordingStartTimeRef, recorder.accumulatedDurationRef);
 
   const [interviewerState, setInterviewerState] = useState<DigitalInterviewerState>("preparing");
   const lastAutoSpokenQuestionIdRef = useRef<string | null>(null);
@@ -98,6 +99,13 @@ export function InterviewPage() {
     };
   }, []);
 
+  // 视频上传失败提示
+  useEffect(() => {
+    if (recorder.uploadError) {
+      message.warning(`视频上传失败：${recorder.uploadError}，面试记录仍已保存`);
+    }
+  }, [recorder.uploadError, message]);
+
   function speakQuestion(mode: "auto" | "replay" = "replay") {
     if (!session?.currentQuestion) {
       setInterviewerState("finished");
@@ -121,11 +129,33 @@ export function InterviewPage() {
     if (!session?.currentQuestion || answerStartedAt !== null) return;
     startAnswer();
     await speech.startMediaStreamAndAsr();
+    // 第一次回答时启动录制
+    if (!recorder.isRecording && session?.id) {
+      await recorder.startRecording(session.id, video.analysisStreamRef.current, video.analysisCanvasRef.current);
+    }
+    video.captureKeyframe("answer_start");
   }
 
   async function handleFinishCandidateAnswer() {
+    video.captureKeyframe("answer_end");
     await speech.stopMediaStream();
-    await finishAnswer();
+
+    // 计算当前答案的视频时间戳偏移（必须在 stopAndUpload 之前计算）
+    const videoTimestampSec = recorder.accumulatedDurationRef.current
+      + (recorder.recordingStartTimeRef.current
+        ? (performance.now() - recorder.recordingStartTimeRef.current) / 1000
+        : 0);
+
+    const isLastQuestion = session?.currentQuestion && session.currentIndex >= session.questions.length - 1;
+    // 最后一题：先完成录制上传，再提交答案（避免上传未完成即跳转报告页）
+    if (isLastQuestion && sessionId && recorder.isRecording) {
+      try {
+        await recorder.stopAndUpload(sessionId);
+      } catch {
+        // 上传失败已在 recorder.uploadError 中处理
+      }
+    }
+    await finishAnswer({ videoTimestampSec });
   }
 
   async function handleRequestHelp() {
@@ -204,7 +234,10 @@ export function InterviewPage() {
             totalSteps={session.questions.length}
             state={interviewerState}
           />
-          <CandidateVideo liveKit={liveKit.liveKit} meetingError={liveKit.meetingError} />
+          <CandidateVideo
+            cameraStream={video.analysisStreamRef.current}
+            cameraEnabled={video.cameraEnabled}
+          />
         </div>
 
         <CaptionBar captions={captions} scrollRef={danmakuScrollRef} />

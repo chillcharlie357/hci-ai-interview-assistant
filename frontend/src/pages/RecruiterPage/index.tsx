@@ -434,9 +434,11 @@ export function RecruiterPage() {
                 <Button type="primary" onClick={() => navigate(`/interview/${session.id}`)}>
                   进入面试间
                 </Button>
-                <Button onClick={() => navigate(`/report/${session.id}`)}>
-                  查看报告
-                </Button>
+                {session.currentIndex >= session.questions.length && (
+                  <Button onClick={() => navigate(`/report/${session.id}`)}>
+                    查看报告
+                  </Button>
+                )}
               </div>
             </div>
           </Card>
@@ -448,12 +450,14 @@ export function RecruiterPage() {
             className="recruiter-page-card glass-card"
             title={`生成题目 (${questionItems.length} 道)`}
             extra={
-              <>
-                <Button onClick={handleViewReport}>查看招聘端报告</Button>
-                <Button icon={<DownloadOutlined />} onClick={handleDownloadReport}>
-                  下载面试结果
-                </Button>
-              </>
+              session.currentIndex >= session.questions.length ? (
+                <>
+                  <Button onClick={handleViewReport}>查看招聘端报告</Button>
+                  <Button icon={<DownloadOutlined />} onClick={handleDownloadReport}>
+                    下载面试结果
+                  </Button>
+                </>
+              ) : null
             }
           >
             <div className="question-list">

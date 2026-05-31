@@ -32,7 +32,7 @@ describe("logger", () => {
     const { createLogger } = await importLogger();
     const log = createLogger("test");
     log.info("hello");
-    expect(console.info).toHaveBeenCalledWith("[HCI:test]", "hello");
+    expect(console.info).toHaveBeenCalledWith("[HCI:test] hello");
   });
 
   it("logs warn and error at VITE_LOG_LEVEL=info", async () => {
@@ -40,8 +40,8 @@ describe("logger", () => {
     const log = createLogger("test");
     log.warn("warning message", "detail");
     log.error("error message");
-    expect(console.warn).toHaveBeenCalledWith("[HCI:test]", "warning message", "detail");
-    expect(console.error).toHaveBeenCalledWith("[HCI:test]", "error message");
+    expect(console.warn).toHaveBeenCalledWith("[HCI:test] warning message", "detail");
+    expect(console.error).toHaveBeenCalledWith("[HCI:test] error message");
   });
 
   it("does not log debug at VITE_LOG_LEVEL=info", async () => {
@@ -56,7 +56,7 @@ describe("logger", () => {
     const { createLogger } = await importLogger();
     const log = createLogger("test");
     log.debug("debug message");
-    expect(console.debug).toHaveBeenCalledWith("[HCI:test]", "debug message");
+    expect(console.debug).toHaveBeenCalledWith("[HCI:test] debug message");
   });
 
   it("suppresses info and debug at VITE_LOG_LEVEL=warn", async () => {
@@ -68,7 +68,7 @@ describe("logger", () => {
     log.warn("warn msg");
     expect(console.debug).not.toHaveBeenCalled();
     expect(console.info).not.toHaveBeenCalled();
-    expect(console.warn).toHaveBeenCalledWith("[HCI:test]", "warn msg");
+    expect(console.warn).toHaveBeenCalledWith("[HCI:test] warn msg");
   });
 
   it("only logs error at VITE_LOG_LEVEL=error", async () => {
@@ -80,7 +80,7 @@ describe("logger", () => {
     log.error("error msg");
     expect(console.info).not.toHaveBeenCalled();
     expect(console.warn).not.toHaveBeenCalled();
-    expect(console.error).toHaveBeenCalledWith("[HCI:test]", "error msg");
+    expect(console.error).toHaveBeenCalledWith("[HCI:test] error msg");
   });
 
   it("defaults to info level when VITE_LOG_LEVEL is not set", async () => {
@@ -90,7 +90,7 @@ describe("logger", () => {
     log.debug("debug msg");
     log.info("info msg");
     expect(console.debug).not.toHaveBeenCalled();
-    expect(console.info).toHaveBeenCalledWith("[HCI:test]", "info msg");
+    expect(console.info).toHaveBeenCalledWith("[HCI:test] info msg");
   });
 
   it("prefixes all logs with [HCI:component]", async () => {
@@ -99,8 +99,8 @@ describe("logger", () => {
     log.info("request");
     log.warn("slow");
     log.error("fail");
-    expect(console.info).toHaveBeenCalledWith("[HCI:api]", "request");
-    expect(console.warn).toHaveBeenCalledWith("[HCI:api]", "slow");
-    expect(console.error).toHaveBeenCalledWith("[HCI:api]", "fail");
+    expect(console.info).toHaveBeenCalledWith("[HCI:api] request");
+    expect(console.warn).toHaveBeenCalledWith("[HCI:api] slow");
+    expect(console.error).toHaveBeenCalledWith("[HCI:api] fail");
   });
 });

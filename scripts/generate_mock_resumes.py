@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import platform
 from pathlib import Path
 
 from reportlab.pdfbase import pdfmetrics
@@ -10,7 +11,26 @@ from reportlab.pdfgen import canvas
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = ROOT / "mock-resumes"
 
-SONGTI_PATH = "/System/Library/Fonts/Supplemental/Songti.ttc"
+# 跨平台宋体字体路径
+_CJK_FONT_CANDIDATES: dict[str, list[str]] = {
+    "Windows": ["C:/Windows/Fonts/simsun.ttc"],
+    "Darwin": ["/System/Library/Fonts/Supplemental/Songti.ttc", "/Library/Fonts/Songti.ttc"],
+    "Linux": ["/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"],
+}
+
+
+def _find_cjk_font() -> str:
+    system = platform.system()
+    for candidate in _CJK_FONT_CANDIDATES.get(system, []):
+        if Path(candidate).exists():
+            return candidate
+    raise FileNotFoundError(
+        f"未找到中文字体。请安装宋体/SimSun/NotoSansCJK 后重试。"
+        f"（当前系统: {system}，已搜索: {_CJK_FONT_CANDIDATES.get(system, [])}）"
+    )
+
+
+SONGTI_PATH = _find_cjk_font()
 pdfmetrics.registerFont(TTFont("Songti", SONGTI_PATH))
 
 RESUMES = (

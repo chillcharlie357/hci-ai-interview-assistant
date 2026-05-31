@@ -20,17 +20,21 @@ const FACE_ANALYSIS_INTERVAL_MS = 100;
 export type VideoAnalysisHandle = {
   analysisVideoRef: React.RefObject<HTMLVideoElement | null>;
   analysisCanvasRef: React.RefObject<HTMLCanvasElement | null>;
+  analysisStreamRef: React.RefObject<MediaStream | null>;
   faceMetricsSnapshot: FaceAnalysisMetrics | null;
   videoObservationStatus: string;
   currentFacePresent: boolean;
   cameraEnabled: boolean;
   setCameraEnabled: (enabled: boolean) => void;
+  captureKeyframe: (reason: string) => void;
 };
 
 export function useVideoAnalysis(
   sessionId: string | undefined,
   session: InterviewSession | null,
-  onSessionUpdate: (updated: InterviewSession) => void
+  onSessionUpdate: (updated: InterviewSession) => void,
+  recordingStartTimeRef: React.RefObject<number | null>,
+  accumulatedDurationRef: React.RefObject<number>
 ): VideoAnalysisHandle {
   const analysisVideoRef = useRef<HTMLVideoElement | null>(null);
   const analysisCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -80,6 +84,40 @@ export function useVideoAnalysis(
       videoElement.srcObject = null;
     }
   }, []);
+
+  const captureKeyframe = useCallback(
+    (reason: string) => {
+      const canvas = analysisCanvasRef.current;
+      if (!canvas || !session) return;
+
+      try {
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+        const videoTimestampSec = recordingStartTimeRef.current
+          ? accumulatedDurationRef.current +
+            (performance.now() - recordingStartTimeRef.current) / 1000
+          : null;
+
+        void submitVideoEvent(session.id, {
+          timestamp: performance.now() / 1000,
+          eventType: reason,
+          confidence: 0.9,
+          metrics: metricsRef.current ?? {},
+          keyframe: {
+            reason,
+            dataUrl,
+            videoTimestampSec,
+          },
+        }).then((updated) => {
+          onSessionUpdate(updated);
+        }).catch(() => {
+          // 单次截图失败不阻塞流程
+        });
+      } catch {
+        // canvas.toDataURL 可能因 canvas 被污染而失败
+      }
+    },
+    [session, onSessionUpdate, recordingStartTimeRef, accumulatedDurationRef, analysisCanvasRef]
+  );
 
   const scheduleNextAnalysisFrame = useCallback(() => {
     analysisFrameRef.current = window.requestAnimationFrame((timestamp) => {
@@ -134,7 +172,13 @@ export function useVideoAnalysis(
       if (shouldUpload && session) {
         lastUploadedVideoEventAtRef.current = timestampMs;
         const keyframe = event.shouldCaptureKeyframe
-          ? { reason: event.keyframeReason ?? event.eventType, dataUrl: canvasElement.toDataURL("image/jpeg", 0.72) }
+          ? {
+              reason: event.keyframeReason ?? event.eventType,
+              dataUrl: canvasElement.toDataURL("image/jpeg", 0.7),
+              videoTimestampSec: recordingStartTimeRef.current
+                ? (accumulatedDurationRef.current + (timestampMs - recordingStartTimeRef.current) / 1000)
+                : null,
+            }
           : undefined;
         void submitVideoEvent(session.id, {
           timestamp: timestampMs / 1000,
@@ -244,10 +288,12 @@ export function useVideoAnalysis(
   return {
     analysisVideoRef,
     analysisCanvasRef,
+    analysisStreamRef,
     faceMetricsSnapshot,
     videoObservationStatus,
     currentFacePresent,
     cameraEnabled,
     setCameraEnabled,
+    captureKeyframe,
   };
 }

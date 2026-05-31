@@ -6,7 +6,6 @@ import {
   fetchReport,
   getSession,
   requestAnswerHelp,
-  requestLiveKitToken,
   submitAnswer,
   submitPrepFollowup,
   submitResume,
@@ -223,7 +222,6 @@ describe("apiClient", () => {
           current_question: null,
           answers: [],
           events: [],
-          meeting_room: "interview-session_1",
           enable_video_observation: true
         }),
         { status: 201 }
@@ -238,22 +236,14 @@ describe("apiClient", () => {
     );
 
     expect(prep.readySummary?.role).toBe("AI 产品全栈工程师");
-    expect(session.meetingRoom).toBe("interview-session_1");
   });
 
-  it("requests LiveKit tokens and report", async () => {
-    const fetcher = async (input: RequestInfo | URL) => {
-      const url = String(input);
-      if (url.includes("livekit-token")) {
-        return new Response(JSON.stringify({ url: "wss://livekit.test", token: "jwt", room: "interview-session_1" }), { status: 200 });
-      }
-      return new Response(JSON.stringify({ report: "# 智能面试纪要", llm_status: "fallback" }), { status: 200 });
-    };
+  it("fetches a report", async () => {
+    const fetcher = async () =>
+      new Response(JSON.stringify({ report: "# 智能面试纪要", llm_status: "fallback" }), { status: 200 });
 
-    const token = await requestLiveKitToken("session_1", { participantName: "张三", participantRole: "candidate" }, { fetcher });
     const report = await fetchReport("session_1", { fetcher });
 
-    expect(token.url).toBe("wss://livekit.test");
     expect(report.report).toContain("智能面试纪要");
   });
 
