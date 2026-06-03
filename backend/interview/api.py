@@ -994,7 +994,7 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
             """处理 raw binary body 视频上传"""
             if not user_id:
                 user_id = "dev_user"
-            if not is_valid_uuid(user_id):
+            if auth_middleware.require_auth and not is_valid_uuid(user_id):
                 return HTTPStatus.UNAUTHORIZED, {"error": "authentication_required"}
 
             session_id = self._extract_session_id()
