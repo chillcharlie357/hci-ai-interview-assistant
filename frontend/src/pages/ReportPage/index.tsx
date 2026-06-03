@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Button, Spin, Empty, App } from "antd";
 import {
@@ -7,19 +7,23 @@ import {
   UserOutlined,
 } from "@ant-design/icons";
 
-import { fetchReport, getSession } from "@/apiClient";
+import { fetchReport, fetchVideoUrl, getSession } from "@/apiClient";
 import type { InterviewSession } from "@/interviewFlow";
-import { buildReportFilename, buildPdfFilename, downloadMarkdownReport, downloadPdfReport } from "@/reportDownload";
+import {
+  downloadPdfReport,
+} from "@/reportDownload";
 import { useAppStore } from "@/store";
 
-import { computeDimensionScores, generateRatingSummary } from "./helpers/scoring";
+import {
+  computeDimensionScores,
+  generateRatingSummary,
+} from "./helpers/scoring";
 import { RatingCard } from "./components/RatingCard";
 import { SkillsRadar } from "./components/SkillsRadar";
 import { KeyframesGallery } from "./components/KeyframesGallery";
 import { QATimeline } from "./components/QATimeline";
 import { FullReportSection } from "./components/FullReportSection";
 import { VideoPlaybackCard } from "./components/VideoPlaybackCard";
-import type { VideoPlaybackCardHandle } from "./components/VideoPlaybackCard";
 
 import "./ReportPage.css";
 
@@ -31,7 +35,10 @@ export function ReportPage() {
   const [report, setReport] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const videoPlaybackRef = useRef<VideoPlaybackCardHandle>(null);
+
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [videoLoading, setVideoLoading] = useState(false);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -44,8 +51,62 @@ export function ReportPage() {
       void loadFullReport(cancelled);
     }
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [sessionId, globalSession]);
+
+  useEffect(() => {
+    if (session?.videoPath && !videoUrl && !videoLoading) {
+      void loadVideo();
+    }
+  }, [session?.videoPath]);
+
+  async function loadVideo() {
+    if (!sessionId || !session?.videoPath) return;
+    setVideoLoading(true);
+    try {
+      const url = await fetchVideoUrl(sessionId);
+      if (url) setVideoUrl(url);
+    } catch {
+      // 静默降级
+    } finally {
+      setVideoLoading(false);
+    }
+  }
+
+  const seekTo = useCallback(
+    (timestampSec: number) => {
+      const video = videoRef.current;
+      if (!video) {
+        if (!videoUrl && !videoLoading) {
+          // 视频尚未加载，先触发加载
+          void loadVideo().then(() => {
+            const v = videoRef.current;
+            if (v) {
+              v.currentTime = timestampSec;
+              v.play().catch(() => {});
+            }
+          });
+        }
+        return;
+      }
+      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        video.currentTime = timestampSec;
+        video.play().catch(() => {});
+      } else {
+        video.addEventListener(
+          "loadeddata",
+          () => {
+            video.currentTime = timestampSec;
+            video.play().catch(() => {});
+          },
+          { once: true }
+        );
+      }
+    },
+    [videoUrl, videoLoading, sessionId]
+  );
 
   async function loadReportOnly(id: string, cancelled: boolean) {
     setLoading(true);
@@ -91,29 +152,36 @@ export function ReportPage() {
     void downloadPdfReport(session.candidateName, session.id, ".report-page");
   };
 
-  // 数据计算 memo 化
-  const dimensionScores = useMemo(() => session ? computeDimensionScores(session) : {}, [session]);
+  const dimensionScores = useMemo(
+    () => (session ? computeDimensionScores(session) : {}),
+    [session]
+  );
 
-  const radarData = useMemo(() =>
-    Object.entries(dimensionScores).map(([subject, value]) => ({
-      subject,
-      value: Math.round(value),
-      fullMark: 100,
-    })),
+  const radarData = useMemo(
+    () =>
+      Object.entries(dimensionScores).map(([subject, value]) => ({
+        subject,
+        value: Math.round(value),
+        fullMark: 100,
+      })),
     [dimensionScores]
   );
 
   const topSkills = useMemo(() => radarData.slice(0, 4), [radarData]);
 
-  const avgScore = useMemo(() =>
-    radarData.length > 0
-      ? radarData.reduce((sum, d) => sum + d.value, 0) / radarData.length / 20
-      : 0,
+  const avgScore = useMemo(
+    () =>
+      radarData.length > 0
+        ? radarData.reduce((sum, d) => sum + d.value, 0) /
+          radarData.length /
+          20
+        : 0,
     [radarData]
   );
 
-  const ratingSummary = useMemo(() =>
-    session ? generateRatingSummary(session, dimensionScores) : "",
+  const ratingSummary = useMemo(
+    () =>
+      session ? generateRatingSummary(session, dimensionScores) : "",
     [session, dimensionScores]
   );
 
@@ -136,7 +204,6 @@ export function ReportPage() {
 
   return (
     <div className="report-page">
-      {/* 报告头部 */}
       <header className="report-header">
         <div className="report-header-left">
           <h1>{session.candidateName}的面试报告</h1>
@@ -146,22 +213,30 @@ export function ReportPage() {
             </span>
             <span className="meta-divider">|</span>
             <span className="meta-item">
-              <CalendarOutlined /> {session.createdAt ? new Date(session.createdAt).toLocaleDateString("zh-CN") : "日期未知"}
+              <CalendarOutlined />{" "}
+              {session.createdAt
+                ? new Date(session.createdAt).toLocaleDateString("zh-CN")
+                : "日期未知"}
             </span>
           </div>
         </div>
-        <Button type="primary" icon={<DownloadOutlined />} onClick={handleDownload} className="download-btn">
+        <Button
+          type="primary"
+          icon={<DownloadOutlined />}
+          onClick={handleDownload}
+          className="download-btn"
+        >
           下载 PDF 报告
         </Button>
       </header>
 
-      {/* 主内容区 - 单列布局 */}
       <div className="report-body">
         {session.videoPath && (
           <VideoPlaybackCard
-            ref={videoPlaybackRef}
-            sessionId={session.id}
+            videoUrl={videoUrl}
+            videoLoading={videoLoading}
             videoDurationSec={session.videoDurationSec}
+            videoRef={videoRef}
           />
         )}
 
@@ -175,14 +250,11 @@ export function ReportPage() {
 
         <KeyframesGallery
           keyframes={session.keyframes || []}
-          sessionId={session.id}
           hasVideo={!!session.videoPath}
+          onSeekVideo={seekTo}
         />
 
-        <QATimeline
-          session={session}
-          onSeekVideo={(ts) => videoPlaybackRef.current?.seekTo(ts)}
-        />
+        <QATimeline session={session} onSeekVideo={seekTo} />
 
         <FullReportSection report={report} />
       </div>

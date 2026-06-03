@@ -8,6 +8,7 @@ ENV UV_DEFAULT_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 # 注意：MinerU 已从 CLI 切换为 HTTP API 直连，不再需要 nodejs/npm/mineru-open-api
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        ffmpeg \
     && pip install --no-cache-dir uv \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/*
