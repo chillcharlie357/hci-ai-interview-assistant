@@ -992,6 +992,8 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
 
         def _handle_video_upload_raw(self, user_id: str) -> tuple[int, dict[str, Any]]:
             """处理 raw binary body 视频上传"""
+            if not user_id:
+                user_id = "dev_user"
             if not is_valid_uuid(user_id):
                 return HTTPStatus.UNAUTHORIZED, {"error": "authentication_required"}
 
