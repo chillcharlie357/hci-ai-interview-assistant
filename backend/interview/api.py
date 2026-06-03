@@ -363,20 +363,23 @@ class SessionStore:
                 raise PersistenceError(f"Failed to save session {session_id}")
         return updated
 
-    def record_video_event(self, session_id: str, payload: dict[str, Any]) -> InterviewSession | None:
+    def record_video_event(self, session_id: str, payload: dict[str, Any], user_id: str = "") -> InterviewSession | None:
         session = self.sessions.get(session_id)
         if session is None:
             return None
+        has_keyframe = isinstance(payload.get("keyframe"), dict)
         updated = record_video_event(
             session,
             timestamp=float(payload.get("timestamp", 0)),
             event_type=str(payload.get("event_type", "observation")),
             confidence=float(payload.get("confidence", 0)),
             metrics=dict(payload.get("metrics", {})),
-            keyframe=payload.get("keyframe") if isinstance(payload.get("keyframe"), dict) else None,
+            keyframe=payload.get("keyframe") if has_keyframe else None,
         )
         self.sessions[session_id] = updated
-        # 视频事件仅更新内存，持久化在答题时一并进行，避免高频写入打爆数据库
+        # 关键帧事件立即持久化（数量少，每场面试仅几个）；普通观察事件仍仅存内存
+        if has_keyframe and self.repo and user_id:
+            self.repo.save_session(updated, user_id)
         return updated
 
     def request_answer_help(self, session_id: str, payload: dict[str, Any], user_id: str = "") -> tuple[int, dict[str, Any]]:
@@ -600,7 +603,7 @@ def handle_api_request(
         and path_parts[:2] == ["api", "sessions"]
         and path_parts[3] == "video-events"
     ):
-        session = store.record_video_event(path_parts[2], body)
+        session = store.record_video_event(path_parts[2], body, user_id)
         if session is None:
             return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
         return HTTPStatus.OK, serialize_session(session, _get_speech_cumulative(store, path_parts[2]))
