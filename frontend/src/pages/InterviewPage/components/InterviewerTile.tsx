@@ -1,42 +1,26 @@
 import { memo } from "react";
 
 import type { DigitalInterviewerState } from "@/digitalInterviewer";
-import { describeDigitalInterviewerState } from "@/digitalInterviewer";
 
-import { AnimatedAvatar } from "./AnimatedAvatar";
+import { VideoAvatar } from "./VideoAvatar";
 
 interface InterviewerTileProps {
-  candidateName: string;
-  currentStep: number;
-  totalSteps: number;
   state: DigitalInterviewerState;
+  reaction?: { type: "nod" | "shake"; key: number } | null;
 }
 
 export const InterviewerTile = memo(function InterviewerTile({
-  candidateName,
-  currentStep,
-  totalSteps,
   state,
+  reaction,
 }: InterviewerTileProps) {
-  const description = describeDigitalInterviewerState(state, Math.max(currentStep, 0), Math.max(totalSteps, 0));
-
   return (
-    <div className={`digital-interviewer-tile ${description.isAnimated ? "speaking" : ""}`}>
+    <div className="digital-interviewer-tile">
       <div className="digital-avatar">
         <div className="avatar-orbit" />
         <div className="avatar-core">
-          <AnimatedAvatar state={state} />
+          <VideoAvatar state={state} reaction={reaction} />
         </div>
       </div>
-      <div className="digital-name-row">
-        <strong>AI 面试官</strong>
-        <span className="status-tag">{description.label}</span>
-      </div>
-      <p>{candidateName}，我会按题目顺序主持本轮面试。</p>
-      <div className="voice-bars">
-        <span /><span /><span /><span />
-      </div>
-      <small>{description.detail}</small>
     </div>
   );
 });

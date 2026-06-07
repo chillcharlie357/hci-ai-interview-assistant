@@ -56,7 +56,8 @@ def extract_signals(resume: str = "", job_description: str = "", interview_goal:
 
 
 def generate_interview_questions(
-    resume: str = "", job_description: str = "", interview_goal: str = ""
+    resume: str = "", job_description: str = "", interview_goal: str = "",
+    max_questions: int = 6,
 ) -> QuestionSet:
     signals = extract_signals(resume, job_description, interview_goal)
     primary_skills = signals.skills[:4]
@@ -113,6 +114,7 @@ def generate_interview_questions(
         templates,
         key=lambda question: question.dimension not in desired_dimensions,
     )
+    selected = prioritized[:max_questions]
     questions = [
         InterviewQuestion(
             id=f"q_{index:03d}",
@@ -121,7 +123,7 @@ def generate_interview_questions(
             follow_ups=question.follow_ups,
             evidence_hints=question.evidence_hints,
         )
-        for index, question in enumerate(prioritized, start=1)
+        for index, question in enumerate(selected, start=1)
     ]
 
     return QuestionSet(role=signals.role, signals=signals, questions=questions)

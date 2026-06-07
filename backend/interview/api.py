@@ -300,6 +300,7 @@ class SessionStore:
                 "llm_status": session.llm_status,
                 "total_questions": len(session.questions),
             })
+        result.sort(key=lambda s: s["id"], reverse=True)
         return result[:limit]
 
     def delete_session(self, session_id: str, user_id: str = "") -> bool:
