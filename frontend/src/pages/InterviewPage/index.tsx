@@ -46,6 +46,7 @@ export function InterviewPage() {
   const answerInputRef = useRef<import("antd/es/input/TextArea").TextAreaRef | null>(null);
   const latestQuestionIdRef = useRef<string | null>(null);
   const questionStartSecRef = useRef<number | null>(null);
+  const answerStartSecRef = useRef<number | null>(null);
   const voicesPreloadedRef = useRef(false);
   const [helpLoading, setHelpLoading] = useState(false);
   const [helpVisible, setHelpVisible] = useState(false);
@@ -169,7 +170,16 @@ export function InterviewPage() {
     // 第一次回答时启动录制
     if (!recorder.isRecording && session?.id) {
       await recorder.startRecording(session.id, video.analysisStreamRef.current, video.analysisCanvasRef.current, speech.micStreamRef.current);
+    } else {
+      // 后续每道题重新获取了 mic stream，需要将新音频轨道加入录制流
+      const micTrack = speech.micStreamRef.current?.getAudioTracks()[0];
+      if (micTrack) recorder.addAudioTrack(micTrack);
     }
+    // 记录答题开始时的视频时间戳（用于回放跳转）
+    answerStartSecRef.current = recorder.accumulatedDurationRef.current
+      + (recorder.recordingStartTimeRef.current
+        ? (performance.now() - recorder.recordingStartTimeRef.current) / 1000
+        : 0);
     video.captureKeyframe("answer_start");
   }
 
@@ -184,7 +194,7 @@ export function InterviewPage() {
         : 0);
 
     const isLastQuestion = session?.currentQuestion && session.currentIndex >= session.questions.length - 1;
-    // 最后一题：先完成录制上传，再提交答案（避免上传未完成即跳转报告页）
+    // 最后一题：先完成录制上传，再提交答案
     if (isLastQuestion && sessionId && recorder.isRecording) {
       try {
         await recorder.stopAndUpload(sessionId);
@@ -192,7 +202,8 @@ export function InterviewPage() {
         // 上传失败已在 recorder.uploadError 中处理
       }
     }
-    await finishAnswer({ videoTimestampSec, questionStartSec: questionStartSecRef.current ?? undefined });
+    await finishAnswer({ videoTimestampSec: answerStartSecRef.current ?? undefined, questionStartSec: questionStartSecRef.current ?? undefined });
+    answerStartSecRef.current = null;
     questionStartSecRef.current = null;
 
     const len = (answerText || "").trim().length;
