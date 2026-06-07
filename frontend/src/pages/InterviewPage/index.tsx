@@ -46,6 +46,7 @@ export function InterviewPage() {
   const answerInputRef = useRef<import("antd/es/input/TextArea").TextAreaRef | null>(null);
   const latestQuestionIdRef = useRef<string | null>(null);
   const questionStartSecRef = useRef<number | null>(null);
+  const voicesPreloadedRef = useRef(false);
   const [helpLoading, setHelpLoading] = useState(false);
   const [helpVisible, setHelpVisible] = useState(false);
   const [helpResult, setHelpResult] = useState<AnswerHelpResult | null>(null);
@@ -54,6 +55,17 @@ export function InterviewPage() {
   function setAnswerTextFromAsr(text: string) {
     appendAnswerText(text);
   }
+
+  useEffect(() => {
+    function loadVoices() {
+      const voices = speechSynthesis.getVoices();
+      if (voices.length > 0) voicesPreloadedRef.current = true;
+    }
+    loadVoices();
+    speechSynthesis.onvoiceschanged = () => {
+      voicesPreloadedRef.current = true;
+    };
+  }, []);
 
   // 自动播放问题 / 面试完成自动跳转
   useEffect(() => {
@@ -122,6 +134,13 @@ export function InterviewPage() {
     utterance.lang = "zh-CN";
     utterance.rate = 0.95;
     const voices = speechSynthesis.getVoices();
+    if (voices.length === 0 && !voicesPreloadedRef.current) {
+      speechSynthesis.onvoiceschanged = () => {
+        voicesPreloadedRef.current = true;
+        window.speechSynthesis.speak(utterance);
+      };
+      return;
+    }
     const maleVoice = voices.find(
       (v) => v.lang.startsWith("zh-CN") && (v.name.includes("Yunyang") || v.name.toLowerCase().includes("male")),
     ) ?? voices.find((v) => v.lang.startsWith("zh-CN"));

@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { Tag, Button } from "antd";
-import { StarOutlined, ClockCircleOutlined, CheckCircleOutlined, PlayCircleOutlined, StepForwardOutlined } from "@ant-design/icons";
+import { StarOutlined, ClockCircleOutlined, CheckCircleOutlined, PlayCircleOutlined } from "@ant-design/icons";
 
 import type { InterviewSession } from "@/interviewFlow";
 import { computeAnswerScore } from "../helpers/scoring";
@@ -52,19 +52,6 @@ export const QATimeline = memo(function QATimeline({ session, onSeekVideo }: QAT
                     }}
                   >
                     回放答题
-                  </Button>
-                )}
-                {answer?.questionStartSec != null && onSeekVideo && (
-                  <Button
-                    type="link"
-                    size="small"
-                    icon={<StepForwardOutlined />}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSeekVideo(answer.questionStartSec!);
-                    }}
-                  >
-                    回放提问
                   </Button>
                 )}
               </div>

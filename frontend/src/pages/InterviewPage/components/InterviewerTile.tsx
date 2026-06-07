@@ -14,7 +14,10 @@ export const InterviewerTile = memo(function InterviewerTile({
   reaction,
 }: InterviewerTileProps) {
   return (
-    <div className="digital-interviewer-tile">
+    <div
+      className="digital-interviewer-tile"
+      style={{ aspectRatio: "3 / 4", height: "100%", width: "auto" }}
+    >
       <div className="digital-avatar">
         <div className="avatar-orbit" />
         <div className="avatar-core">

@@ -62,29 +62,6 @@ describe("QATimeline", () => {
     expect(onSeekVideo).toHaveBeenCalledWith(15.0);
   });
 
-  it("answer 有 questionStartSec 时显示回放提问按钮", () => {
-    const onSeekVideo = vi.fn();
-    const session = makeSession({
-      answers: [{
-        questionId: "q_001",
-        dimension: "专业能力",
-        prompt: "请介绍你的技术栈",
-        text: "回答",
-        durationSec: 10,
-        wordCount: 1,
-        fillerWordCount: 0,
-        recordedAt: new Date().toISOString(),
-        videoTimestampSec: 15.0,
-        questionStartSec: 5.0,
-      }],
-    });
-    const { getByText } = render(
-      <QATimeline session={session} onSeekVideo={onSeekVideo} />
-    );
-    fireEvent.click(getByText("回放提问"));
-    expect(onSeekVideo).toHaveBeenCalledWith(5.0);
-  });
-
   it("answer 无 videoTimestampSec 时不显示回放按钮", () => {
     const session = makeSession({
       answers: [
