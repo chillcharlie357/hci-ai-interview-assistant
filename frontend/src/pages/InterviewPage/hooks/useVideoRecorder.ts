@@ -21,7 +21,6 @@ export type VideoRecorderHandle = {
   stopAndUpload: (
     sessionId: string
   ) => Promise<{ videoPath: string; videoDurationSec: number } | null>;
-  addAudioTrack: (track: MediaStreamTrack) => void;
   recordingStartTimeRef: React.RefObject<number | null>;
   accumulatedDurationRef: React.RefObject<number>;
   isRecording: boolean;
@@ -30,7 +29,6 @@ export type VideoRecorderHandle = {
 
 export function useVideoRecorder(): VideoRecorderHandle {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const recordingStreamRef = useRef<MediaStream | null>(null);
   const chunksSeqRef = useRef(0);
   const recordingStartTimeRef = useRef<number | null>(null);
   const accumulatedDurationRef = useRef(0);
@@ -83,14 +81,14 @@ export function useVideoRecorder(): VideoRecorderHandle {
           recordingStream = canvas.captureStream(15);
           const micAudioTrack = micStream?.getAudioTracks()[0];
           if (micAudioTrack) {
-            recordingStream.addTrack(micAudioTrack);
-            log.info("added mic audio track to video recording");
+            recordingStream.addTrack(micAudioTrack.clone());
+            log.info("added mic audio track (cloned) to video recording");
           }
         } else {
           recordingStream = cameraStream!;
           const micAudioTrack = micStream?.getAudioTracks()[0];
           if (micAudioTrack) {
-            recordingStream.addTrack(micAudioTrack);
+            recordingStream.addTrack(micAudioTrack.clone());
           }
         }
 
@@ -104,7 +102,6 @@ export function useVideoRecorder(): VideoRecorderHandle {
           mimeType,
           videoBitsPerSecond: 200000,
         });
-        recordingStreamRef.current = recordingStream;
 
         recorder.ondataavailable = (event) => {
           if (event.data.size > 0) {
@@ -196,17 +193,9 @@ export function useVideoRecorder(): VideoRecorderHandle {
     []
   );
 
-  const addAudioTrack = useCallback((track: MediaStreamTrack) => {
-    if (recordingStreamRef.current && track.readyState === "live") {
-      recordingStreamRef.current.addTrack(track);
-      log.info("added new mic audio track to ongoing recording");
-    }
-  }, []);
-
   return {
     startRecording,
     stopAndUpload,
-    addAudioTrack,
     recordingStartTimeRef,
     accumulatedDurationRef,
     isRecording,

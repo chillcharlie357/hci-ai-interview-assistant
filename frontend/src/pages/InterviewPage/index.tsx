@@ -170,10 +170,6 @@ export function InterviewPage() {
     // 第一次回答时启动录制
     if (!recorder.isRecording && session?.id) {
       await recorder.startRecording(session.id, video.analysisStreamRef.current, video.analysisCanvasRef.current, speech.micStreamRef.current);
-    } else {
-      // 后续每道题重新获取了 mic stream，需要将新音频轨道加入录制流
-      const micTrack = speech.micStreamRef.current?.getAudioTracks()[0];
-      if (micTrack) recorder.addAudioTrack(micTrack);
     }
     // 记录答题开始时的视频时间戳（用于回放跳转）
     answerStartSecRef.current = recorder.accumulatedDurationRef.current

@@ -127,6 +127,12 @@ export function useSpeechRecognition(
       return;
     }
 
+    // 停止旧的麦克风流（录制流中的轨道不受影响，它独立存在）
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+    }
+
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
