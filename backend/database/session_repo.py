@@ -250,6 +250,8 @@ def _answer_from_dict(raw: dict[str, Any]) -> AnswerRecord:
         is_followup=bool(raw.get('is_followup', False)),
         followup_round=int(raw.get('followup_round', 0)),
         followup_prompt=str(raw.get('followup_prompt', '') or ''),
+        video_timestamp_sec=raw.get('video_timestamp_sec'),
+        question_start_sec=raw.get('question_start_sec'),
     )
 
 

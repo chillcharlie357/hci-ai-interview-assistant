@@ -316,11 +316,13 @@ class ApiTest(unittest.TestCase):
                 "text": "测试回答",
                 "duration_sec": 30,
                 "video_timestamp_sec": 42.5,
+                "question_start_sec": 10.0,
             },
         )
         self.assertEqual(len(updated["answers"]), 1)
         answer = updated["answers"][0]
         self.assertEqual(answer["video_timestamp_sec"], 42.5)
+        self.assertEqual(answer["question_start_sec"], 10.0)
 
     def test_records_speech_chunks_and_returns_chunk_and_cumulative_metrics(self):
         created = self.request(

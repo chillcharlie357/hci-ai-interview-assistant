@@ -3,6 +3,7 @@ import { memo } from "react";
 interface VideoPlaybackCardProps {
   videoUrl: string | null;
   videoLoading: boolean;
+  videoError: string;
   videoDurationSec?: number | null;
   videoRef: React.RefObject<HTMLVideoElement | null>;
 }
@@ -10,6 +11,7 @@ interface VideoPlaybackCardProps {
 export const VideoPlaybackCard = memo(function VideoPlaybackCard({
   videoUrl,
   videoLoading,
+  videoError,
   videoDurationSec,
   videoRef,
 }: VideoPlaybackCardProps) {
@@ -25,6 +27,16 @@ export const VideoPlaybackCard = memo(function VideoPlaybackCard({
 
       {videoLoading && (
         <div className="video-playback-placeholder">加载视频中...</div>
+      )}
+
+      {videoError && (
+        <div className="video-playback-placeholder" style={{ color: "var(--color-error)" }}>
+          {videoError}
+        </div>
+      )}
+
+      {!videoLoading && !videoError && !videoUrl && (
+        <div className="video-playback-placeholder">暂无面试录像</div>
       )}
 
       {videoUrl && (

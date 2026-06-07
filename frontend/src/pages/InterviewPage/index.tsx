@@ -40,10 +40,12 @@ export function InterviewPage() {
   const video = useVideoAnalysis(sessionId, session, updateSession, recorder.recordingStartTimeRef, recorder.accumulatedDurationRef);
 
   const [interviewerState, setInterviewerState] = useState<DigitalInterviewerState>("preparing");
+  const [interviewerReaction, setInterviewerReaction] = useState<{ type: "nod" | "shake"; key: number } | null>(null);
   const lastAutoSpokenQuestionIdRef = useRef<string | null>(null);
   const danmakuScrollRef = useRef<HTMLDivElement | null>(null);
   const answerInputRef = useRef<import("antd/es/input/TextArea").TextAreaRef | null>(null);
   const latestQuestionIdRef = useRef<string | null>(null);
+  const questionStartSecRef = useRef<number | null>(null);
   const [helpLoading, setHelpLoading] = useState(false);
   const [helpVisible, setHelpVisible] = useState(false);
   const [helpResult, setHelpResult] = useState<AnswerHelpResult | null>(null);
@@ -94,8 +96,12 @@ export function InterviewPage() {
 
   // 清理
   useEffect(() => {
+    speechSynthesis.getVoices();
+    const onVoicesChanged = () => speechSynthesis.getVoices();
+    speechSynthesis.addEventListener("voiceschanged", onVoicesChanged);
     return () => {
       void speech.stopMediaStream();
+      speechSynthesis.removeEventListener("voiceschanged", onVoicesChanged);
     };
   }, []);
 
@@ -115,6 +121,11 @@ export function InterviewPage() {
     const utterance = new SpeechSynthesisUtterance(buildAvatarPrompt(session));
     utterance.lang = "zh-CN";
     utterance.rate = 0.95;
+    const voices = speechSynthesis.getVoices();
+    const maleVoice = voices.find(
+      (v) => v.lang.startsWith("zh-CN") && (v.name.includes("Yunyang") || v.name.toLowerCase().includes("male")),
+    ) ?? voices.find((v) => v.lang.startsWith("zh-CN"));
+    if (maleVoice) utterance.voice = maleVoice;
     utterance.onstart = () => setInterviewerState("speaking");
     utterance.onend = () => {
       setInterviewerState("listening");
@@ -122,6 +133,13 @@ export function InterviewPage() {
     };
     utterance.onerror = () => setInterviewerState(mode === "auto" ? "unsupported" : "listening");
     setInterviewerState("speaking");
+
+    // 记录提问开始时的视频时间戳
+    questionStartSecRef.current = recorder.accumulatedDurationRef.current
+      + (recorder.recordingStartTimeRef.current
+        ? (performance.now() - recorder.recordingStartTimeRef.current) / 1000
+        : 0);
+
     window.speechSynthesis.speak(utterance);
   }
 
@@ -131,7 +149,7 @@ export function InterviewPage() {
     await speech.startMediaStreamAndAsr();
     // 第一次回答时启动录制
     if (!recorder.isRecording && session?.id) {
-      await recorder.startRecording(session.id, video.analysisStreamRef.current, video.analysisCanvasRef.current);
+      await recorder.startRecording(session.id, video.analysisStreamRef.current, video.analysisCanvasRef.current, speech.micStreamRef.current);
     }
     video.captureKeyframe("answer_start");
   }
@@ -155,7 +173,12 @@ export function InterviewPage() {
         // 上传失败已在 recorder.uploadError 中处理
       }
     }
-    await finishAnswer({ videoTimestampSec });
+    await finishAnswer({ videoTimestampSec, questionStartSec: questionStartSecRef.current ?? undefined });
+    questionStartSecRef.current = null;
+
+    const len = (answerText || "").trim().length;
+    const type: "nod" | "shake" = (len > 0 && len < 10) || len > 200 ? "shake" : "nod";
+    setInterviewerReaction((prev) => ({ type, key: (prev?.key ?? 0) + 1 }));
   }
 
   async function handleRequestHelp() {
@@ -229,10 +252,8 @@ export function InterviewPage() {
 
         <div className="video-grid">
           <InterviewerTile
-            candidateName={session.candidateName}
-            currentStep={Math.min(session.currentIndex + 1, session.questions.length)}
-            totalSteps={session.questions.length}
             state={interviewerState}
+            reaction={interviewerReaction}
           />
           <CandidateVideo
             cameraStream={video.analysisStreamRef.current}

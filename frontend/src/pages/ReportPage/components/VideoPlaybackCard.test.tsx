@@ -11,6 +11,8 @@ describe("VideoPlaybackCard", () => {
       <VideoPlaybackCard
         videoUrl={null}
         videoLoading={true}
+        videoError=""
+        videoError=""
         videoRef={videoRef}
       />
     );
@@ -23,6 +25,7 @@ describe("VideoPlaybackCard", () => {
       <VideoPlaybackCard
         videoUrl="https://example.com/video.webm"
         videoLoading={false}
+        videoError=""
         videoRef={videoRef}
       />
     );
@@ -37,6 +40,7 @@ describe("VideoPlaybackCard", () => {
       <VideoPlaybackCard
         videoUrl={null}
         videoLoading={false}
+        videoError=""
         videoRef={videoRef}
       />
     );
@@ -49,6 +53,7 @@ describe("VideoPlaybackCard", () => {
       <VideoPlaybackCard
         videoUrl="https://example.com/video.webm"
         videoLoading={false}
+        videoError=""
         videoDurationSec={125}
         videoRef={videoRef}
       />
@@ -62,6 +67,7 @@ describe("VideoPlaybackCard", () => {
       <VideoPlaybackCard
         videoUrl="https://example.com/video.webm"
         videoLoading={false}
+        videoError=""
         videoDurationSec={null}
         videoRef={videoRef}
       />
@@ -75,6 +81,7 @@ describe("VideoPlaybackCard", () => {
       <VideoPlaybackCard
         videoUrl="https://example.com/video.webm"
         videoLoading={false}
+        videoError=""
         videoRef={videoRef}
       />
     );
