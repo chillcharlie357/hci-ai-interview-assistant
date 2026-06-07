@@ -93,6 +93,7 @@ export function useInterviewSession(
       setAnswerText("");
       setAnswerStartedAt(null);
       setLastFollowup(result.followup);
+      setFinishingAnswer(false);
 
       // 触发追问时不跳转，等候选人回答完追问后再判断
       if (!result.followup.asked && !result.session.currentQuestion) {
@@ -103,15 +104,10 @@ export function useInterviewSession(
         setTimeout(() => navigate(`/report/${session.id}`), 1500);
       }
 
-      try {
-        const visibleReport = await fetchReport(session.id);
-        setReport(visibleReport.report);
-      } catch {
-        setReport("招聘端尚未开放候选人查看面试分析报告。");
-      }
+      // 报告异步获取，不阻塞面试流程
+      fetchReport(session.id).then((r) => setReport(r.report)).catch(() => {});
     } catch (error) {
       message.error(error instanceof Error ? error.message : "提交回答失败");
-    } finally {
       setFinishingAnswer(false);
     }
   }, [session, finishingAnswer, answerStartedAt, answerText, chunkUploadFailCount, navigate, message]);

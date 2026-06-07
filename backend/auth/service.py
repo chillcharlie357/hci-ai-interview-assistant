@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+from threading import Lock
 from typing import Any
 
 from supabase import AuthApiError, AuthInvalidCredentialsError, AuthWeakPasswordError
@@ -16,6 +18,45 @@ from backend.auth.exceptions import (
     TokenInvalidError,
     WeakPasswordError,
 )
+
+_AUTH_CACHE: dict[str, tuple[float, AuthContext]] = {}
+_AUTH_CACHE_LOCK = Lock()
+_AUTH_CACHE_TTL = 300  # 5 分钟
+
+
+def _cached_verify(token: str) -> AuthContext | None:
+    """带缓存的 token 验证，避免每个请求都调 Supabase"""
+    now = time.time()
+    with _AUTH_CACHE_LOCK:
+        entry = _AUTH_CACHE.get(token)
+        if entry is not None and now - entry[0] < _AUTH_CACHE_TTL:
+            return entry[1]
+
+    client = get_supabase_client()
+    if client is None:
+        return None
+
+    for attempt in range(2):
+        try:
+            user_response = client.auth.get_user(token)
+            if user_response.user is None:
+                return None
+
+            user = user_response.user
+            user_metadata = user.user_metadata or {}
+            ctx = AuthContext(
+                user_id=user.id,
+                email=user.email or "",
+                full_name=user_metadata.get("full_name"),
+            )
+            with _AUTH_CACHE_LOCK:
+                _AUTH_CACHE[token] = (now, ctx)
+            return ctx
+        except Exception:
+            if attempt == 0:
+                continue
+            return None
+    return None
 
 
 def register(email: str, password: str, full_name: str = "") -> dict[str, Any]:
@@ -118,35 +159,7 @@ def login(email: str, password: str) -> dict[str, Any]:
 
 
 def verify_token(access_token: str) -> AuthContext | None:
-    """
-    验证 access token 并返回用户上下文
-
-    Args:
-        access_token: JWT access token
-
-    Returns:
-        AuthContext 或 None（验证失败时）
-    """
-    client = get_supabase_client()
-    if client is None:
-        return None
-
-    try:
-        # 使用 Supabase 的 get_user 验证 token
-        user_response = client.auth.get_user(access_token)
-        if user_response.user is None:
-            return None
-
-        user = user_response.user
-        user_metadata = user.user_metadata or {}
-
-        return AuthContext(
-            user_id=user.id,
-            email=user.email or "",
-            full_name=user_metadata.get("full_name"),
-        )
-    except Exception:
-        return None
+    return _cached_verify(access_token)
 
 
 def refresh_session(refresh_token: str) -> dict[str, Any] | None:

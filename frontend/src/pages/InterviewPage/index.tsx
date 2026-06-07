@@ -267,14 +267,13 @@ export function InterviewPage() {
         speech={speech}
         currentQuestion={currentQuestion}
         questionProgress={questionProgress}
-        report={report}
       />
 
       <Drawer
         title="求助参考答案"
         open={helpVisible}
         onClose={() => setHelpVisible(false)}
-        width={560}
+        size="large"
         destroyOnClose={false}
       >
         {helpError ? (

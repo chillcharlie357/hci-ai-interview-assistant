@@ -22,6 +22,8 @@ export async function requestAnswerHelp(
     throw new Error("当前没有可求助的问题");
   }
 
+  const effectivePrompt = session.currentFollowup?.trim() || question.prompt;
+
   try {
     const response = await requestAnswerHelpApi(session.id, { draftText });
     return {
@@ -37,26 +39,27 @@ export async function requestAnswerHelp(
     };
   } catch {
     await delay(120);
-    return buildFallbackAnswerHelp(session, question, draftText);
+    return buildFallbackAnswerHelp(session, question, effectivePrompt, draftText);
   }
 }
 
 function buildFallbackAnswerHelp(
   session: InterviewSession,
   question: InterviewQuestion,
+  prompt: string,
   draftText: string,
 ): AnswerHelpResult {
   const normalizedDraft = draftText.trim();
   const draftLength = normalizedDraft.length;
-  const outline = buildOutline(question);
-  const keyPoints = buildKeyPoints(question, normalizedDraft);
+  const outline = buildOutline(question, prompt);
+  const keyPoints = buildKeyPoints(question, prompt, normalizedDraft);
   const summary = normalizedDraft
     ? `你已经写了 ${draftLength} 个字符，可以保留现有思路，再补上背景、方法和结果。`
     : "你还没有输入草稿，可以先按提纲组织，再结合自己的真实经历填充。";
 
   const referenceAnswer = [
-    `可以参考这个回答结构：我会先从“${outline[0]}”切入，再说明“${outline[1]}”，最后用“${outline[2]}”收尾。`,
-    `结合当前问题“${question.prompt}”，你可以说：在${session.role}相关场景中，我负责[你的职责]，通过[你的方法]解决[你的问题]，并用[结果数据]验证效果。`,
+    `可以参考这个回答结构：我会先从"${outline[0]}"切入，再说明"${outline[1]}"，最后用"${outline[2]}"收尾。`,
+    `结合当前问题"${prompt}"，你可以说：在${session.role}相关场景中，我负责[你的职责]，通过[你的方法]解决[你的问题]，并用[结果数据]验证效果。`,
     normalizedDraft
       ? `你现在的草稿里已经有一些内容，建议保留其中最具体的一点，再补上清晰的结论。`
       : "如果一时想不起来细节，可以先用一句话概括结论，再回补过程和结果。"
@@ -64,14 +67,14 @@ function buildFallbackAnswerHelp(
 
   const cautions = [
     "这是一份参考答案，不要直接照抄，必须替换成自己的真实经历。",
-    "如果没有量化结果，不要编造数据，可以说成“结果明显改善”并说明依据。",
+    '如果没有量化结果，不要编造数据，可以说成「结果明显改善」并说明依据。',
     "如果你对某个细节不确定，直接说明边界，比硬编答案更安全。"
   ];
 
   return {
     mode: "fallback",
     questionId: question.id,
-    questionPrompt: question.prompt,
+    questionPrompt: prompt,
     summary,
     referenceAnswer,
     outline,
@@ -81,8 +84,8 @@ function buildFallbackAnswerHelp(
   };
 }
 
-function buildOutline(question: InterviewQuestion): [string, string, string] {
-  const text = `${question.dimension} ${question.prompt}`.toLowerCase();
+function buildOutline(question: InterviewQuestion, prompt: string): [string, string, string] {
+  const text = `${question.dimension} ${prompt}`.toLowerCase();
   if (text.includes("项目")) {
     return ["项目背景", "你的职责和方法", "结果与复盘"];
   }
@@ -101,8 +104,8 @@ function buildOutline(question: InterviewQuestion): [string, string, string] {
   return ["回答结论", "举例说明", "结果与反思"];
 }
 
-function buildKeyPoints(question: InterviewQuestion, draftText: string): string[] {
-  const normalized = `${question.dimension} ${question.prompt}`.toLowerCase();
+function buildKeyPoints(question: InterviewQuestion, prompt: string, draftText: string): string[] {
+  const normalized = `${question.dimension} ${prompt}`.toLowerCase();
   const points: string[] = [];
 
   if (normalized.includes("项目")) {

@@ -1,7 +1,7 @@
 import { memo, type RefObject } from "react";
 import { Button, Tag, Input } from "antd";
 import type { TextAreaRef } from "antd/es/input/TextArea";
-import { StopOutlined, ForwardOutlined, QuestionCircleOutlined } from "@ant-design/icons";
+import { ForwardOutlined, QuestionCircleOutlined } from "@ant-design/icons";
 
 import type { DigitalInterviewerState } from "@/digitalInterviewer";
 import type { InterviewQuestion } from "@/interviewFlow";
@@ -105,23 +105,14 @@ export const AnswerPanel = memo(function AnswerPanel({
         ) : (
           <>
             <Button
-              size="large"
-              danger
-              onClick={onFinishAnswer}
-              loading={finishingAnswer}
-              icon={<StopOutlined />}
-              disabled={interviewerState === "speaking"}
-            >
-              {isFollowup ? "结束追问回答" : "结束回答"}
-            </Button>
-            <Button
               type="primary"
               size="large"
               onClick={onFinishAnswer}
+              loading={finishingAnswer}
               icon={<ForwardOutlined />}
               disabled={interviewerState === "speaking"}
             >
-              {isFollowup ? "提交追问回答" : "进入下一题"}
+              {isFollowup ? "提交追问回答" : "结束回答"}
             </Button>
             <Button size="large" onClick={onRequestHelp} loading={helpLoading} icon={<QuestionCircleOutlined />}>
               求助参考答案

@@ -427,9 +427,9 @@ export async function uploadInterviewVideo(
   });
 
   if (response.status === 401) {
-    useAuthStore.getState().logout();
-    window.location.href = "/login";
-    throw new Error("认证已过期，请重新登录");
+    const refreshed = await tryRefreshAndRetry();
+    if (refreshed) throw new Error("token_refreshed_retry");
+    forceLogout();
   }
   if (response.status === 413) {
     throw new Error("视频文件过大，上传失败");
@@ -438,7 +438,11 @@ export async function uploadInterviewVideo(
     throw new Error(`视频上传失败: ${response.status} ${await response.text()}`);
   }
 
-  return (await response.json()) as { videoPath: string; videoDurationSec: number };
+  const result = await response.json();
+  return {
+    videoPath: result.video_path ?? result.videoPath ?? "",
+    videoDurationSec: result.video_duration_sec ?? result.videoDurationSec ?? 0,
+  };
 }
 
 export async function fetchVideoUrl(
@@ -457,9 +461,9 @@ export async function fetchVideoUrl(
   const response = await fetcher(`${baseUrl}/api/sessions/${sessionId}/video`, { method: "GET", headers });
 
   if (response.status === 401) {
-    useAuthStore.getState().logout();
-    window.location.href = "/login";
-    throw new Error("认证已过期，请重新登录");
+    const refreshed = await tryRefreshAndRetry();
+    if (refreshed) throw new Error("token_refreshed_retry");
+    forceLogout();
   }
   if (response.status === 404) {
     return null;
@@ -494,42 +498,67 @@ export async function createMockSession(
   return mapSession(response);
 }
 
+async function tryRefreshAndRetry(): Promise<boolean> {
+  const store = useAuthStore.getState();
+  const refreshToken = store.refreshToken;
+  if (!refreshToken) return false;
+  try {
+    const baseUrl = getApiBaseUrl();
+    const resp = await fetch(`${baseUrl}/api/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (resp.status !== 200) return false;
+    const data = await resp.json();
+    if (data.access_token) {
+      store.setTokens(data.access_token, data.refresh_token ?? refreshToken);
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function forceLogout(): never {
+  useAuthStore.getState().logout();
+  window.location.href = "/login";
+  throw new Error("认证已过期，请重新登录");
+}
+
 async function request<T>(path: string, payload: unknown, expectedStatus: number, options: ClientOptions): Promise<T> {
   const baseUrl = options.baseUrl ?? getApiBaseUrl();
   const fetcher = options.fetcher ?? fetch;
 
-  // 获取认证 token
-  const accessToken = useAuthStore.getState().accessToken;
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+  const doFetch = async (): Promise<Response> => {
+    const accessToken = useAuthStore.getState().accessToken;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+    return await fetcher(`${baseUrl}${path}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload)
+    });
   };
 
-  // 添加认证头（有 token 时才添加）
-  if (accessToken) {
-    headers["Authorization"] = `Bearer ${accessToken}`;
-  }
-
   const _startPost = performance.now();
-  const response = await fetcher(`${baseUrl}${path}`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(payload)
-  });
+  let response = await doFetch();
   const _durPost = Math.round(performance.now() - _startPost);
   log.info(`POST .../${path.split("/").pop()} -> ${response.status} (${_durPost}ms)`);
 
-  // 处理 401 未授权响应
   if (response.status === 401) {
-    useAuthStore.getState().logout();
-    window.location.href = "/login";
-    throw new Error("认证已过期，请重新登录");
+    const refreshed = await tryRefreshAndRetry();
+    if (refreshed) {
+      response = await doFetch();
+    } else {
+      forceLogout();
+    }
   }
 
   if (response.status !== expectedStatus) {
     throw new Error(`API request failed with ${response.status}: ${await response.text()}`);
   }
-
   return (await response.json()) as T;
 }
 
@@ -552,9 +581,9 @@ async function getRequest<T>(path: string, expectedStatus: number, options: Clie
 
   // 处理 401 未授权响应
   if (response.status === 401) {
-    useAuthStore.getState().logout();
-    window.location.href = "/login";
-    throw new Error("认证已过期，请重新登录");
+    const refreshed = await tryRefreshAndRetry();
+    if (refreshed) throw new Error("token_refreshed_retry");
+    forceLogout();
   }
 
   if (response.status !== expectedStatus) {
@@ -580,9 +609,9 @@ async function deleteRequest<T>(path: string, expectedStatus: number, options: C
   log.info(`DELETE .../${path.split("/").pop()} -> ${response.status} (${_durDel}ms)`);
 
   if (response.status === 401) {
-    useAuthStore.getState().logout();
-    window.location.href = "/login";
-    throw new Error("认证已过期，请重新登录");
+    const refreshed = await tryRefreshAndRetry();
+    if (refreshed) throw new Error("token_refreshed_retry");
+    forceLogout();
   }
 
   if (response.status !== expectedStatus) {

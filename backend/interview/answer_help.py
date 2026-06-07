@@ -46,6 +46,17 @@ def generate_answer_help(
     return _build_fallback_result(session, draft_text)
 
 
+def _effective_question_prompt(session: InterviewSession) -> str:
+    """返回当前应被求助的问题文本：追问优先，否则回退到主问题。"""
+    question = session.current_question
+    followup = session.current_followup
+    if followup:
+        return followup
+    if question is not None:
+        return question.prompt
+    return ""
+
+
 def _build_context(session: InterviewSession, draft_text: str) -> dict[str, object]:
     recent_answers = []
     for answer in session.answers[-2:]:
@@ -59,6 +70,7 @@ def _build_context(session: InterviewSession, draft_text: str) -> dict[str, obje
         )
 
     question = session.current_question
+    followup_text = session.current_followup
     return {
         "candidate_name": session.candidate_name,
         "role": session.role,
@@ -67,6 +79,7 @@ def _build_context(session: InterviewSession, draft_text: str) -> dict[str, obje
             "id": question.id if question else "",
             "dimension": question.dimension if question else "",
             "prompt": question.prompt if question else "",
+            "active_followup": followup_text,
             "follow_ups": question.follow_ups if question else [],
             "evidence_hints": question.evidence_hints if question else [],
         },
@@ -129,6 +142,7 @@ def _build_summary(session: InterviewSession, draft_text: str) -> str:
     question = session.current_question
     if question is None:
         return "当前没有可求助的问题。"
+    prompt = _effective_question_prompt(session)
     if draft_text.strip():
         return f"你已经有草稿，可以沿着 {question.dimension} 的思路继续补充。"
     return f"可以先围绕 {question.dimension} 题目，用真实经历组织一个简洁回答。"
@@ -138,10 +152,11 @@ def _build_reference_answer(session: InterviewSession, draft_text: str) -> str:
     question = session.current_question
     if question is None:
         return ""
+    prompt = _effective_question_prompt(session)
     outline = _default_outline(session)
     base = [
-        f"这道题可以按“{outline[0]}、{outline[1]}、{outline[2]}”来回答。",
-        f"你可以先说：在 {session.role} 相关场景里，我负责过和“{question.prompt}”类似的问题，通常会从需求、方案和结果三个部分来讲。",
+        f"这道题可以按「{outline[0]}、{outline[1]}、{outline[2]}」来回答。",
+        f"你可以先说：在 {session.role} 相关场景里，我负责过和「{prompt}」类似的问题，通常会从需求、方案和结果三个部分来讲。",
         "如果你已有草稿，建议保留其中最具体的一句话，再补上你的角色、做法和结果。",
     ]
     if draft_text.strip():
@@ -154,7 +169,8 @@ def _default_outline(session: InterviewSession) -> list[str]:
     if question is None:
         return ["问题背景", "你的做法", "结果与复盘"]
 
-    text = f"{question.dimension} {question.prompt}".lower()
+    prompt = _effective_question_prompt(session)
+    text = f"{question.dimension} {prompt}".lower()
     if "项目" in text:
         return ["项目背景", "你的职责和方法", "结果与复盘"]
     if "架构" in text or "设计" in text or "系统" in text:
@@ -173,7 +189,8 @@ def _default_key_points(session: InterviewSession, draft_text: str) -> list[str]
     if question is None:
         return ["先说明题意", "再给出结构", "最后补充结果"]
 
-    text = f"{question.dimension} {question.prompt}".lower()
+    prompt = _effective_question_prompt(session)
+    text = f"{question.dimension} {prompt}".lower()
     points: list[str]
     if "项目" in text:
         points = ["项目目标和场景", "你的具体职责", "技术方案或方法", "结果或影响"]

@@ -29,6 +29,7 @@ def fix_webm_metadata(video_bytes: bytes) -> bytes:
 
     ffmpeg_bin = shutil.which("ffmpeg")
     if not ffmpeg_bin:
+        log.warning("ffmpeg not found, returning original bytes (duration may display incorrectly)")
         return video_bytes
 
     fin_path: str | None = None
@@ -43,10 +44,11 @@ def fix_webm_metadata(video_bytes: bytes) -> bytes:
 
         subprocess.run(
             [
-                ffmpeg_bin, "-y", "-v", "error",
+                ffmpeg_bin, "-y", "-v", "warning",
+                "-fflags", "+genpts",
                 "-i", fin_path,
                 "-c", "copy",
-                "-fflags", "+genpts",
+                "-f", "webm",
                 fout_path,
             ],
             check=True,
@@ -54,7 +56,10 @@ def fix_webm_metadata(video_bytes: bytes) -> bytes:
         )
 
         with open(fout_path, "rb") as f:
-            return f.read()
+            fixed = f.read()
+        log.info("fix_webm_metadata: fixed, size %d -> %d bytes",
+                 len(video_bytes), len(fixed))
+        return fixed
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as e:
         log.warning("fix_webm_metadata failed (ffmpeg error), returning original bytes: %s", e)
         return video_bytes
@@ -74,9 +79,7 @@ def upload_video(user_id: str, session_id: str, video_bytes: bytes) -> str:
         raise RuntimeError("Supabase service client not configured")
 
     fixed_bytes = fix_webm_metadata(video_bytes)
-    if len(fixed_bytes) != len(video_bytes):
-        log.info("upload_video: webm metadata fixed, size %d -> %d bytes",
-                 len(video_bytes), len(fixed_bytes))
+    log.info("upload_video: size=%d bytes, session=%s", len(fixed_bytes), session_id)
 
     path = f"{user_id}/{session_id}.webm"
     client.storage.from_(VIDEO_BUCKET).upload(

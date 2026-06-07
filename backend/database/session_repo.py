@@ -176,8 +176,8 @@ class SessionRepository:
         data['events'] = json.dumps(data['events'], ensure_ascii=False)
         if data.get('video_events'):
             data['video_events'] = json.dumps(data['video_events'], ensure_ascii=False)
-        if data.get('keyframes'):
-            data['keyframes'] = json.dumps(data['keyframes'], ensure_ascii=False)
+        # keyframes 仅保留在内存中，不写入 DB（spec 要求且单个 keyframe ~20KB，累积易超 Supabase 1MB 限制）
+        data['keyframes'] = None
         # followup_states 仅活在内存里：DB schema 未必有该列，丢弃以避免 upsert 报错；
         # 历史/重启场景里恢复 session 时缺失即可，每题完成后 finished=True 不再触发追问。
         data.pop('followup_states', None)

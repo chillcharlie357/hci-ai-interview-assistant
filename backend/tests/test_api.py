@@ -55,7 +55,8 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(len(updated["answers"]), 1)
         self.assertEqual(updated["answers"][0]["question_id"], "q_001")
         self.assertEqual(updated["current_question"]["id"], "q_002")
-        self.assertIn("# 智能面试纪要", updated["report"])
+        # report 不再随 POST answers 返回（通过 GET /report 独立获取），此处为空字符串
+        self.assertEqual(updated["report"], "")
 
     def test_create_session_exposes_llm_fallback_status(self):
         created = self.request(
@@ -152,10 +153,17 @@ class ApiTest(unittest.TestCase):
             {"text": "我负责问题生成。", "duration_sec": 30},
         )
 
-        self.assertIn("非语言观察", updated["report"])
-        self.assertIn("眼神接触占比", updated["report"])
-        self.assertNotIn("录用", updated["report"])
-        self.assertNotIn("不录用", updated["report"])
+        # 报告不再随 POST answers 返回，通过 GET /report 获取
+        self.assertEqual(updated["report"], "")
+
+        report_resp = self.request(
+            "GET",
+            f"/api/sessions/{created['id']}/report",
+        )
+        self.assertIn("非语言观察", report_resp["report"])
+        self.assertIn("眼神接触占比", report_resp["report"])
+        self.assertNotIn("录用", report_resp["report"])
+        self.assertNotIn("不录用", report_resp["report"])
 
     def test_answer_help_falls_back_when_llm_is_not_configured(self):
         created = self.request(
@@ -210,10 +218,16 @@ class ApiTest(unittest.TestCase):
             {"text": "我负责问题生成。", "duration_sec": 30},
         )
 
-        self.assertEqual(updated["report"], "# LLM 增强纪要\n\n- 仅记录可复核观察。")
-        self.assertEqual(updated["llm_status"], "ok")
-        self.assertIn("report_markdown", fake_client.system_prompt)
-        self.assertIn("我负责问题生成", fake_client.user_prompt)
+        # POST answers 不再阻塞生成报告，report 返回空字符串
+        self.assertEqual(updated["report"], "")
+
+        # 报告应通过 GET /report 获取并由 LLM 增强
+        report_response = self.request(
+            "GET",
+            f"/api/sessions/{created['id']}/report",
+        )
+        self.assertEqual(report_response["report"], "# LLM 增强纪要\n\n- 仅记录可复核观察。")
+        self.assertEqual(report_response["llm_status"], "ok")
 
     @patch("backend.interview.api.generate_answer_help")
     def test_answer_help_route_returns_llm_response(self, help_mock):
@@ -516,14 +530,21 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(session["current_index"], 6)
         self.assertEqual(len(session["answers"]), 6)
 
-        # Report should contain all question dimensions
-        self.assertIn("# 智能面试纪要", session["report"])
+        # 报告不再随 POST answers 返回（通过 GET /report 独立获取）
+        self.assertEqual(session["report"], "")
+
+        # 验证 GET /report 可以获取包含所有维度的报告
+        report_resp = self.request(
+            "GET",
+            f"/api/sessions/{session['id']}/report",
+        )
+        self.assertIn("# 智能面试纪要", report_resp["report"])
         for dim in ["专业能力", "项目经验", "技术实现能力", "应变能力", "表达能力"]:
-            self.assertIn(dim, session["report"])
+            self.assertIn(dim, report_resp["report"])
 
         # All answers should be in the report
         for answer_text in answers_texts:
-            self.assertIn(answer_text, session["report"])
+            self.assertIn(answer_text, report_resp["report"])
 
     def test_session_lifecycle_create_get_list_delete(self):
         """测试 session 完整生命周期：创建 → 获取 → 列表 → 删除 → 确认删除"""

@@ -1,10 +1,8 @@
-import { memo } from "react";
-import { Button, Tag } from "antd";
-import { EyeOutlined, UserOutlined, SoundOutlined } from "@ant-design/icons";
+import { memo, useState } from "react";
+import { Tag } from "antd";
+import { EyeOutlined, UserOutlined, SoundOutlined, DownOutlined, RightOutlined } from "@ant-design/icons";
 
 import type { InterviewSession, InterviewQuestion } from "@/interviewFlow";
-import { MarkdownRenderer } from "@/components/MarkdownRenderer";
-import { buildReportFilename, downloadMarkdownReport } from "@/reportDownload";
 import type { VideoAnalysisHandle } from "../hooks/useVideoAnalysis";
 import type { SpeechRecognitionHandle } from "../hooks/useSpeechRecognition";
 
@@ -36,7 +34,6 @@ interface MetricsSidebarProps {
   speech: SpeechRecognitionHandle;
   currentQuestion: InterviewQuestion | null;
   questionProgress: string;
-  report: string;
 }
 
 export const MetricsSidebar = memo(function MetricsSidebar({
@@ -45,7 +42,6 @@ export const MetricsSidebar = memo(function MetricsSidebar({
   speech,
   currentQuestion,
   questionProgress,
-  report,
 }: MetricsSidebarProps) {
   const latestStoredMetrics = session.videoEvents.at(-1)?.metrics;
   const currentEyeContactRatio = video.faceMetricsSnapshot?.eyeContactRatio ?? latestStoredMetrics?.eyeContactRatio ?? 0;
@@ -62,6 +58,8 @@ export const MetricsSidebar = memo(function MetricsSidebar({
   const volumeDbSpl = volumeDbRaw !== null ? volumeDbRaw + DBFS_TO_SPL_OFFSET : null;
   const f0StdSemitones = speech.recentMetrics?.f0_std_semitones ?? speech.cumulativeMetrics?.f0_std_semitones ?? null;
 
+  const [evidenceExpanded, setEvidenceExpanded] = useState(false);
+
   return (
     <section className="interview-right">
       {/* 题目面板 */}
@@ -75,26 +73,23 @@ export const MetricsSidebar = memo(function MetricsSidebar({
             <h2 className="question-title">{currentQuestion.prompt}</h2>
             {currentQuestion.evidenceHints.length > 0 && (
               <div className="evidence-section">
-                <p className="evidence-label">AI 预设采分点:</p>
-                <div className="evidence-tags">
-                  {currentQuestion.evidenceHints.map((h, i) => (
-                    <span key={i} className="evidence-tag">
-                      <span className="evidence-check">✓</span>
-                      {h}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {currentQuestion.followUps.length > 0 && (
-              <div className="followup-section">
-                <p className="followup-label">AI 动态追问建议 (点击采纳):</p>
-                {currentQuestion.followUps.map((f, i) => (
-                  <button key={i} className="followup-btn">
-                    <span className="followup-icon">+</span>
-                    {f}
-                  </button>
-                ))}
+                <p
+                  className="evidence-label"
+                  onClick={() => setEvidenceExpanded(!evidenceExpanded)}
+                  style={{ cursor: "pointer", userSelect: "none" }}
+                >
+                  {evidenceExpanded ? <DownOutlined /> : <RightOutlined />} AI 预设采分点:
+                </p>
+                {evidenceExpanded && (
+                  <div className="evidence-tags">
+                    {currentQuestion.evidenceHints.map((h, i) => (
+                      <span key={i} className="evidence-tag">
+                        <span className="evidence-check">✓</span>
+                        {h}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </>
@@ -245,22 +240,6 @@ export const MetricsSidebar = memo(function MetricsSidebar({
         <video ref={video.analysisVideoRef} autoPlay muted playsInline className="analysis-video" aria-hidden="true" />
         <canvas ref={video.analysisCanvasRef} className="analysis-canvas" aria-hidden="true" />
       </div>
-
-      {/* 报告预览 */}
-      {report && (
-        <div className="report-panel">
-          <h3>面试报告</h3>
-          <MarkdownRenderer content={report} maxHeight="150px" />
-          <Button
-            block
-            onClick={() => {
-              downloadMarkdownReport(buildReportFilename(session.candidateName, session.id), report);
-            }}
-          >
-            下载报告
-          </Button>
-        </div>
-      )}
     </section>
   );
 });

@@ -308,7 +308,7 @@ class SessionStore:
         return True
 
     def record_answer(self, session_id: str, payload: dict[str, Any], user_id: str = "") -> InterviewSession | None:
-        session = self.sessions.get(session_id)
+        session = self.get(session_id, user_id)
         if session is None:
             return None
         text = str(payload.get("text", ""))
@@ -325,20 +325,26 @@ class SessionStore:
             audio_f0_std_hz = cumulative.f0_std_hz
             audio_f0_std_semitones = cumulative.f0_std_semitones
 
-        # 让 LLM 决定是否追问当前题
+        # 让 LLM 决定是否追问当前题（后台线程，最多等 8 秒，不阻塞回答提交）
         question = session.current_question
         followup_decision = None
         if question is not None:
             prev_state = (session.followup_states or {}).get(question.id)
             try:
-                followup_decision = decide_followup(
-                    question_prompt=question.prompt,
-                    question_dimension=question.dimension,
-                    prev_state=prev_state,
-                    latest_answer=text,
-                )
-            except Exception:
-                log.exception("decide_followup raised, defaulting to finished=True")
+                from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+
+                def _do_decide():
+                    return decide_followup(
+                        question_prompt=question.prompt,
+                        question_dimension=question.dimension,
+                        prev_state=prev_state,
+                        latest_answer=text,
+                    )
+
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    followup_decision = executor.submit(_do_decide).result(timeout=8)
+            except (FutureTimeoutError, Exception):
+                log.warning("decide_followup timed out or failed, defaulting to no followup")
                 followup_decision = None
 
         updated = record_answer(
@@ -364,7 +370,7 @@ class SessionStore:
         return updated
 
     def record_video_event(self, session_id: str, payload: dict[str, Any], user_id: str = "") -> InterviewSession | None:
-        session = self.sessions.get(session_id)
+        session = self.get(session_id, user_id)
         if session is None:
             return None
         has_keyframe = isinstance(payload.get("keyframe"), dict)
@@ -383,14 +389,7 @@ class SessionStore:
         return updated
 
     def request_answer_help(self, session_id: str, payload: dict[str, Any], user_id: str = "") -> tuple[int, dict[str, Any]]:
-        session = self.sessions.get(session_id)
-        if session is None and self.repo:
-            session = self.repo.get_session(session_id, user_id)
-            if session is not None:
-                self.sessions[session_id] = session
-                if session_id not in self.speech_aggregates:
-                    agg = self.repo.get_speech_aggregate(session_id)
-                    self.speech_aggregates[session_id] = agg if agg is not None else SpeechAggregateState()
+        session = self.get(session_id, user_id)
         if session is None:
             return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
         if session.current_question is None:
@@ -420,7 +419,7 @@ class SessionStore:
             "mode": "llm" if updated.llm_status == "ok" else "fallback",
             "llm_status": updated.llm_status,
             "question_id": session.current_question.id,
-            "question_prompt": session.current_question.prompt,
+            "question_prompt": session.current_followup or session.current_question.prompt,
             "summary": updated.summary,
             "reference_answer": updated.reference_answer,
             "outline": updated.outline,
@@ -429,8 +428,8 @@ class SessionStore:
             "generated_at": updated.generated_at,
         }
 
-    def record_speech_chunk(self, session_id: str, payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        session = self.sessions.get(session_id)
+    def record_speech_chunk(self, session_id: str, payload: dict[str, Any], user_id: str = "") -> tuple[int, dict[str, Any]]:
+        session = self.get(session_id, user_id)
         if session is None:
             return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
 
@@ -580,11 +579,8 @@ def handle_api_request(
             return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
         speech_metrics = _get_speech_cumulative(store, path_parts[2])
         response = serialize_session(session, speech_metrics)
-        # 仅在仍处于追问对话中时才生成报告（追问中报告意义不大且耗时），
-        # 但为保持向后兼容字段，仍生成；如果追问中则跳过 LLM 报告增强以省成本。
-        report, report_llm_status = generate_report(session, speech_metrics)
-        response["report"] = report
-        response["llm_status"] = report_llm_status if report_llm_status == "ok" else response.get("llm_status", "fallback")
+        # 报告通过 GET /report 独立获取，此处不再阻塞 LLM 调用避免每次回答都等 30-90 秒
+        response["report"] = ""
         # 透出本次回答触发的追问（前端用它播放追问 / 显示提示）
         response["followup"] = _build_followup_response(session)
         return HTTPStatus.OK, response
@@ -595,7 +591,7 @@ def handle_api_request(
         and path_parts[:2] == ["api", "sessions"]
         and path_parts[3] == "speech-chunks"
     ):
-        return store.record_speech_chunk(path_parts[2], body)
+        return store.record_speech_chunk(path_parts[2], body, user_id)
 
     if (
         method == "POST"

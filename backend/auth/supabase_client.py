@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 from supabase import create_client, Client
+from supabase.lib.client_options import SyncClientOptions
 
 from backend.interview.config import get_supabase_config
 
 _client: Client | None = None
 _service_client: Client | None = None
+
+_CLIENT_OPTIONS = SyncClientOptions(
+    postgrest_client_timeout=30,
+    storage_client_timeout=30,
+    function_client_timeout=30,
+)
 
 
 def get_supabase_client() -> Client | None:
@@ -23,7 +30,7 @@ def get_supabase_client() -> Client | None:
     if not url or not anon_key:
         return None
 
-    _client = create_client(url, anon_key)
+    _client = create_client(url, anon_key, options=_CLIENT_OPTIONS)
     return _client
 
 
@@ -40,7 +47,7 @@ def get_service_client() -> Client | None:
     if not url or not service_key:
         return None
 
-    _service_client = create_client(url, service_key)
+    _service_client = create_client(url, service_key, options=_CLIENT_OPTIONS)
     return _service_client
 
 
