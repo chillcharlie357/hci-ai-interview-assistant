@@ -886,10 +886,13 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
 
         def do_GET(self) -> None:
             try:
-                auth = self._authenticate()
-                if auth is None and auth_middleware.require_auth:
-                    self._send_json({"error": "authentication_required"}, HTTPStatus.UNAUTHORIZED)
-                    return
+                if self._is_public_auth_route():
+                    auth = None
+                else:
+                    auth = self._authenticate()
+                    if auth is None and auth_middleware.require_auth:
+                        self._send_json({"error": "authentication_required"}, HTTPStatus.UNAUTHORIZED)
+                        return
                 user_id = auth.user_id if auth else ""
                 log.info("GET %s query=%s user_id=%s",
                          self.path,

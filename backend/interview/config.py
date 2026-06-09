@@ -6,6 +6,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DOTENV_PATH = PROJECT_ROOT / ".env"
+DEFAULT_RENDER_SECRET_DOTENV_PATH = Path("/etc/secrets/.env.prod")
 DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_FILLER_WORDS: list[str] = []
 
@@ -34,9 +35,19 @@ def load_dotenv(path: str | Path = DEFAULT_DOTENV_PATH, *, override: bool = Fals
             os.environ[key] = value
 
 
+def load_runtime_dotenv_files(*, override: bool = False) -> None:
+    paths = [DEFAULT_DOTENV_PATH, Path(os.environ.get("RENDER_SECRET_DOTENV_PATH", DEFAULT_RENDER_SECRET_DOTENV_PATH))]
+    extra_paths = os.environ.get("INTERVIEW_DOTENV_PATH", "").strip()
+    if extra_paths:
+        paths.extend(Path(path) for path in extra_paths.split(os.pathsep) if path)
+
+    for env_path in paths:
+        load_dotenv(env_path, override=override)
+
+
 def get_env(name: str, default: str = "") -> str:
     if not os.environ.get("INTERVIEW_DISABLE_DOTENV"):
-        load_dotenv()
+        load_runtime_dotenv_files()
     return os.environ.get(name, default)
 
 

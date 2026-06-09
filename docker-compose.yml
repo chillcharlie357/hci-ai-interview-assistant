@@ -48,7 +48,7 @@ services:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:8000}
         VITE_ASR_WS_URL: ${VITE_ASR_WS_URL:-ws://127.0.0.1:9785/}
         VITE_ASR_PROVIDER: ${VITE_ASR_PROVIDER:-qwen}
-        VITE_REQUIRE_AUTH: ${VITE_REQUIRE_AUTH:-false}
+        VITE_LOGIN_REQUIRED: ${VITE_REQUIRE_AUTH:-false}
         VITE_INTERVIEW_FILLER_WORDS: ${VITE_INTERVIEW_FILLER_WORDS:-}
         VITE_APP_ENV: production
     depends_on:
