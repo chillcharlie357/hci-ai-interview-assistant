@@ -8,7 +8,8 @@
 # - The backend/asr GHCR images use the Render registry credential named `hci`.
 #   Keep that credential in sync with a GitHub token that has `read:packages`.
 # - Keep all production environment configuration in the Render environment
-#   group `hci_env`. Upload any multiline credentials as Secret Files there.
+#   group `hci_env`. Upload `.env.prod` as a Secret File there; the commands
+#   below export that file before starting/building each service.
 
 services:
   - type: web
@@ -21,7 +22,7 @@ services:
       creds:
         fromRegistryCreds:
           name: hci
-    dockerCommand: uv run python -m backend.interview.api --host 0.0.0.0 --port 10000
+    dockerCommand: /bin/sh -c 'set -a; . /etc/secrets/.env.prod; set +a; exec uv run python -m backend.interview.api --host 0.0.0.0 --port 10000'
     healthCheckPath: /api/health
     envVars:
       - fromGroup: hci_env
@@ -36,14 +37,14 @@ services:
       creds:
         fromRegistryCreds:
           name: hci
-    dockerCommand: uv run python -m backend.asr.qwen_realtime --host 0.0.0.0 --port 10000
+    dockerCommand: /bin/sh -c 'set -a; . /etc/secrets/.env.prod; set +a; exec uv run python -m backend.asr.qwen_realtime --host 0.0.0.0 --port 10000'
     envVars:
       - fromGroup: hci_env
 
   - type: web
     runtime: static
     name: hci-ai-interview-frontend
-    buildCommand: cd frontend && pnpm install --frozen-lockfile --ignore-scripts && pnpm build
+    buildCommand: set -a; . /etc/secrets/.env.prod; set +a; cd frontend && pnpm install --frozen-lockfile --ignore-scripts && pnpm build
     staticPublishPath: frontend/dist
     routes:
       - type: rewrite
