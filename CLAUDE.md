@@ -214,6 +214,7 @@ uv run python scripts/generate_mock_resumes.py
 
 - 禁止直接在 `main` 上开发。从 `main` 创建聚焦的功能分支。
 - 每个分支一个功能。合并前在分支上运行测试。
+- commit 的粒度是一组相关且经过验证的变更，而不是“每改一个文件就提交一次”。只有当一个逻辑变更涉及的相关文件都完成、并且相关验证已经运行后，才创建 commit。
 - 合并回 `main` 时使用 `--no-ff`。
 - 使用 conventional commits 格式。
 
