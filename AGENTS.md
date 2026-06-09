@@ -79,6 +79,7 @@ All Dockerfiles are at project root. `.dockerignore` excludes node_modules, .git
 - Before changing files, start from `main` and create a focused feature branch.
 - Use normal `git` feature branches from `main`.
 - One feature per branch where practical.
+- Make each commit a coherent, related, and verified changeset. Do not create a commit merely because one file was edited; commit only after the related files for a logical change are complete and the relevant verification has run.
 - Complete implementation and verification on the feature branch first.
 - Run relevant tests on the feature branch before merging.
 - Merge completed branches back to `main` with `--no-ff`.
