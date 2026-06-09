@@ -1,0 +1,75 @@
+# Render Blueprint for the HCI interview MVP.
+#
+# Setup notes:
+# - Import this file as a Render Blueprint.
+# - The backend/asr images are pulled from GHCR tag `main`, so merge the image
+#   workflow to main before the first Blueprint sync.
+# - If GHCR packages are private, create a Render registry credential for
+#   ghcr.io with GitHub `read:packages` access, then add `image.creds` entries
+#   that reference that credential.
+# - Fill all `sync: false` values in the Render Dashboard after creation.
+
+services:
+  - type: web
+    runtime: image
+    name: hci-ai-interview-backend
+    plan: free
+    region: singapore
+    image:
+      url: ghcr.io/chillcharlie357/hci-ai-interview-assistant-backend:main
+    dockerCommand: sh -c "uv run python -m backend.interview.api --host 0.0.0.0 --port ${PORT:-8000}"
+    healthCheckPath: /api/health
+    envVars:
+      - key: LOG_LEVEL
+        value: INFO
+      - key: REQUIRE_AUTH
+        value: "false"
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_BASE_URL
+        value: https://api.openai.com/v1
+      - key: OPENAI_MODEL
+        sync: false
+      - key: MINERU_API_TOKEN
+        sync: false
+      - key: MINERU_TIMEOUT_SEC
+        value: "300"
+
+  - type: web
+    runtime: image
+    name: hci-ai-interview-asr
+    plan: free
+    region: singapore
+    image:
+      url: ghcr.io/chillcharlie357/hci-ai-interview-assistant-backend:main
+    dockerCommand: sh -c "uv run python -m backend.asr.qwen_realtime --host 0.0.0.0 --port ${PORT:-8765}"
+    envVars:
+      - key: LOG_LEVEL
+        value: INFO
+      - key: DASHSCOPE_API_KEY
+        sync: false
+
+  - type: web
+    runtime: static
+    name: hci-ai-interview-frontend
+    buildCommand: cd frontend && corepack enable && pnpm install --frozen-lockfile && pnpm build
+    staticPublishPath: frontend/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_APP_ENV
+        value: production
+      - key: VITE_LOG_LEVEL
+        value: info
+      - key: VITE_REQUIRE_AUTH
+        value: "false"
+      - key: VITE_ASR_PROVIDER
+        value: qwen
+      - key: VITE_INTERVIEW_FILLER_WORDS
+        value: 嗯,啊,呃,额,那个,就是
+      - key: VITE_API_BASE_URL
+        sync: false
+      - key: VITE_ASR_WS_URL
+        sync: false
