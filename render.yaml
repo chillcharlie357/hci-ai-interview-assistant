@@ -7,9 +7,8 @@
 #   `:main` after the workflow is merged and the main image exists.
 # - The backend/asr GHCR images use the Render registry credential named `hci`.
 #   Keep that credential in sync with a GitHub token that has `read:packages`.
-# - Keep secrets in the Render environment group `hci_env`. Link backend and ASR
-#   to that group, and upload any multiline credentials as Secret Files there.
-#   Non-sensitive production defaults are committed here.
+# - Keep all production environment configuration in the Render environment
+#   group `hci_env`. Upload any multiline credentials as Secret Files there.
 
 services:
   - type: web
@@ -26,28 +25,6 @@ services:
     healthCheckPath: /api/health
     envVars:
       - fromGroup: hci_env
-      - key: APP_ENV
-        value: production
-      - key: BACKEND_PORT
-        value: "10000"
-      - key: LOG_LEVEL
-        value: INFO
-      - key: REQUIRE_AUTH
-        value: "true"
-      - key: OPENAI_BASE_URL
-        value: https://api.deepseek.com
-      - key: OPENAI_MODEL
-        value: deepseek-v4-flash
-      - key: MINERU_TIMEOUT_SEC
-        value: "300"
-      - key: UV_DEFAULT_INDEX
-        value: https://pypi.tuna.tsinghua.edu.cn/simple
-      - key: LIVEKIT_URL
-        value: wss://hci-ai-interview-7qgq6dgo.livekit.cloud
-      - key: SUPABASE_URL
-        value: https://qsovdddbiarmqyqsuqui.supabase.co
-      - key: SUPABASE_CONNECT_TIMEOUT_SEC
-        value: "5"
 
   - type: web
     runtime: image
@@ -62,16 +39,6 @@ services:
     dockerCommand: uv run python -m backend.asr.qwen_realtime --host 0.0.0.0 --port 10000
     envVars:
       - fromGroup: hci_env
-      - key: APP_ENV
-        value: production
-      - key: LOG_LEVEL
-        value: INFO
-      - key: ASR_WS_PORT
-        value: "10000"
-      - key: ASR_PORT
-        value: "10000"
-      - key: UV_DEFAULT_INDEX
-        value: https://pypi.tuna.tsinghua.edu.cn/simple
 
   - type: web
     runtime: static
@@ -83,21 +50,4 @@ services:
         source: /*
         destination: /index.html
     envVars:
-      - key: APP_ENV
-        value: production
-      - key: FRONTEND_PORT
-        value: "443"
-      - key: VITE_APP_ENV
-        value: production
-      - key: VITE_LOG_LEVEL
-        value: info
-      - key: VITE_REQUIRE_AUTH
-        value: "true"
-      - key: VITE_ASR_PROVIDER
-        value: qwen
-      - key: VITE_INTERVIEW_FILLER_WORDS
-        value: 嗯,啊,呃,额,那个,就是
-      - key: VITE_API_BASE_URL
-        value: https://hci-ai-interview-backend-k9ic.onrender.com
-      - key: VITE_ASR_WS_URL
-        value: wss://hci-ai-interview-asr-k9ic.onrender.com/
+      - fromGroup: hci_env
