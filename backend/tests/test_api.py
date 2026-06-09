@@ -2,11 +2,14 @@ import base64
 import io
 import json
 import math
+import threading
 import unittest
 from unittest.mock import patch
+import urllib.error
+import urllib.request
 import wave
 
-from backend.interview.api import SessionStore, _handle_health, handle_api_request
+from backend.interview.api import SessionStore, _handle_health, create_server, handle_api_request
 from backend.interview.followup_engine import FollowupDecision
 from backend.interview.llm_client import LlmResult
 
@@ -328,6 +331,36 @@ class ApiTest(unittest.TestCase):
         status, body = handle_api_request(self.store, "GET", "/api/health", user_id="")
         self.assertEqual(status, 200)
         self.assertEqual(body["status"], "ok")
+
+    def test_health_endpoint_remains_public_when_auth_required(self):
+        with patch.dict(
+            "os.environ",
+            {
+                "INTERVIEW_DISABLE_DOTENV": "1",
+                "REQUIRE_AUTH": "true",
+                "OPENAI_API_KEY": "",
+                "OPENAI_MODEL": "",
+                "OPENAI_BASE_URL": "",
+            },
+            clear=True,
+        ):
+            server = create_server("127.0.0.1", 0)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base_url = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                with urllib.request.urlopen(f"{base_url}/api/health", timeout=5) as response:
+                    body = json.loads(response.read().decode("utf-8"))
+                    self.assertEqual(response.status, 200)
+                self.assertEqual(body["status"], "ok")
+
+                with self.assertRaises(urllib.error.HTTPError) as raised:
+                    urllib.request.urlopen(f"{base_url}/api/sessions", timeout=5)
+                self.assertEqual(raised.exception.code, 401)
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=5)
 
     def test_returns_404_for_unknown_session(self):
         response = self.request(
