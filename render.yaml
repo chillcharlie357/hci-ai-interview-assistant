@@ -8,6 +8,8 @@
 # - The backend/asr GHCR images use the Render registry credential named `hci`.
 #   Keep that credential in sync with a GitHub token that has `read:packages`.
 # - Fill all `sync: false` values in the Render Dashboard after creation.
+#   Non-sensitive production defaults are committed here; secrets and
+#   credential-like values are intentionally dashboard-managed.
 
 services:
   - type: web
@@ -23,20 +25,44 @@ services:
     dockerCommand: uv run python -m backend.interview.api --host 0.0.0.0 --port 10000
     healthCheckPath: /api/health
     envVars:
+      - key: APP_ENV
+        value: production
+      - key: BACKEND_PORT
+        value: "10000"
       - key: LOG_LEVEL
         value: INFO
       - key: REQUIRE_AUTH
-        value: "false"
+        value: "true"
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_BASE_URL
-        value: https://api.openai.com/v1
+        value: https://api.deepseek.com
       - key: OPENAI_MODEL
+        value: deepseek-v4-flash
+      - key: DASHSCOPE_API_KEY
         sync: false
       - key: MINERU_API_TOKEN
         sync: false
       - key: MINERU_TIMEOUT_SEC
         value: "300"
+      - key: UV_DEFAULT_INDEX
+        value: https://pypi.tuna.tsinghua.edu.cn/simple
+      - key: LIVEKIT_URL
+        value: wss://hci-ai-interview-7qgq6dgo.livekit.cloud
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: SUPABASE_URL
+        value: https://qsovdddbiarmqyqsuqui.supabase.co
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_CONNECT_TIMEOUT_SEC
+        value: "5"
 
   - type: web
     runtime: image
@@ -50,10 +76,18 @@ services:
           name: hci
     dockerCommand: uv run python -m backend.asr.qwen_realtime --host 0.0.0.0 --port 10000
     envVars:
+      - key: APP_ENV
+        value: production
       - key: LOG_LEVEL
         value: INFO
+      - key: ASR_WS_PORT
+        value: "10000"
+      - key: ASR_PORT
+        value: "10000"
       - key: DASHSCOPE_API_KEY
         sync: false
+      - key: UV_DEFAULT_INDEX
+        value: https://pypi.tuna.tsinghua.edu.cn/simple
 
   - type: web
     runtime: static
@@ -65,17 +99,21 @@ services:
         source: /*
         destination: /index.html
     envVars:
+      - key: APP_ENV
+        value: production
+      - key: FRONTEND_PORT
+        value: "443"
       - key: VITE_APP_ENV
         value: production
       - key: VITE_LOG_LEVEL
         value: info
       - key: VITE_REQUIRE_AUTH
-        value: "false"
+        value: "true"
       - key: VITE_ASR_PROVIDER
         value: qwen
       - key: VITE_INTERVIEW_FILLER_WORDS
         value: 嗯,啊,呃,额,那个,就是
       - key: VITE_API_BASE_URL
-        sync: false
+        value: https://hci-ai-interview-backend-k9ic.onrender.com
       - key: VITE_ASR_WS_URL
-        sync: false
+        value: wss://hci-ai-interview-asr-k9ic.onrender.com/
