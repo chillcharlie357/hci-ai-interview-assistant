@@ -58,7 +58,7 @@ services:
   - type: web
     runtime: static
     name: hci-ai-interview-frontend
-    buildCommand: cd frontend && pnpm install --frozen-lockfile && pnpm build
+    buildCommand: cd frontend && pnpm install --frozen-lockfile --ignore-scripts && pnpm build
     staticPublishPath: frontend/dist
     routes:
       - type: rewrite
