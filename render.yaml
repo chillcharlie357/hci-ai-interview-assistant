@@ -2,8 +2,9 @@
 #
 # Setup notes:
 # - Import this file as a Render Blueprint.
-# - The backend/asr images are pulled from GHCR tag `main`, so merge the image
-#   workflow to main before the first Blueprint sync.
+# - This branch uses the GHCR tag `render-preview` so Render can deploy before
+#   the workflow is merged to main. For production, switch these image URLs to
+#   `:main` after the workflow is merged and the main image exists.
 # - If GHCR packages are private, create a Render registry credential for
 #   ghcr.io with GitHub `read:packages` access, then add `image.creds` entries
 #   that reference that credential.
@@ -16,7 +17,7 @@ services:
     plan: free
     region: singapore
     image:
-      url: ghcr.io/chillcharlie357/hci-ai-interview-assistant-backend:main
+      url: ghcr.io/chillcharlie357/hci-ai-interview-assistant-backend:render-preview
     dockerCommand: sh -c "uv run python -m backend.interview.api --host 0.0.0.0 --port ${PORT:-8000}"
     healthCheckPath: /api/health
     envVars:
@@ -41,7 +42,7 @@ services:
     plan: free
     region: singapore
     image:
-      url: ghcr.io/chillcharlie357/hci-ai-interview-assistant-backend:main
+      url: ghcr.io/chillcharlie357/hci-ai-interview-assistant-backend:render-preview
     dockerCommand: sh -c "uv run python -m backend.asr.qwen_realtime --host 0.0.0.0 --port ${PORT:-8765}"
     envVars:
       - key: LOG_LEVEL
