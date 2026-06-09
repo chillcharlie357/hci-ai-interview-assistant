@@ -2,9 +2,8 @@
 #
 # Setup notes:
 # - Import this file as a Render Blueprint.
-# - This branch uses the GHCR tag `render-preview` so Render can deploy before
-#   the workflow is merged to main. For production, switch these image URLs to
-#   `:main` after the workflow is merged and the main image exists.
+# - The image-backed services use the GHCR tag `main`, published by the
+#   Package container images workflow from the `main` branch.
 # - The backend/asr GHCR images use the Render registry credential named `hci`.
 #   Keep that credential in sync with a GitHub token that has `read:packages`.
 # - Keep all production environment configuration in the Render environment
@@ -18,7 +17,7 @@ services:
     plan: free
     region: singapore
     image:
-      url: ghcr.io/chillcharlie357/hci-ai-interview-assistant-backend:render-preview
+      url: ghcr.io/chillcharlie357/hci-ai-interview-assistant-backend:main
       creds:
         fromRegistryCreds:
           name: hci
@@ -33,7 +32,7 @@ services:
     plan: free
     region: singapore
     image:
-      url: ghcr.io/chillcharlie357/hci-ai-interview-assistant-backend:render-preview
+      url: ghcr.io/chillcharlie357/hci-ai-interview-assistant-backend:main
       creds:
         fromRegistryCreds:
           name: hci
