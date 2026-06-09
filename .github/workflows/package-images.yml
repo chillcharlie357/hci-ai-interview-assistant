@@ -36,17 +36,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Normalize image namespace
         run: echo "IMAGE_NAMESPACE=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -54,7 +54,7 @@ jobs:
 
       - name: Extract image metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}-${{ matrix.image_suffix }}
           tags: |
@@ -64,7 +64,7 @@ jobs:
             type=raw,value=render-preview,enable=${{ github.ref == 'refs/heads/ci/package-container-images' }}
 
       - name: Build and publish image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ${{ matrix.dockerfile }}
@@ -79,6 +79,6 @@ jobs:
             VITE_API_BASE_URL=${{ vars.VITE_API_BASE_URL || 'http://127.0.0.1:8000' }}
             VITE_ASR_WS_URL=${{ vars.VITE_ASR_WS_URL || 'ws://127.0.0.1:9785/' }}
             VITE_ASR_PROVIDER=${{ vars.VITE_ASR_PROVIDER || 'qwen' }}
-            VITE_REQUIRE_AUTH=${{ vars.VITE_REQUIRE_AUTH || 'false' }}
+            VITE_LOGIN_REQUIRED=${{ vars.VITE_REQUIRE_AUTH || 'false' }}
             VITE_INTERVIEW_FILLER_WORDS=${{ vars.VITE_INTERVIEW_FILLER_WORDS || '' }}
             VITE_APP_ENV=production

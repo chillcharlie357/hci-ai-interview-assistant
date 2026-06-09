@@ -7,9 +7,9 @@
 #   `:main` after the workflow is merged and the main image exists.
 # - The backend/asr GHCR images use the Render registry credential named `hci`.
 #   Keep that credential in sync with a GitHub token that has `read:packages`.
-# - Fill all `sync: false` values in the Render Dashboard after creation.
-#   Non-sensitive production defaults are committed here; secrets and
-#   credential-like values are intentionally dashboard-managed.
+# - Keep secrets in the Render environment group `hci_env`. Link backend and ASR
+#   to that group, and upload any multiline credentials as Secret Files there.
+#   Non-sensitive production defaults are committed here.
 
 services:
   - type: web
@@ -25,6 +25,7 @@ services:
     dockerCommand: uv run python -m backend.interview.api --host 0.0.0.0 --port 10000
     healthCheckPath: /api/health
     envVars:
+      - fromGroup: hci_env
       - key: APP_ENV
         value: production
       - key: BACKEND_PORT
@@ -33,34 +34,18 @@ services:
         value: INFO
       - key: REQUIRE_AUTH
         value: "true"
-      - key: OPENAI_API_KEY
-        sync: false
       - key: OPENAI_BASE_URL
         value: https://api.deepseek.com
       - key: OPENAI_MODEL
         value: deepseek-v4-flash
-      - key: DASHSCOPE_API_KEY
-        sync: false
-      - key: MINERU_API_TOKEN
-        sync: false
       - key: MINERU_TIMEOUT_SEC
         value: "300"
       - key: UV_DEFAULT_INDEX
         value: https://pypi.tuna.tsinghua.edu.cn/simple
       - key: LIVEKIT_URL
         value: wss://hci-ai-interview-7qgq6dgo.livekit.cloud
-      - key: LIVEKIT_API_KEY
-        sync: false
-      - key: LIVEKIT_API_SECRET
-        sync: false
       - key: SUPABASE_URL
         value: https://qsovdddbiarmqyqsuqui.supabase.co
-      - key: SUPABASE_ANON_KEY
-        sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
-      - key: DATABASE_URL
-        sync: false
       - key: SUPABASE_CONNECT_TIMEOUT_SEC
         value: "5"
 
@@ -76,6 +61,7 @@ services:
           name: hci
     dockerCommand: uv run python -m backend.asr.qwen_realtime --host 0.0.0.0 --port 10000
     envVars:
+      - fromGroup: hci_env
       - key: APP_ENV
         value: production
       - key: LOG_LEVEL
@@ -84,8 +70,6 @@ services:
         value: "10000"
       - key: ASR_PORT
         value: "10000"
-      - key: DASHSCOPE_API_KEY
-        sync: false
       - key: UV_DEFAULT_INDEX
         value: https://pypi.tuna.tsinghua.edu.cn/simple
 
