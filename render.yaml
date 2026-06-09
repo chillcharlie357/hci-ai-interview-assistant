@@ -20,7 +20,7 @@ services:
       creds:
         fromRegistryCreds:
           name: hci
-    dockerCommand: sh -c "uv run python -m backend.interview.api --host 0.0.0.0 --port ${PORT:-8000}"
+    dockerCommand: uv run python -m backend.interview.api --host 0.0.0.0 --port 10000
     healthCheckPath: /api/health
     envVars:
       - key: LOG_LEVEL
@@ -48,7 +48,7 @@ services:
       creds:
         fromRegistryCreds:
           name: hci
-    dockerCommand: sh -c "uv run python -m backend.asr.qwen_realtime --host 0.0.0.0 --port ${PORT:-8765}"
+    dockerCommand: uv run python -m backend.asr.qwen_realtime --host 0.0.0.0 --port 10000
     envVars:
       - key: LOG_LEVEL
         value: INFO
@@ -58,7 +58,7 @@ services:
   - type: web
     runtime: static
     name: hci-ai-interview-frontend
-    buildCommand: cd frontend && corepack enable && pnpm install --frozen-lockfile && pnpm build
+    buildCommand: cd frontend && pnpm install --frozen-lockfile && pnpm build
     staticPublishPath: frontend/dist
     routes:
       - type: rewrite
