@@ -401,6 +401,11 @@ async def serve_forever(host: str = "127.0.0.1", port: int = 8765) -> None:
 def main() -> None:  # pragma: no cover - CLI 入口
     import argparse
 
+    from backend.interview.config import load_runtime_dotenv_files
+
+    if not os.environ.get("INTERVIEW_DISABLE_DOTENV"):
+        load_runtime_dotenv_files()
+
     parser = argparse.ArgumentParser(description="Qwen3-ASR realtime WebSocket proxy.")
     parser.add_argument("--host", default=os.environ.get("ASR_WS_HOST", "127.0.0.1"))
     parser.add_argument(
