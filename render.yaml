@@ -5,9 +5,8 @@
 # - This branch uses the GHCR tag `render-preview` so Render can deploy before
 #   the workflow is merged to main. For production, switch these image URLs to
 #   `:main` after the workflow is merged and the main image exists.
-# - If GHCR packages are private, create a Render registry credential for
-#   ghcr.io with GitHub `read:packages` access, then add `image.creds` entries
-#   that reference that credential.
+# - The backend/asr GHCR images use the Render registry credential named `hci`.
+#   Keep that credential in sync with a GitHub token that has `read:packages`.
 # - Fill all `sync: false` values in the Render Dashboard after creation.
 
 services:
@@ -18,6 +17,9 @@ services:
     region: singapore
     image:
       url: ghcr.io/chillcharlie357/hci-ai-interview-assistant-backend:render-preview
+      creds:
+        fromRegistryCreds:
+          name: hci
     dockerCommand: sh -c "uv run python -m backend.interview.api --host 0.0.0.0 --port ${PORT:-8000}"
     healthCheckPath: /api/health
     envVars:
@@ -43,6 +45,9 @@ services:
     region: singapore
     image:
       url: ghcr.io/chillcharlie357/hci-ai-interview-assistant-backend:render-preview
+      creds:
+        fromRegistryCreds:
+          name: hci
     dockerCommand: sh -c "uv run python -m backend.asr.qwen_realtime --host 0.0.0.0 --port ${PORT:-8765}"
     envVars:
       - key: LOG_LEVEL
