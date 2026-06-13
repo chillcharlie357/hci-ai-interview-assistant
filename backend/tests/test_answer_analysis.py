@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from backend.interview.answer_analysis import analyze_answer_text
+from backend.interview.answer_analysis import analyze_answer_text, clean_filler_words
 from backend.interview.llm_client import LlmResult
 
 
@@ -36,6 +36,20 @@ class AnswerAnalysisTest(unittest.TestCase):
 
         self.assertEqual(result.filler_word_count, 2)
         self.assertEqual(result.llm_status, "fallback")
+
+    def test_fallback_counts_case_insensitive_english_fillers_with_word_boundaries(self):
+        client = FakeLlmClient(LlmResult(status="fallback", data=None))
+
+        with patch.dict("os.environ", {"INTERVIEW_DISABLE_DOTENV": "1", "INTERVIEW_FILLER_WORDS": "um,uh"}, clear=True):
+            result = analyze_answer_text("Um, I used Supabase. The resume parser is stable, uh.", llm_client=client)
+
+        self.assertEqual(result.filler_word_count, 2)
+
+    def test_clean_filler_words_removes_disfluencies_without_breaking_terms(self):
+        with patch.dict("os.environ", {"INTERVIEW_DISABLE_DOTENV": "1", "INTERVIEW_FILLER_WORDS": "嗯,啊,那个,就是,um,uh"}, clear=True):
+            cleaned = clean_filler_words("嗯，啊，我主要负责 RAG，那个，使用 Supabase；um, TypeScript 也做过。")
+
+        self.assertEqual(cleaned, "我主要负责 RAG，使用 Supabase；TypeScript 也做过。")
 
 
 if __name__ == "__main__":

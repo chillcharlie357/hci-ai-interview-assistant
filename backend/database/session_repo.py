@@ -229,6 +229,7 @@ class SessionRepository:
             'video_duration_sec': data.get('video_duration_sec'),
             'video_upload_failed': data.get('video_upload_failed', False),
             'followup_states': followup_states,
+            'asr_context_terms': data.get('asr_context_terms') or [],
         })
 
 

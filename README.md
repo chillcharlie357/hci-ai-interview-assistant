@@ -166,9 +166,14 @@ VITE_ASR_PROVIDER=qwen
 VITE_ASR_WS_URL=ws://127.0.0.1:9785/
 ASR_WS_HOST=0.0.0.0
 ASR_WS_PORT=8765
+INTERVIEW_FILLER_WORDS=嗯,啊,呃,额,那个,就是,然后,um,uh,erm
+VITE_INTERVIEW_FILLER_WORDS=嗯,啊,呃,额,那个,就是,然后,um,uh,erm
 ```
 
 Compose maps host port `9785` to the ASR service port `8765`. If you run the ASR service directly without Compose, set `VITE_ASR_WS_URL=ws://127.0.0.1:8765/` for the frontend.
+
+Interview sessions generate ASR context terms from the resume, job description, interview goals, role, and question text. The frontend passes those terms to the ASR WebSocket, and the Qwen ASR proxy forwards them as session `corpus_text` to improve recognition of technical terms such as `RAG`, `TypeScript`, `LiveKit`, and domain-specific Chinese phrases.
+The generated terms are persisted in `interview_sessions.asr_context_terms`; apply database migrations before relying on this field in production.
 
 LiveKit:
 

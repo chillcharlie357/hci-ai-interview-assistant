@@ -166,7 +166,7 @@ export function InterviewPage() {
   async function handleStartCandidateAnswer() {
     if (!session?.currentQuestion || answerStartedAt !== null) return;
     startAnswer();
-    await speech.startMediaStreamAndAsr();
+    await speech.startMediaStreamAndAsr(session.asrContextTerms ?? []);
     // 第一次回答时启动录制
     if (!recorder.isRecording && session?.id) {
       await recorder.startRecording(session.id, video.analysisStreamRef.current, video.analysisCanvasRef.current, speech.micStreamRef.current);

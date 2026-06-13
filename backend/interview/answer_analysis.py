@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import re
 
 from backend.interview.config import DEFAULT_FILLER_WORDS, get_csv_env
 from backend.interview.llm_client import LlmClient
@@ -12,6 +13,7 @@ class AnswerTextAnalysis:
     filler_word_count: int
     llm_status: str
     observations: list[str]
+    cleaned_text: str
 
 
 def analyze_answer_text(text: str, llm_client: LlmClient | None = None) -> AnswerTextAnalysis:
@@ -27,18 +29,72 @@ def analyze_answer_text(text: str, llm_client: LlmClient | None = None) -> Answe
                 filler_word_count=count,
                 llm_status="ok",
                 observations=_parse_observations(llm_result.data.get("observations")),
+                cleaned_text=clean_filler_words(text),
             )
 
     return AnswerTextAnalysis(
         filler_word_count=_count_configured_filler_words(text),
         llm_status="fallback",
         observations=[],
+        cleaned_text=clean_filler_words(text),
     )
 
 
 def _count_configured_filler_words(text: str) -> int:
-    filler_words = get_csv_env("INTERVIEW_FILLER_WORDS", DEFAULT_FILLER_WORDS)
-    return sum(text.count(word) for word in filler_words)
+    return sum(_count_filler_word(text, word) for word in _configured_filler_words())
+
+
+def clean_filler_words(text: str) -> str:
+    cleaned = text.strip()
+    for word in sorted(_configured_filler_words(), key=len, reverse=True):
+        cleaned = _remove_filler_word(cleaned, word)
+    return _normalize_cleaned_text(cleaned)
+
+
+def _configured_filler_words() -> list[str]:
+    words = [*DEFAULT_FILLER_WORDS, *get_csv_env("INTERVIEW_FILLER_WORDS", [])]
+    result: list[str] = []
+    seen: set[str] = set()
+    for word in words:
+        normalized = word.strip()
+        key = normalized.lower()
+        if normalized and key not in seen:
+            seen.add(key)
+            result.append(normalized)
+    return result
+
+
+def _count_filler_word(text: str, word: str) -> int:
+    if word.isascii():
+        pattern = re.compile(rf"(?<![A-Za-z0-9_]){re.escape(word)}(?![A-Za-z0-9_])", re.IGNORECASE)
+        return len(pattern.findall(text))
+    return text.count(word)
+
+
+def _remove_filler_word(text: str, word: str) -> str:
+    escaped = re.escape(word)
+    if word.isascii():
+        pattern = re.compile(
+            rf"(^|[\s，,。.!?！？；;、]){escaped}(?=$|[\s，,。.!?！？；;、])",
+            re.IGNORECASE,
+        )
+        return pattern.sub(lambda match: match.group(1), text)
+
+    leading = re.compile(rf"^(?:[\s，,。.!?！？；;、]*{escaped})+[\s，,。.!?！？；;、]*")
+    text = leading.sub("", text)
+    isolated = re.compile(rf"(^|[\s，,。.!?！？；;、]){escaped}(?=$|[\s，,。.!?！？；;、])")
+    return isolated.sub(lambda match: match.group(1), text)
+
+
+def _normalize_cleaned_text(text: str) -> str:
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\s*([，。！？；：、])\s*", r"\1", text)
+    text = re.sub(r"\s*([,.!?;:])\s*", r"\1 ", text)
+    text = re.sub(r"([，,；;、])(?:[，,；;、])+", r"\1", text)
+    text = re.sub(r"([，。！？；：、])\s+", r"\1", text)
+    text = re.sub(r"^[\s，,。.!?！？；;、]+", "", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
 
 
 def _parse_non_negative_int(value: object) -> int | None:

@@ -40,6 +40,8 @@ import logging
 import os
 from typing import Any
 
+from backend.interview.asr_context import format_corpus_text
+
 try:
     from aiohttp import WSMsgType, web
 except ImportError as exc:  # pragma: no cover - 启动时明确报错
@@ -83,6 +85,7 @@ class _DashscopeBridge:
         url: str = DEFAULT_DASHSCOPE_URL,
         language: str = "zh",
         sample_rate: int = 16000,
+        corpus_text: str = "",
     ) -> None:
         import dashscope  # noqa: WPS433  # 延迟导入，避免启动即要求安装
         from dashscope.audio.qwen_omni import (  # noqa: WPS433
@@ -111,6 +114,7 @@ class _DashscopeBridge:
         self._TranscriptionParams = TranscriptionParams
         self._language = language
         self._sample_rate = sample_rate
+        self._corpus_text = corpus_text.strip()
         # 保留类引用仅用于类型提示
         self._OmniRealtimeCallback = OmniRealtimeCallback  # noqa: SLF001
 
@@ -134,6 +138,7 @@ class _DashscopeBridge:
                 language=self._language,
                 sample_rate=self._sample_rate,
                 input_audio_format="pcm",
+                corpus_text=self._corpus_text or None,
             ),
         )
 
@@ -264,7 +269,7 @@ class _AiohttpWebSocketAdapter:
                 raise ConnectionError("ASR WebSocket closed with an error") from error
 
 
-async def _handle_client(websocket: WebSocketConnection) -> None:
+async def _handle_client(websocket: WebSocketConnection, *, context_terms: list[str] | None = None) -> None:
     api_key = os.environ.get("DASHSCOPE_API_KEY", "").strip()
     if not api_key:
         await websocket.send(json.dumps({
@@ -276,7 +281,11 @@ async def _handle_client(websocket: WebSocketConnection) -> None:
 
     loop = asyncio.get_running_loop()
     try:
-        bridge = _DashscopeBridge(loop=loop, api_key=api_key)
+        bridge = _DashscopeBridge(
+            loop=loop,
+            api_key=api_key,
+            corpus_text=format_corpus_text(context_terms or []),
+        )
     except Exception as error:  # noqa: BLE001
         log.exception("create dashscope bridge failed")
         await websocket.send(json.dumps({
@@ -352,7 +361,7 @@ async def _handle_root(request: web.Request) -> web.StreamResponse:
     # 音频帧默认 <= 16 KB，放宽一点给 1MB，够保险。
     websocket = web.WebSocketResponse(max_msg_size=1 << 20, heartbeat=20)
     await websocket.prepare(request)
-    await _handle_client(_AiohttpWebSocketAdapter(websocket))
+    await _handle_client(_AiohttpWebSocketAdapter(websocket), context_terms=request.query.getall("term", []))
     return websocket
 
 

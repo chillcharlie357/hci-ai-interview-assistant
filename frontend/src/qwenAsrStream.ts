@@ -12,6 +12,8 @@
  * 方便 InterviewPage 以最小改动切换。
  */
 
+import { getFillerWords } from "./config";
+
 export type AsrStreamCallbacks = {
   /** 每一段 VAD 完整片段的最终文本（已稳定） */
   onFinal: (text: string) => void;
@@ -34,22 +36,89 @@ export interface QwenAsrStreamHandle {
   stop: () => Promise<void>;
 }
 
+type AsrUrlOptions = {
+  wsUrl?: string;
+  contextTerms?: string[];
+};
+
 const TARGET_SAMPLE_RATE = 16_000;
 const SCRIPT_NODE_BUFFER = 4096;
 // DashScope 建议的 chunk 大小：16kHz * 16bit * 0.1s = 3200 bytes
 const FRAME_SAMPLES_16K = 1600;
 
-export function getAsrWebSocketUrl(): string {
+export function getAsrWebSocketUrl(options: AsrUrlOptions = {}): string {
   const env = (import.meta as ImportMeta & {
     env?: Record<string, string | undefined>;
   }).env;
-  const explicit = env?.VITE_ASR_WS_URL?.trim();
-  if (explicit) return explicit;
+  const explicit = options.wsUrl ?? env?.VITE_ASR_WS_URL?.trim();
+  const baseUrl = explicit || _defaultAsrWebSocketUrl();
+  return _appendContextTerms(baseUrl, options.contextTerms ?? []);
+}
+
+function _defaultAsrWebSocketUrl(): string {
   if (typeof window !== "undefined" && window.location) {
     const proto = window.location.protocol === "https:" ? "wss" : "ws";
     return `${proto}://${window.location.hostname}:8765/`;
   }
   return "ws://127.0.0.1:8765/";
+}
+
+function _appendContextTerms(baseUrl: string, terms: string[]): string {
+  const cleanedTerms = _dedupeTerms(terms).slice(0, 80);
+  if (cleanedTerms.length === 0) return baseUrl;
+  const url = new URL(baseUrl, typeof window !== "undefined" ? window.location.href : "http://127.0.0.1");
+  url.searchParams.delete("term");
+  cleanedTerms.forEach((term) => url.searchParams.append("term", term));
+  return url.toString();
+}
+
+function _dedupeTerms(terms: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  terms.forEach((raw) => {
+    const term = raw.trim();
+    const key = term.toLowerCase();
+    if (term && !seen.has(key)) {
+      seen.add(key);
+      result.push(term);
+    }
+  });
+  return result;
+}
+
+export function sanitizeAsrTranscript(text: string): string {
+  let cleaned = text.trim();
+  [...getFillerWords()].sort((a, b) => b.length - a.length).forEach((word) => {
+    cleaned = removeFillerWord(cleaned, word);
+  });
+  return normalizeTranscript(cleaned);
+}
+
+function removeFillerWord(text: string, word: string): string {
+  const escaped = escapeRegExp(word);
+  if (/^[\x00-\x7F]+$/.test(word)) {
+    const pattern = new RegExp(`(^|[\\s，,。.!?！？；;、])${escaped}(?=$|[\\s，,。.!?！？；;、])`, "gi");
+    return text.replace(pattern, (_match, prefix: string) => prefix);
+  }
+  const leading = new RegExp(`^(?:[\\s，,。.!?！？；;、]*${escaped})+[\\s，,。.!?！？；;、]*`, "g");
+  const isolated = new RegExp(`(^|[\\s，,。.!?！？；;、])${escaped}(?=$|[\\s，,。.!?！？；;、])`, "g");
+  return text.replace(leading, "").replace(isolated, (_match, prefix: string) => prefix);
+}
+
+function normalizeTranscript(text: string): string {
+  return text
+    .replace(/[ \t]+/g, " ")
+    .replace(/\s*([，。！？；：、])\s*/g, "$1")
+    .replace(/\s*([,.!?;:])\s*/g, "$1 ")
+    .replace(/([，,；;、])(?:[，,；;、])+/g, "$1")
+    .replace(/([，。！？；：、])\s+/g, "$1")
+    .replace(/^[\s，,。.!?！？；;、]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 export function isQwenAsrSupported(): boolean {
@@ -74,7 +143,7 @@ export function isQwenAsrSupported(): boolean {
 export function createQwenAsrStream(
   stream: MediaStream,
   callbacks: AsrStreamCallbacks,
-  options: { wsUrl?: string } = {}
+  options: AsrUrlOptions = {}
 ): QwenAsrStreamHandle {
   if (!isQwenAsrSupported()) {
     return {
@@ -88,7 +157,7 @@ export function createQwenAsrStream(
     };
   }
 
-  const wsUrl = options.wsUrl ?? getAsrWebSocketUrl();
+  const wsUrl = getAsrWebSocketUrl(options);
   let audioContext: AudioContext | null = null;
   let source: MediaStreamAudioSourceNode | null = null;
   let processor: ScriptProcessorNode | null = null;
@@ -159,7 +228,7 @@ export function createQwenAsrStream(
         return;
       case "final":
         if (typeof event.text === "string" && event.text.trim()) {
-          callbacks.onFinal(event.text.trim());
+          callbacks.onFinal(sanitizeAsrTranscript(event.text));
         }
         return;
       case "speech_started":

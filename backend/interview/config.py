@@ -8,7 +8,18 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DOTENV_PATH = PROJECT_ROOT / ".env"
 DEFAULT_RENDER_SECRET_DOTENV_PATH = Path("/etc/secrets/.env.prod")
 DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
-DEFAULT_FILLER_WORDS: list[str] = []
+DEFAULT_FILLER_WORDS: list[str] = [
+    "嗯",
+    "啊",
+    "呃",
+    "额",
+    "那个",
+    "就是",
+    "然后",
+    "um",
+    "uh",
+    "erm",
+]
 
 # Supabase 默认配置
 DEFAULT_SUPABASE_URL = ""
