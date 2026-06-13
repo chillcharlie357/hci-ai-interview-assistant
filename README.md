@@ -1,175 +1,104 @@
 # HCI AI Interview Assistant
 
-AI-assisted interview MVP for structured question generation, digital interviewer prompts, answer capture, realtime observation signals, and auditable interview summaries.
+AI-assisted interview MVP for recruiter setup, candidate interview rooms, realtime observation signals, speech analysis, answer help, video review, and auditable interview reports.
 
-## Scope
+The project is intentionally evidence-first: it records questions, answers, timings, speech/video observation signals, keyframes, and event logs to help human reviewers. It does not produce automatic hire/no-hire decisions.
 
-The MVP now has two user-facing entry points:
+## Product Scope
 
-- Recruiter: `http://localhost:5173/recruiter`
-- Candidate interview room: `http://localhost:5173/interview/{sessionId}`
+Current user-facing flows:
 
-The recruiter uploads a resume, answers LLM follow-up questions about the role, configures report visibility, then creates an interview link. The candidate joins a LiveKit video room, hears the digital interviewer prompt, answers by browser speech-to-text or manual text fallback, and submits answers into the existing report flow.
+- Recruiter dashboard: `/recruiter`
+- Recruiter setup: `/recruiter/setup`
+- Candidate interview room: `/interview/{sessionId}`
+- Interview report: `/report/{sessionId}`
 
-The MVP intentionally does not implement screen sharing, OCR, high-precision facial recognition, sensitive-attribute inference, or automatic hire/no-hire decisions. Camera-derived metrics are observation signals for human review only.
+Main capabilities:
+
+- Supabase Auth-backed recruiter registration/login.
+- Recruiter preparation flow with resume upload, MinerU extraction, LLM follow-up questions, report visibility controls, and interview link creation.
+- Mock session creation for quick local QA without resume parsing.
+- Structured interview question generation from resume, job description, and interview goals.
+- Candidate room with a digital interviewer avatar, browser TTS prompts, captions, manual answer fallback, and optional ASR.
+- Realtime browser camera observation using MediaPipe Tasks Vision assets plus canvas-based quality/activity proxies.
+- Speech analysis from browser audio chunks and server-side aggregation.
+- Video recording upload, ffmpeg WebM metadata repair, report-page video playback, timeline seeking, and keyframe review.
+- Markdown/web report generation with soft-skill radar, Q&A timeline, answer help, keyframes, video playback, and downloadable report content.
+
+Out of scope for the MVP:
+
+- Screen sharing and OCR.
+- High-precision face recognition or identity verification.
+- Sensitive-attribute, health, personality, or emotion inference.
+- Fully automated scoring or hire/no-hire decisions.
 
 ## Tech Stack
 
-- Backend/core logic: Python standard library managed by `uv`.
-- Frontend UI: TypeScript + React + Vite.
-- Browser video analysis: `getUserMedia`, Canvas metrics, optional MediaPipe Tasks Vision dependency.
-- LLM: OpenAI-compatible Chat Completions format.
-- Tests: Python `unittest`, frontend `vitest`.
+- Backend: Python 3.12, standard-library HTTP server, `uv`, `unittest`.
+- Auth/database: Supabase Auth and Supabase Postgres.
+- LLM: OpenAI-compatible Chat Completions API.
+- Resume extraction: MinerU API/client integration.
+- ASR: DashScope Qwen realtime ASR WebSocket service, with browser Web Speech fallback.
+- Frontend: TypeScript, React 19, Vite 8, Ant Design 6, Zustand, Recharts.
+- Browser media: `getUserMedia`, MediaRecorder, Web Speech API, Canvas, MediaPipe Tasks Vision.
+- Video storage/repair: Supabase storage path support plus backend `ffmpeg` WebM remuxing.
+- Containers: Docker/Podman, multi-stage frontend image, Python backend image.
+- Production hosting: Render Blueprint.
+  - Backend and ASR are Render image web services using GHCR `:main` images.
+  - Frontend is a Render Static Site built from `frontend/dist`.
 
-## One-Click Local Run
+## Quick Start
 
-### 首选：Docker/Podman Compose（推荐）
-
-```bash
-./compose.sh up       # 开发模式（源码热重载）
-./compose.sh prod     # 生产模式（nginx 部署）
-./compose.sh down     # 关闭所有服务
-```
-
-自动检测 podman 或 docker，支持 `COMPOSE_BIN=docker ./compose.sh up` 强制指定。详见下方 Docker/Podman Compose 章节。
-
-### 本地开发调试（直接启动 API + 前端）
-
-```bash
-# 终端 1：后端
-uv run python -m backend.interview.api --host 127.0.0.1 --port 8000
-
-# 终端 2：前端
-cd frontend && pnpm install && pnpm dev
-```
-
-> `scripts/dev.sh` 已不再维护，请使用上述方式或 Docker/Podman Compose。
+Copy environment configuration first:
 
 ```bash
 cp .env.example .env
 ```
 
-### Required: Supabase Authentication
+Then start the full local stack:
 
 ```bash
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_ROLE_KEY=eyJ...   # 用于后端直接操作数据库，绕过 RLS
-REQUIRE_AUTH=true
-VITE_REQUIRE_AUTH=true
-```
-
-Get these values from Supabase Dashboard → Settings → API. Service role key 让后端用单一权限客户端操作数据库，应用层做 user_id 隔离。
-
-### Optional: LLM Configuration
-
-```bash
-OPENAI_API_KEY=sk-...
-OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_MODEL=gpt-4
-```
-
-### Optional: Other Services
-
-```bash
-UV_DEFAULT_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
-# MinerU API Token（可选，在 https://mineru.net/apiManage/token 获取）
-# 配置后使用 Precision API（更快），未配置时自动降级为 Agent API
-# MINERU_API_TOKEN=your-token-here
-LIVEKIT_URL=wss://...
-LIVEKIT_API_KEY=...
-LIVEKIT_API_SECRET=...
-```
-
-### Optional: ASR (语音识别)
-
-```bash
-VITE_ASR_WS_URL=ws://127.0.0.1:8765/
-VITE_ASR_PROVIDER=qwen          # qwen 或 webspeech
-ASR_WS_HOST=0.0.0.0
-ASR_WS_PORT=8765
-```
-
-ASR 服务使用阿里云 DashScope（qwen）实时语音识别，通过 WebSocket 与后端通信。未配置时前端自动降级到浏览器内置 Web Speech API。
-
-If the API key or model is missing, the app uses fallback logic and returns `llm_status: "fallback"`.
-
-## Docker / Podman Compose
-
-支持 `docker compose` 和 `podman compose`，跨平台（Windows / macOS / Linux）。
-
-### 一键启动 / 关闭
-
-使用 `compose.sh` 自动检测 podman 或 docker，无需记忆 compose 参数：
-
-```bash
-# 启动开发模式（默认，前端 Vite HMR + 后端 watchfiles 热重载）
 ./compose.sh up
+```
 
-# 启动生产模式（nginx 静态服务）
-./compose.sh prod
+Useful URLs:
 
-# 关闭所有服务
+- Frontend: `http://127.0.0.1:5173`
+- Backend health: `http://127.0.0.1:8000/api/health`
+- ASR WebSocket: `ws://127.0.0.1:9785/`
+
+Stop services:
+
+```bash
 ./compose.sh down
 ```
 
-支持环境变量 `COMPOSE_BIN` 手动指定编排工具：`COMPOSE_BIN=docker ./compose.sh up`。
+View logs:
 
-### 模式对比
+```bash
+./compose.sh logs
+./compose.sh logs backend
+./compose.sh logs frontend
+./compose.sh logs asr
+```
 
-| 特性 | 生产模式 (`prod`) | 开发模式 (`dev`) |
-|---|---|---|
-| 前端构建 | `pnpm build` → nginx:alpine | `pnpm dev` (Vite HMR) |
-| 后端热重载 | ❌ | ✅ (watchfiles) |
-| 前端热重载 | ❌ | ✅ (Vite HMR + 源码挂载) |
-| 镜像体积 | 小（nginx alpine ~10MB） | 大（node:22-slim + deps） |
-| 环境变量 | 构建时注入 (VITE_*) | 运行时注入 |
-| DEBUG | false | true |
+`compose.sh` auto-detects `podman` first, then `docker`. Use `COMPOSE_BIN=docker ./compose.sh up` to force Docker.
 
-### 端口
+## Local Development Without Compose
 
-| 服务 | 端口 | 说明 |
-|---|---|---|
-| 后端 API | `http://localhost:8000` | 可通过 `BACKEND_PORT` 自定义 |
-| 前端 | `http://localhost:5173` | 可通过 `FRONTEND_PORT` 自定义 |
-| ASR WebSocket | `ws://localhost:9785` | 可通过 `ASR_PORT` 自定义 |
-
-## Run Backend API Manually
+Backend:
 
 ```bash
 uv run python -m backend.interview.api --host 127.0.0.1 --port 8000
 ```
 
-Useful API endpoints:
+ASR:
 
-### Authentication (public)
+```bash
+DASHSCOPE_API_KEY=... uv run python -m backend.asr.qwen_realtime --host 127.0.0.1 --port 8765
+```
 
-- `POST /api/auth/register`: register a new user (email, password, full_name).
-- `POST /api/auth/login`: login with email and password.
-- `POST /api/auth/refresh`: refresh access token.
-- `POST /api/auth/logout`: logout (clears server session).
-
-### Authentication (protected)
-
-- `GET /api/auth/me`: get current user info.
-
-### Interview Sessions (protected)
-
-- `POST /api/sessions`: create an interview session from candidate, resume, JD, and goal inputs.
-- `POST /api/prep-sessions/resume`: upload a PDF/DOCX/image resume for MinerU extraction.
-- `POST /api/prep-sessions/{id}/followups`: submit recruiter answers to LLM role follow-up questions.
-- `POST /api/prep-sessions/{id}/interview-session`: generate the candidate interview session.
-- `GET /api/sessions/{id}`: fetch a session.
-- `POST /api/sessions/{id}/livekit-token`: create a LiveKit participant token.
-- `GET /api/sessions/{id}/report?viewer=recruiter|candidate`: fetch report with visibility enforcement.
-- `POST /api/sessions/{id}/video-events`: record a browser-side camera observation event and optional in-memory keyframe.
-- `POST /api/sessions/{id}/answers`: record the current answer and return the updated session plus Markdown report.
-- `POST /api/sessions/{id}/speech-chunks`: submit an audio chunk for server-side speech analysis.
-- `POST /api/mock-session`: quickly create a test interview with pre-built mock data (templates: frontend/backend/ai/pm).
-
-Note: When `REQUIRE_AUTH=true`, all session endpoints require a valid JWT token in the `Authorization: Bearer <token>` header.
-
-## Run Frontend
+Frontend:
 
 ```bash
 cd frontend
@@ -177,52 +106,237 @@ pnpm install
 pnpm dev
 ```
 
-The Vite dev server proxies `/api/*` to `http://127.0.0.1:8000`. Set `VITE_API_BASE_URL` in `.env` to override (Docker 环境自动注入，本地开发留空即可走 proxy)。
+The Vite dev server uses `VITE_API_BASE_URL` when provided. In compose/dev defaults, it points to the backend at `http://127.0.0.1:8000`.
 
-## Tests
+## Face Analysis Assets
+
+Face analysis needs generated static assets:
+
+- `frontend/public/models/face_landmarker.task`
+- `frontend/public/mediapipe/wasm/*`
+
+These files are ignored by Git because they are generated third-party binaries. They are prepared automatically by:
 
 ```bash
-scripts/test.sh         # Python 单元测试 + 脚本测试 + 前端测试 + 构建
+pnpm --dir frontend build
 ```
 
-### 功能测试（真实 HTTP 请求，后端需运行中）
+For dev mode, `./compose.sh up` also checks and prepares the assets before starting containers. To run the setup directly:
+
+```bash
+scripts/setup_face_assets.sh
+```
+
+Production builds treat these assets as required. If the model or WASM runtime cannot be prepared, the frontend build should fail instead of deploying a broken page.
+
+## Environment Variables
+
+Required for production auth/database:
+
+```bash
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+REQUIRE_AUTH=true
+VITE_REQUIRE_AUTH=true
+```
+
+LLM:
+
+```bash
+OPENAI_API_KEY=...
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-4.1-mini
+```
+
+MinerU:
+
+```bash
+MINERU_API_TOKEN=...
+MINERU_TIMEOUT_SEC=300
+```
+
+When `MINERU_API_TOKEN` is set, resume extraction uses MinerU Precision API. Without it, the backend falls back to MinerU Agent API; the deprecated `MINERU_COMMAND` CLI path is only used when explicitly configured.
+
+ASR:
+
+```bash
+DASHSCOPE_API_KEY=...
+VITE_ASR_PROVIDER=qwen
+VITE_ASR_WS_URL=ws://127.0.0.1:9785/
+ASR_WS_HOST=0.0.0.0
+ASR_WS_PORT=8765
+```
+
+Compose maps host port `9785` to the ASR service port `8765`. If you run the ASR service directly without Compose, set `VITE_ASR_WS_URL=ws://127.0.0.1:8765/` for the frontend.
+
+LiveKit:
+
+```bash
+LIVEKIT_URL=wss://...
+LIVEKIT_API_KEY=...
+LIVEKIT_API_SECRET=...
+```
+
+Frontend build-time variables must be available before `pnpm build` because Vite embeds `VITE_*` values into the static bundle.
+
+## API Surface
+
+Public:
+
+- `GET /api/health`
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/refresh`
+- `POST /api/auth/logout`
+
+Protected when `REQUIRE_AUTH=true`:
+
+- `GET /api/auth/me`
+- `POST /api/prep-sessions/resume`
+- `POST /api/prep-sessions/{id}/followups`
+- `POST /api/prep-sessions/{id}/interview-session`
+- `POST /api/sessions`
+- `GET /api/sessions/{id}`
+- `POST /api/sessions/{id}/answers`
+- `POST /api/sessions/{id}/help`
+- `POST /api/sessions/{id}/speech-chunks`
+- `POST /api/sessions/{id}/video-events`
+- `POST /api/sessions/{id}/video`
+- `GET /api/sessions/{id}/video`
+- `POST /api/sessions/{id}/livekit-token`
+- `GET /api/sessions/{id}/report?viewer=recruiter|candidate`
+- `POST /api/mock-session`
+
+Use `Authorization: Bearer <access_token>` for protected routes.
+
+## Testing
+
+Run the standard test script:
+
+```bash
+scripts/test.sh
+```
+
+Common focused checks:
+
+```bash
+uv run python -m unittest discover -s backend/tests
+CI=true pnpm --dir frontend test
+CI=true pnpm --dir frontend build
+```
+
+Functional API test, with backend already running:
 
 ```bash
 uv run python -m unittest backend.tests.test_functional -v
 ```
 
-测试 20 项核心功能：健康端点、真实 MinerU 简历解析、Followup、Session 生命周期、完整 6 题答题 + 报告、错误处理。后端未运行时自动跳过。
+For full interview-flow browser testing, use the project `/interview-e2e-testing` skill with the dev stack running and PDF resumes available in `mock-resumes/`.
 
-### Playwright E2E 全流程测试
+## Mock Resumes
 
-Run the `/interview-e2e-testing` skill to automatically execute the full Playwright E2E test flow with mocked camera, microphone, TTS, STT, and MinerU. Prerequisites:
-- Dev environment started (`./compose.sh up`)
-- Playwright plugin loaded
-- PDF resumes available in `mock-resumes/`
-
-## Mock Resumes For Local QA
-
-Generate disposable mock resumes for recruiter-flow testing:
+Generate local mock resumes:
 
 ```bash
-python3 scripts/generate_mock_resumes.py
+uv run python scripts/generate_mock_resumes.py
 ```
 
-The generated files are written to ignored `mock-resumes/`. To test resume upload without installing MinerU, use the mock extractor:
+Generated files are written under ignored `mock-resumes/`.
+
+To test resume upload without real MinerU:
 
 ```bash
-# 本地开发调试（mock MinerU）
-MINERU_COMMAND="$PWD/scripts/mock_mineru_open_api.py" uv run python -m backend.interview.api --host 127.0.0.1 --port 8000
+MINERU_COMMAND="$PWD/scripts/mock_mineru_open_api.py" \
+  uv run python -m backend.interview.api --host 127.0.0.1 --port 8000
 ```
 
-## Spec
+## Docker / Podman
 
-Read the spec documents before changing product scope:
+Development mode:
 
-- `spec/prd.md` — product requirements, data structures, acceptance criteria
-- `spec/goals.md` — MVP goals, scope boundaries, non-goals
-- `spec/implementation-plan.md` — phased implementation plan
-- `spec/problem-related-work-solution.md` — problem analysis, competitive landscape, design principles
-- `spec/evaluation-metrics.md` — evaluation dimensions, metric reference ranges, data flow design
-- `spec/frontend-quality-plan.md` — frontend quality improvement plan (completed)
-- `AGENTS.md` — project direction, product guardrails, coding conventions
+```bash
+./compose.sh up
+```
+
+Production-like local mode:
+
+```bash
+./compose.sh prod
+```
+
+Raw compose equivalent:
+
+```bash
+docker compose up -d --build
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+podman compose up -d --build
+podman compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+Service ports:
+
+| Service | Default URL | Override |
+|---|---|---|
+| Backend API | `http://127.0.0.1:8000` | `BACKEND_PORT` |
+| Frontend | `http://127.0.0.1:5173` | `FRONTEND_PORT` |
+| ASR WebSocket | `ws://127.0.0.1:9785/` | `ASR_PORT` |
+
+## Production Deployment
+
+Production is described by `render.yaml`.
+
+Render resources:
+
+- `hci-ai-interview-backend`: image web service, Singapore, GHCR backend image `:main`.
+- `hci-ai-interview-asr`: image web service, Singapore, same backend image with ASR command.
+- `hci-ai-interview-frontend`: static site, built from `frontend/dist`.
+
+Important Render setup:
+
+- GHCR images are published by `.github/workflows/package-images.yml` on `main`.
+- Backend/ASR need a Render registry credential named `hci` with GHCR package read access.
+- Production environment is centralized in Render environment group `hci_env`.
+- Upload `.env.prod` as a Render Secret File in `hci_env`.
+- Python image services load `/etc/secrets/.env.prod`.
+- The static frontend build exports `/etc/secrets/.env.prod` before running `pnpm build`.
+
+Validate the Blueprint:
+
+```bash
+render blueprints validate render.yaml --output json
+```
+
+## Repository Map
+
+- `backend/interview/`: HTTP API, session model, question generation, answer analysis, config, logging.
+- `backend/auth/`: Supabase auth service and middleware.
+- `backend/database/`: Supabase persistence repositories and SQL migrations.
+- `backend/asr/`: DashScope realtime ASR WebSocket service.
+- `backend/speech_analysis/`: speech features, aggregation, and audio analysis.
+- `backend/storage/`: video upload/storage helpers and WebM metadata repair.
+- `frontend/src/pages/`: recruiter, interview, report, and dashboard pages.
+- `frontend/src/pages/InterviewPage/hooks/`: interview state, speech, video recording, and video analysis hooks.
+- `frontend/public/`: generated face-analysis assets and static avatar/video assets.
+- `spec/`: product requirements, implementation notes, and design plans.
+- `scripts/`: local setup, testing, mock resume, and generated asset helpers.
+
+## Product Guardrails
+
+- Keep conclusions tied to evidence: question text, candidate answer, answer metrics, video/speech observations, and event logs.
+- Treat camera and speech metrics as observation signals, not capability judgments.
+- Do not infer sensitive attributes, emotion, personality, health, or hiring outcome from non-language signals.
+- Preserve human review paths for short, missing, uncertain, or low-confidence answers.
+- Keep generated binary assets out of Git unless the project policy changes.
+
+## Specs
+
+Read these before changing product scope:
+
+- `spec/prd.md`
+- `spec/goals.md`
+- `spec/implementation-plan.md`
+- `spec/problem-related-work-solution.md`
+- `spec/digital-interviewer-meeting-experience.md`
+- `spec/report-video-playback-fix-plan.md`
+- `AGENTS.md`
