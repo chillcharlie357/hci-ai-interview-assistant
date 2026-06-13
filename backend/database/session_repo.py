@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from dataclasses import asdict
 from typing import Any
 
@@ -57,11 +58,22 @@ class SessionRepository:
             self._ensure_profile(user_id)
             data = self._session_to_dict(session, user_id)
             log.info("save_session id=%s user_id=%s", session.id, user_id)
-            result = self.client.table('interview_sessions').upsert(data).execute()
+            result = self._upsert_session_data(data)
             return len(result.data) > 0
         except Exception as e:
             log.warning("save_session: DB write failed for id=%s: %s", session.id, e)
             return False
+
+    def _upsert_session_data(self, data: dict[str, Any]):
+        try:
+            return self.client.table('interview_sessions').upsert(data).execute()
+        except Exception as e:
+            if "total_questions" not in str(e):
+                raise
+            legacy_data = dict(data)
+            legacy_data.pop("total_questions", None)
+            log.warning("save_session: total_questions column missing, retrying legacy upsert")
+            return self.client.table('interview_sessions').upsert(legacy_data).execute()
 
     def get_session(self, session_id: str, user_id: str) -> InterviewSession | None:
         """从数据库获取面试会话"""
@@ -85,6 +97,25 @@ class SessionRepository:
         """获取用户的面试会话列表"""
         if not is_valid_uuid(user_id):
             return []
+        started = time.perf_counter()
+        try:
+            result = self.client.table('interview_sessions') \
+                .select('id, candidate_name, role, created_at, current_index, llm_status, total_questions') \
+                .eq('user_id', user_id) \
+                .order('created_at', desc=True) \
+                .limit(limit) \
+                .execute()
+
+            rows = [self._enrich_session_summary(row) for row in (result.data or [])]
+            elapsed_ms = int((time.perf_counter() - started) * 1000)
+            log.info("list_sessions user_id=%s rows=%s db_ms=%s mode=summary", user_id, len(rows), elapsed_ms)
+            return rows
+        except Exception as e:
+            log.warning("list_sessions summary query failed for user_id=%s: %s", user_id, e)
+            return self._list_sessions_legacy(user_id, limit, started)
+
+    def _list_sessions_legacy(self, user_id: str, limit: int, started: float) -> list[dict[str, Any]]:
+        """兼容尚未执行 total_questions migration 的环境。"""
         try:
             result = self.client.table('interview_sessions') \
                 .select('id, candidate_name, role, created_at, current_index, llm_status, questions') \
@@ -93,7 +124,10 @@ class SessionRepository:
                 .limit(limit) \
                 .execute()
 
-            return [self._enrich_session_summary(row) for row in (result.data or [])]
+            rows = [self._enrich_session_summary(row) for row in (result.data or [])]
+            elapsed_ms = int((time.perf_counter() - started) * 1000)
+            log.info("list_sessions user_id=%s rows=%s db_ms=%s mode=legacy", user_id, len(rows), elapsed_ms)
+            return rows
         except Exception as e:
             log.warning("list_sessions failed for user_id=%s: %s", user_id, e)
             return []
@@ -110,7 +144,7 @@ class SessionRepository:
         elif isinstance(questions_raw, list):
             row["total_questions"] = len(questions_raw)
         else:
-            row["total_questions"] = 0
+            row["total_questions"] = int(row.get("total_questions") or 0)
         row.pop("questions", None)
         return row
 
@@ -171,6 +205,7 @@ class SessionRepository:
         """将 InterviewSession 转换为数据库字典"""
         data = asdict(session)
         data['user_id'] = user_id
+        data['total_questions'] = len(session.questions)
         data['questions'] = json.dumps(data['questions'], ensure_ascii=False)
         data['answers'] = json.dumps(data['answers'], ensure_ascii=False)
         data['events'] = json.dumps(data['events'], ensure_ascii=False)
