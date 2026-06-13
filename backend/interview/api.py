@@ -42,6 +42,7 @@ from backend.interview.session import (
     generate_markdown_report,
     record_video_event,
     record_answer,
+    session_status,
     summarize_video,
 )
 from backend.speech_analysis import analyze_speech
@@ -348,6 +349,7 @@ class SessionStore:
                 "current_index": session.current_index,
                 "llm_status": session.llm_status,
                 "total_questions": len(session.questions),
+                "status": session_status(session),
             })
         result.sort(key=lambda s: s["id"], reverse=True)
         return result[:limit]

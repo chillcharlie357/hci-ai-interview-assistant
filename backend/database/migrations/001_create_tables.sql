@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS interview_sessions (
     role VARCHAR(255) NOT NULL,
     current_index INTEGER DEFAULT 0,
     total_questions INTEGER NOT NULL DEFAULT 0,
+    status VARCHAR(50) NOT NULL DEFAULT 'pending',
     questions JSONB DEFAULT '[]',
     answers JSONB DEFAULT '[]',
     events JSONB DEFAULT '[]',

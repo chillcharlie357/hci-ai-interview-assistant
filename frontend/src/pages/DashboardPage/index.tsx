@@ -24,11 +24,13 @@ type SessionSummary = {
   current_index: number;
   llm_status: string;
   total_questions: number;
+  status?: "pending" | "active" | "completed";
 };
 
 function sessionStatus(s: SessionSummary): "pending" | "active" | "completed" {
-  if (s.total_questions === 0 || s.current_index === 0) return "pending";
+  if (s.status === "pending" || s.status === "active" || s.status === "completed") return s.status;
   if (s.current_index >= s.total_questions) return "completed";
+  if (s.current_index === 0) return "pending";
   return "active";
 }
 
