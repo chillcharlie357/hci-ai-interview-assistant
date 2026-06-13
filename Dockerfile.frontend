@@ -6,15 +6,14 @@ COPY frontend/package.json frontend/pnpm-lock.yaml ./
 ENV CI=true
 RUN pnpm install --ignore-scripts
 COPY frontend/ ./
-COPY scripts/setup_face_assets.sh /tmp/setup_face_assets.sh
+COPY scripts/setup_face_assets.sh /scripts/setup_face_assets.sh
 RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
     sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true \
     && apt-get update \
     && apt-get install -y --no-install-recommends bash ca-certificates curl \
     && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
-    && FRONTEND_DIR=/app bash /tmp/setup_face_assets.sh \
-    && rm -f /tmp/setup_face_assets.sh
+    && FRONTEND_DIR=/app bash /scripts/setup_face_assets.sh
 EXPOSE 5173
 CMD ["pnpm", "dev", "--host", "0.0.0.0", "--port", "5173"]
 
