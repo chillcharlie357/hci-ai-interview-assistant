@@ -21,6 +21,7 @@ export type SpeechRecognitionHandle = {
   stopMediaStream: () => Promise<void>;
   appendAnswerText: (text: string) => void;
   chunkUploadFailCount: number;
+  micStreamRef: React.RefObject<MediaStream | null>;
 };
 
 export function useSpeechRecognition(
@@ -126,9 +127,22 @@ export function useSpeechRecognition(
       return;
     }
 
+    // 停止旧的麦克风流（录制流中的轨道不受影响，它独立存在）
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+    }
+
     let stream: MediaStream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: { ideal: 1 },
+          sampleRate: { ideal: 24000 },
+          echoCancellation: true,
+          noiseSuppression: true,
+        }
+      });
     } catch (error) {
       setAudioChunkStatus(error instanceof Error ? error.message : "麦克风不可用");
       return;
@@ -175,5 +189,6 @@ export function useSpeechRecognition(
     stopMediaStream,
     appendAnswerText,
     chunkUploadFailCount,
+    micStreamRef: mediaStreamRef,
   };
 }

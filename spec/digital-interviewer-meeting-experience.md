@@ -21,11 +21,40 @@ Make the candidate interview room feel like a real online interview hosted by an
 - Screen sharing.
 - New sensitive inference or automated hiring judgment.
 
+## Avatar Design (2026-06-07)
+
+The digital interviewer is rendered via pre-recorded MP4 video clips instead of the original SVG avatar. Four clips map to interviewer expressions:
+
+| Clip | File | Trigger |
+|------|------|---------|
+| 说话 (speak) | `speak.mp4` | Loop while TTS is speaking |
+| 微笑 (smile) | `smile.mp4` | Loop while listening; static frame for other states |
+| 点头 (nod) | `nod.mp4` | Play once — triggered every 4~9s while listening, or when answer is 10-200 chars |
+| 摇头 (shake) | `shake.mp4` | Play once — triggered when answer <10 or >200 chars |
+
+### Video Switching
+
+`VideoAvatar.tsx` uses dual `<video>` layers with A/B crossfade (0.25s CSS opacity transition). The inactive layer preloads and starts playing the next clip, then layers swap when `play()` resolves — avoiding blank frames during transitions.
+
+### Reaction Logic
+
+After the candidate finishes an answer, the interviewer reacts based on answer text length:
+
+- `< 10` chars → shake head (too short, prompting elaboration)
+- `10 ~ 200` chars → nod (acceptable)
+- `> 200` chars → shake head (too verbose)
+
+The reaction clip plays once with priority over the state-driven clip. Normal state flow resumes after the reaction ends.
+
+### TTS Voice
+
+`speakQuestion()` prefers a male `zh-CN` voice (Microsoft Yunyang). Falls back to the first available `zh-CN` voice if unavailable.
+
 ## UX Requirements
 
 1. Candidate enters `/interview/{sessionId}`.
 2. The meeting area shows two meeting participants:
-   - AI interviewer tile with avatar, state, speaking animation, and current progress.
+   - AI interviewer tile with video avatar, state-driven expression, and orbit animation.
    - Candidate video tile or LiveKit unavailable placeholder.
 3. Once the session is loaded, the AI interviewer automatically speaks the current question using Web Speech.
 4. The current AI question appears as an AI subtitle under the meeting stage.
@@ -37,13 +66,9 @@ Make the candidate interview room feel like a real online interview hosted by an
 
 ## Implementation Plan
 
-- Add `frontend/src/digitalInterviewer.ts` for testable state helpers.
-- Add `frontend/src/digitalInterviewer.test.ts` before production code.
-- Update `frontend/src/main.tsx`:
-  - Track AI interviewer state and the last auto-spoken question id.
-  - Automatically speak each new current question once.
-  - Render an AI interviewer tile next to the candidate LiveKit tile.
-  - Render a subtitle stream below the meeting stage.
-  - Use voice-first answer controls and typed fallback, without visible replay/submit buttons as the main flow.
-- Update `frontend/src/styles.css` for meeting-like two-tile layout and speaking animation.
+- `frontend/src/pages/InterviewPage/components/VideoAvatar.tsx` — dual-layer video avatar component.
+- `frontend/src/pages/InterviewPage/components/InterviewerTile.tsx` — simplified video-only tile.
+- `frontend/src/pages/InterviewPage/InterviewPage.css` — video avatar sizing and crossfade styles.
+- `frontend/src/digitalInterviewer.ts` — state helpers and type definitions.
+- `frontend/public/videos/` — speak.mp4, smile.mp4, nod.mp4, shake.mp4.
 - Verify with Vitest, frontend build, and Playwright.

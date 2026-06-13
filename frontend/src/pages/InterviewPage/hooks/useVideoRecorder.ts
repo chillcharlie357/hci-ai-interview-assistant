@@ -15,7 +15,8 @@ export type VideoRecorderHandle = {
   startRecording: (
     sessionId: string,
     cameraStream: MediaStream | null,
-    canvas: HTMLCanvasElement | null
+    canvas: HTMLCanvasElement | null,
+    micStream?: MediaStream | null
   ) => Promise<void>;
   stopAndUpload: (
     sessionId: string
@@ -38,17 +39,19 @@ export function useVideoRecorder(): VideoRecorderHandle {
     async (
       sessionId: string,
       cameraStream: MediaStream | null,
-      canvas: HTMLCanvasElement | null
+      canvas: HTMLCanvasElement | null,
+      micStream?: MediaStream | null
     ) => {
       if (mediaRecorderRef.current?.state === "recording") {
         log.debug("startRecording: already recording, skipping");
         return;
       }
 
-      log.info("startRecording session=%s camera=%s canvas=%s",
+      log.info("startRecording session=%s camera=%s canvas=%s mic=%s",
         sessionId,
         cameraStream ? `active(${cameraStream.getTracks().length}t)` : "none",
-        canvas ? `${canvas.width}x${canvas.height}` : "none");
+        canvas ? `${canvas.width}x${canvas.height}` : "none",
+        micStream ? `active(${micStream.getTracks().length}t)` : "none");
 
       // 恢复已有的录制数据
       const existing = await getRecordingData(sessionId);
@@ -76,12 +79,17 @@ export function useVideoRecorder(): VideoRecorderHandle {
 
         if (canvas) {
           recordingStream = canvas.captureStream(15);
-          if (cameraStream) {
-            const audioTrack = cameraStream.getAudioTracks()[0];
-            if (audioTrack) recordingStream.addTrack(audioTrack);
+          const micAudioTrack = micStream?.getAudioTracks()[0];
+          if (micAudioTrack) {
+            recordingStream.addTrack(micAudioTrack.clone());
+            log.info("added mic audio track (cloned) to video recording");
           }
         } else {
           recordingStream = cameraStream!;
+          const micAudioTrack = micStream?.getAudioTracks()[0];
+          if (micAudioTrack) {
+            recordingStream.addTrack(micAudioTrack.clone());
+          }
         }
 
         const mimeType = MediaRecorder.isTypeSupported(

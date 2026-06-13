@@ -40,10 +40,14 @@ export function InterviewPage() {
   const video = useVideoAnalysis(sessionId, session, updateSession, recorder.recordingStartTimeRef, recorder.accumulatedDurationRef);
 
   const [interviewerState, setInterviewerState] = useState<DigitalInterviewerState>("preparing");
+  const [interviewerReaction, setInterviewerReaction] = useState<{ type: "nod" | "shake"; key: number } | null>(null);
   const lastAutoSpokenQuestionIdRef = useRef<string | null>(null);
   const danmakuScrollRef = useRef<HTMLDivElement | null>(null);
   const answerInputRef = useRef<import("antd/es/input/TextArea").TextAreaRef | null>(null);
   const latestQuestionIdRef = useRef<string | null>(null);
+  const questionStartSecRef = useRef<number | null>(null);
+  const answerStartSecRef = useRef<number | null>(null);
+  const voicesPreloadedRef = useRef(false);
   const [helpLoading, setHelpLoading] = useState(false);
   const [helpVisible, setHelpVisible] = useState(false);
   const [helpResult, setHelpResult] = useState<AnswerHelpResult | null>(null);
@@ -52,6 +56,17 @@ export function InterviewPage() {
   function setAnswerTextFromAsr(text: string) {
     appendAnswerText(text);
   }
+
+  useEffect(() => {
+    function loadVoices() {
+      const voices = speechSynthesis.getVoices();
+      if (voices.length > 0) voicesPreloadedRef.current = true;
+    }
+    loadVoices();
+    speechSynthesis.onvoiceschanged = () => {
+      voicesPreloadedRef.current = true;
+    };
+  }, []);
 
   // 自动播放问题 / 面试完成自动跳转
   useEffect(() => {
@@ -94,8 +109,12 @@ export function InterviewPage() {
 
   // 清理
   useEffect(() => {
+    speechSynthesis.getVoices();
+    const onVoicesChanged = () => speechSynthesis.getVoices();
+    speechSynthesis.addEventListener("voiceschanged", onVoicesChanged);
     return () => {
       void speech.stopMediaStream();
+      speechSynthesis.removeEventListener("voiceschanged", onVoicesChanged);
     };
   }, []);
 
@@ -115,6 +134,18 @@ export function InterviewPage() {
     const utterance = new SpeechSynthesisUtterance(buildAvatarPrompt(session));
     utterance.lang = "zh-CN";
     utterance.rate = 0.95;
+    const voices = speechSynthesis.getVoices();
+    if (voices.length === 0 && !voicesPreloadedRef.current) {
+      speechSynthesis.onvoiceschanged = () => {
+        voicesPreloadedRef.current = true;
+        window.speechSynthesis.speak(utterance);
+      };
+      return;
+    }
+    const maleVoice = voices.find(
+      (v) => v.lang.startsWith("zh-CN") && (v.name.includes("Yunyang") || v.name.toLowerCase().includes("male")),
+    ) ?? voices.find((v) => v.lang.startsWith("zh-CN"));
+    if (maleVoice) utterance.voice = maleVoice;
     utterance.onstart = () => setInterviewerState("speaking");
     utterance.onend = () => {
       setInterviewerState("listening");
@@ -122,6 +153,13 @@ export function InterviewPage() {
     };
     utterance.onerror = () => setInterviewerState(mode === "auto" ? "unsupported" : "listening");
     setInterviewerState("speaking");
+
+    // 记录提问开始时的视频时间戳
+    questionStartSecRef.current = recorder.accumulatedDurationRef.current
+      + (recorder.recordingStartTimeRef.current
+        ? (performance.now() - recorder.recordingStartTimeRef.current) / 1000
+        : 0);
+
     window.speechSynthesis.speak(utterance);
   }
 
@@ -131,8 +169,13 @@ export function InterviewPage() {
     await speech.startMediaStreamAndAsr();
     // 第一次回答时启动录制
     if (!recorder.isRecording && session?.id) {
-      await recorder.startRecording(session.id, video.analysisStreamRef.current, video.analysisCanvasRef.current);
+      await recorder.startRecording(session.id, video.analysisStreamRef.current, video.analysisCanvasRef.current, speech.micStreamRef.current);
     }
+    // 记录答题开始时的视频时间戳（用于回放跳转）
+    answerStartSecRef.current = recorder.accumulatedDurationRef.current
+      + (recorder.recordingStartTimeRef.current
+        ? (performance.now() - recorder.recordingStartTimeRef.current) / 1000
+        : 0);
     video.captureKeyframe("answer_start");
   }
 
@@ -147,7 +190,7 @@ export function InterviewPage() {
         : 0);
 
     const isLastQuestion = session?.currentQuestion && session.currentIndex >= session.questions.length - 1;
-    // 最后一题：先完成录制上传，再提交答案（避免上传未完成即跳转报告页）
+    // 最后一题：先完成录制上传，再提交答案
     if (isLastQuestion && sessionId && recorder.isRecording) {
       try {
         await recorder.stopAndUpload(sessionId);
@@ -155,7 +198,13 @@ export function InterviewPage() {
         // 上传失败已在 recorder.uploadError 中处理
       }
     }
-    await finishAnswer({ videoTimestampSec });
+    await finishAnswer({ videoTimestampSec: answerStartSecRef.current ?? undefined, questionStartSec: questionStartSecRef.current ?? undefined });
+    answerStartSecRef.current = null;
+    questionStartSecRef.current = null;
+
+    const len = (answerText || "").trim().length;
+    const type: "nod" | "shake" = (len > 0 && len < 10) || len > 200 ? "shake" : "nod";
+    setInterviewerReaction((prev) => ({ type, key: (prev?.key ?? 0) + 1 }));
   }
 
   async function handleRequestHelp() {
@@ -229,10 +278,8 @@ export function InterviewPage() {
 
         <div className="video-grid">
           <InterviewerTile
-            candidateName={session.candidateName}
-            currentStep={Math.min(session.currentIndex + 1, session.questions.length)}
-            totalSteps={session.questions.length}
             state={interviewerState}
+            reaction={interviewerReaction}
           />
           <CandidateVideo
             cameraStream={video.analysisStreamRef.current}

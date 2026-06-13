@@ -49,7 +49,7 @@ describe("QATimeline", () => {
     const { container } = render(
       <QATimeline session={session} onSeekVideo={vi.fn()} />
     );
-    expect(container.textContent).toContain("回放");
+    expect(container.textContent).toContain("回放答题");
   });
 
   it("点击回放按钮调用 onSeekVideo 并传入正确时间戳", () => {
@@ -58,7 +58,7 @@ describe("QATimeline", () => {
     const { getByText } = render(
       <QATimeline session={session} onSeekVideo={onSeekVideo} />
     );
-    fireEvent.click(getByText("回放"));
+    fireEvent.click(getByText("回放答题"));
     expect(onSeekVideo).toHaveBeenCalledWith(15.0);
   });
 

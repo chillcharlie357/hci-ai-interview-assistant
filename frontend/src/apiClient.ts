@@ -49,6 +49,8 @@ type ApiAnswer = {
   is_followup?: boolean;
   followup_round?: number;
   followup_prompt?: string;
+  video_timestamp_sec?: number | null;
+  question_start_sec?: number | null;
 };
 
 type ApiEvent = {
@@ -295,7 +297,7 @@ export async function createInterviewSessionFromPrep(
 
 export async function submitAnswer(
   sessionId: string,
-  answer: { text: string; durationSec: number; videoTimestampSec?: number },
+  answer: { text: string; durationSec: number; videoTimestampSec?: number; questionStartSec?: number },
   options: ClientOptions = {}
 ): Promise<{ session: InterviewSession; report: string; followup: FollowupResponse }> {
   const response = await request<ApiSessionWithReport>(
@@ -304,6 +306,7 @@ export async function submitAnswer(
       text: answer.text,
       duration_sec: answer.durationSec,
       video_timestamp_sec: answer.videoTimestampSec,
+      question_start_sec: answer.questionStartSec,
     },
     200,
     options
@@ -701,7 +704,9 @@ function mapAnswer(answer: ApiAnswer): AnswerRecord {
     audioF0StdSemitones: answer.audio_f0_std_semitones,
     isFollowup: answer.is_followup ?? false,
     followupRound: answer.followup_round ?? 0,
-    followupPrompt: answer.followup_prompt ?? ""
+    followupPrompt: answer.followup_prompt ?? "",
+    videoTimestampSec: answer.video_timestamp_sec ?? null,
+    questionStartSec: answer.question_start_sec ?? null
   };
 }
 

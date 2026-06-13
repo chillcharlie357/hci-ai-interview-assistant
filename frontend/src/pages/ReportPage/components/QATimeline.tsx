@@ -51,7 +51,7 @@ export const QATimeline = memo(function QATimeline({ session, onSeekVideo }: QAT
                       onSeekVideo(answer.videoTimestampSec!);
                     }}
                   >
-                    回放
+                    回放答题
                   </Button>
                 )}
               </div>

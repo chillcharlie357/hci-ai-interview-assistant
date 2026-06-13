@@ -119,6 +119,7 @@ class SessionStore:
             resume=str(payload.get("resume", "")),
             job_description=str(payload.get("job_description", "")),
             interview_goal=str(payload.get("interview_goal", "")),
+            max_questions=int(payload.get("max_questions", 6)),
         )
         if payload.get("use_llm_questions"):
             llm_result = LlmClient.from_env().complete_json(
@@ -232,6 +233,7 @@ class SessionStore:
             resume=prep.resume_markdown,
             job_description=job_description,
             interview_goal=interview_goal,
+            max_questions=int(payload.get("max_questions", 6)),
         )
         llm_status = prep.llm_status
         if payload.get("use_llm_questions"):
@@ -298,6 +300,7 @@ class SessionStore:
                 "llm_status": session.llm_status,
                 "total_questions": len(session.questions),
             })
+        result.sort(key=lambda s: s["id"], reverse=True)
         return result[:limit]
 
     def delete_session(self, session_id: str, user_id: str = "") -> bool:
@@ -313,6 +316,7 @@ class SessionStore:
             return None
         text = str(payload.get("text", ""))
         video_timestamp_sec = payload.get("video_timestamp_sec")
+        question_start_sec = payload.get("question_start_sec")
         answer_analysis = analyze_answer_text(text)
         # 从语音聚合状态快照音频指标
         audio_rms_db = None
@@ -358,6 +362,9 @@ class SessionStore:
             followup_decision=followup_decision,
             video_timestamp_sec=(
                 float(video_timestamp_sec) if video_timestamp_sec is not None else None
+            ),
+            question_start_sec=(
+                float(question_start_sec) if question_start_sec is not None else None
             ),
         )
         if answer_analysis.llm_status == "ok":
@@ -824,6 +831,7 @@ def _create_mock_session(store: SessionStore, body: dict[str, Any], user_id: str
     template = str(body.get("template", "frontend"))
     candidate_name = str(body.get("candidate_name", "测试候选人"))
     enable_video_observation = bool(body.get("enable_video_observation", True))
+    max_questions = int(body.get("max_questions", 3))
 
     resume = MOCK_RESUMES.get(template, MOCK_RESUMES["frontend"])
     answer = MOCK_FOLLOWUP_ANSWERS.get(template, MOCK_FOLLOWUP_ANSWERS["frontend"])
@@ -847,6 +855,7 @@ def _create_mock_session(store: SessionStore, body: dict[str, Any], user_id: str
         prep.id,
         {
             "enable_video_observation": enable_video_observation,
+            "max_questions": max_questions,
         },
         user_id=user_id,
     )

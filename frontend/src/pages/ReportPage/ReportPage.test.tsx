@@ -176,7 +176,7 @@ describe("ReportPage (集成)", () => {
     await waitFor(() => {
       const qaCard = container.querySelector(".qa-card");
       expect(qaCard).toBeTruthy();
-      expect(qaCard!.textContent).toContain("回放");
+      expect(qaCard!.textContent).toContain("回放答题");
     }, { timeout: 5000 });
   });
 

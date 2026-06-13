@@ -56,6 +56,7 @@ export type AnswerRecord = {
   followupRound?: number;
   followupPrompt?: string;
   videoTimestampSec?: number | null;
+  questionStartSec?: number | null;
 };
 
 export type InterviewEvent = {

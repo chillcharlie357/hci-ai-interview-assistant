@@ -22,8 +22,15 @@ fi
 
 mkdir -p "$MODEL_DIR" "$WASM_DIR"
 
-echo "Downloading face landmarker model..."
-curl -L "$MODEL_URL" -o "$MODEL_DIR/face_landmarker.task"
+if [[ -f "$MODEL_DIR/face_landmarker.task" ]]; then
+  echo "Face landmarker model already exists, skipping download."
+else
+  echo "Downloading face landmarker model..."
+  curl -L --connect-timeout 10 --max-time 30 "$MODEL_URL" -o "$MODEL_DIR/face_landmarker.task" || {
+    echo "WARNING: Failed to download face landmarker model (network issue)."
+    echo "Face analysis will be degraded but interview flow is not affected."
+  }
+fi
 
 echo "Copying MediaPipe wasm runtime..."
 cp "$FRONTEND_DIR/node_modules/@mediapipe/tasks-vision/wasm/"* "$WASM_DIR/"

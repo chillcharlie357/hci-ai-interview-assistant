@@ -77,7 +77,7 @@
 /* ===== 视频网格 ===== */
 .video-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: auto 1fr;
   grid-template-rows: 1fr;
   gap: var(--space-sm);
   flex: 1;
@@ -110,51 +110,62 @@
 
 /* ===== 数字人面试官 ===== */
 .digital-interviewer-tile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-xl);
+  position: relative;
   background: linear-gradient(135deg, #1a1a2e, #16213e);
   border-radius: var(--radius-2xl);
-  text-align: center;
-  color: white;
   box-shadow: 0 0 30px rgba(0, 163, 255, 0.15);
   border: 2px solid rgba(0, 163, 255, 0.2);
   min-height: 0;
   overflow: hidden;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  aspect-ratio: 3 / 4;
+  height: 100%;
+  justify-self: start;
+  max-height: 100%;
+}
+
+.digital-interviewer-tile.speaking {
+  border-color: rgba(0, 163, 255, 0.6);
+  box-shadow: 0 0 40px rgba(0, 163, 255, 0.3);
 }
 
 .digital-avatar {
-  position: relative;
-  width: 120px;
-  height: 120px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
 .avatar-orbit {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: conic-gradient(from 20deg, #00629d, #52c41a, #0ea5e9, #00629d);
-  opacity: 0.8;
-}
-
-.digital-interviewer-tile.speaking .avatar-orbit {
-  animation: interview-avatar-pulse 1.4s ease-in-out infinite;
+  display: none;
 }
 
 .avatar-core {
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
+}
+
+/* ── Video avatar layers ── */
+.video-avatar-wrapper {
   position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.video-avatar-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 0.25s ease;
+  opacity: 0;
+}
+
+.video-avatar-layer.visible {
+  opacity: 1;
+  z-index: 1;
 }
 
 .digital-name-row {

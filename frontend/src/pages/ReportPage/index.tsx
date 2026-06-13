@@ -39,6 +39,7 @@ export function ReportPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoLoading, setVideoLoading] = useState(false);
+  const [videoError, setVideoError] = useState("");
 
   useEffect(() => {
     if (!sessionId) return;
@@ -65,11 +66,12 @@ export function ReportPage() {
   async function loadVideo() {
     if (!sessionId || !session?.videoPath) return;
     setVideoLoading(true);
+    setVideoError("");
     try {
       const url = await fetchVideoUrl(sessionId);
       if (url) setVideoUrl(url);
-    } catch {
-      // 静默降级
+    } catch (e) {
+      setVideoError("视频加载失败，请稍后重试");
     } finally {
       setVideoLoading(false);
     }
@@ -235,6 +237,7 @@ export function ReportPage() {
           <VideoPlaybackCard
             videoUrl={videoUrl}
             videoLoading={videoLoading}
+            videoError={videoError}
             videoDurationSec={session.videoDurationSec}
             videoRef={videoRef}
           />
