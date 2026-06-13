@@ -49,6 +49,17 @@ class LlmClientTest(unittest.TestCase):
         request = urlopen_mock.call_args.args[0]
         self.assertEqual(request.full_url, "https://api.openai.com/v1/chat/completions")
         self.assertEqual(request.headers["Authorization"], "Bearer test-key")
+        self.assertEqual(urlopen_mock.call_args.kwargs["timeout"], 30.0)
+
+    @patch.dict(os.environ, {"INTERVIEW_DISABLE_DOTENV": "1", "OPENAI_API_KEY": "test-key", "OPENAI_MODEL": "test-model"}, clear=True)
+    @patch("backend.interview.llm_client.urlopen")
+    def test_uses_explicit_timeout_for_latency_sensitive_calls(self, urlopen_mock):
+        urlopen_mock.return_value = FakeResponse({"choices": [{"message": {"content": "{\"ok\":true}"}}]})
+
+        result = LlmClient.from_env().complete_json("system", "user", timeout_sec=1.5)
+
+        self.assertEqual(result.status, "ok")
+        self.assertEqual(urlopen_mock.call_args.kwargs["timeout"], 1.5)
 
     @patch.dict(os.environ, {"INTERVIEW_DISABLE_DOTENV": "1", "OPENAI_API_KEY": "test-key", "OPENAI_MODEL": "test-model"}, clear=True)
     @patch("backend.interview.llm_client.urlopen")

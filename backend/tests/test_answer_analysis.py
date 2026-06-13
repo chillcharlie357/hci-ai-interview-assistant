@@ -11,9 +11,10 @@ class FakeLlmClient:
         self.system_prompt = ""
         self.user_prompt = ""
 
-    def complete_json(self, system_prompt, user_prompt):
+    def complete_json(self, system_prompt, user_prompt, **kwargs):
         self.system_prompt = system_prompt
         self.user_prompt = user_prompt
+        self.kwargs = kwargs
         return self.result
 
 
@@ -27,6 +28,7 @@ class AnswerAnalysisTest(unittest.TestCase):
         self.assertEqual(result.llm_status, "ok")
         self.assertIn("filler_word_count", client.system_prompt)
         self.assertIn("我负责问题生成", client.user_prompt)
+        self.assertEqual(client.kwargs["timeout_sec"], 2.0)
 
     def test_falls_back_to_configured_rule_when_llm_is_unavailable(self):
         client = FakeLlmClient(LlmResult(status="fallback", data=None))

@@ -501,6 +501,41 @@ export async function fetchVideoUrl(
   return data.video_url || null;
 }
 
+export async function fetchKeyframeDataUrl(
+  sessionId: string,
+  index: number,
+  options: ClientOptions = {}
+): Promise<string | null> {
+  const baseUrl = options.baseUrl ?? getApiBaseUrl();
+  const fetcher = options.fetcher ?? fetch;
+
+  const accessToken = useAuthStore.getState().accessToken;
+  const headers: Record<string, string> = {};
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
+
+  const response = await fetcher(`${baseUrl}/api/sessions/${sessionId}/keyframes/${index}`, {
+    method: "GET",
+    headers,
+  });
+
+  if (response.status === 401) {
+    const refreshed = await tryRefreshAndRetry();
+    if (refreshed) throw new Error("token_refreshed_retry");
+    forceLogout();
+  }
+  if (response.status === 404) {
+    return null;
+  }
+  if (response.status !== 200) {
+    throw new Error(`获取关键帧失败: ${response.status}`);
+  }
+
+  const data = (await response.json()) as { data_url?: string };
+  return data.data_url || null;
+}
+
 /** 快速创建 mock 面试，用于调试 */
 export async function createMockSession(
   config: {

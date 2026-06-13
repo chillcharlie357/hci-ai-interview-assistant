@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import json
 import re
 
-from backend.interview.config import DEFAULT_FILLER_WORDS, get_csv_env
+from backend.interview.config import DEFAULT_FILLER_WORDS, get_csv_env, get_env
 from backend.interview.llm_client import LlmClient
 
 
@@ -21,6 +21,7 @@ def analyze_answer_text(text: str, llm_client: LlmClient | None = None) -> Answe
     llm_result = client.complete_json(
         "你是面试回答文本分析器。请只输出 JSON，字段 filler_word_count 和 observations。filler_word_count 表示回答中的口头填充、犹豫、重复或无意义停顿词数量；observations 是可复核文本观察数组。禁止输出录用、不录用、人格、情绪或能力结论。",
         json.dumps({"answer_text": text}, ensure_ascii=False),
+        timeout_sec=_answer_analysis_timeout_sec(),
     )
     if llm_result.status == "ok" and llm_result.data:
         count = _parse_non_negative_int(llm_result.data.get("filler_word_count"))
@@ -109,3 +110,12 @@ def _parse_observations(value: object) -> list[str]:
     if not isinstance(value, list):
         return []
     return [str(item).strip() for item in value if str(item).strip()]
+
+
+def _answer_analysis_timeout_sec() -> float:
+    raw = get_env("INTERVIEW_ANSWER_ANALYSIS_TIMEOUT_SEC", "2")
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return 2.0
+    return value if value > 0 else 2.0
