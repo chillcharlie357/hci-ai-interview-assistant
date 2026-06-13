@@ -1,7 +1,4 @@
--- Store question counts for fast session-list summaries.
-ALTER TABLE interview_sessions
-    ADD COLUMN IF NOT EXISTS total_questions INTEGER NOT NULL DEFAULT 0;
-
+-- Backfill older sessions whose questions JSONB value is a string containing a JSON array.
 CREATE OR REPLACE FUNCTION pg_temp.hci_jsonb_array_length_from_text(value text)
 RETURNS integer
 LANGUAGE plpgsql
@@ -30,6 +27,3 @@ SET total_questions = CASE
     ELSE 0
 END
 WHERE questions IS NOT NULL;
-
-CREATE INDEX IF NOT EXISTS idx_interview_sessions_user_created_at
-    ON interview_sessions(user_id, created_at DESC);
