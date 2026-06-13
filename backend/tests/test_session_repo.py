@@ -3,7 +3,7 @@ import unittest
 
 from backend.database.session_repo import SessionRepository
 from backend.interview.question_engine import InterviewQuestion
-from backend.interview.session import create_interview_session
+from backend.interview.session import create_interview_session, session_status_from_parts
 
 
 class _FakeResult:
@@ -38,8 +38,10 @@ class _FakeQuery:
     def execute(self):
         if self.fail_summary and "total_questions" in self.selected:
             raise RuntimeError("column interview_sessions.total_questions does not exist")
-        if self.upsert_payloads and self.fail_summary and "total_questions" in self.upsert_payloads[-1]:
-            raise RuntimeError("column interview_sessions.total_questions does not exist")
+        if self.upsert_payloads and self.fail_summary:
+            payload = self.upsert_payloads[-1]
+            if "total_questions" in payload or "status" in payload:
+                raise RuntimeError("column interview_sessions.status does not exist")
         return _FakeResult(self.rows)
 
 
@@ -73,6 +75,7 @@ class SessionRepositoryMappingTest(unittest.TestCase):
 
         self.assertEqual(data["asr_context_terms"], ["RAG", "TypeScript", "检索增强生成"])
         self.assertEqual(data["total_questions"], 1)
+        self.assertEqual(data["status"], "pending")
         round_tripped = repo._dict_to_session({
             **data,
             "questions": json.loads(data["questions"]),
@@ -113,6 +116,7 @@ class SessionRepositoryMappingTest(unittest.TestCase):
                 "current_index": 1,
                 "llm_status": "ready",
                 "total_questions": 6,
+                "status": "active",
             }
         ])
         repo = SessionRepository(client=client)  # type: ignore[arg-type]
@@ -120,9 +124,11 @@ class SessionRepositoryMappingTest(unittest.TestCase):
         rows = repo.list_sessions("00000000-0000-0000-0000-000000000000")
 
         self.assertEqual(rows[0]["total_questions"], 6)
+        self.assertEqual(rows[0]["status"], "active")
         self.assertNotIn("questions", rows[0])
         selected_fields = {field.strip() for field in client.query.selected.split(",")}
         self.assertIn("total_questions", selected_fields)
+        self.assertIn("status", selected_fields)
         self.assertNotIn("questions", selected_fields)
 
     def test_list_sessions_falls_back_before_migration_is_applied(self):
@@ -142,6 +148,7 @@ class SessionRepositoryMappingTest(unittest.TestCase):
         rows = repo.list_sessions("00000000-0000-0000-0000-000000000000")
 
         self.assertEqual(rows[0]["total_questions"], 2)
+        self.assertEqual(rows[0]["status"], "active")
         self.assertNotIn("questions", rows[0])
 
     def test_save_session_falls_back_before_migration_is_applied(self):
@@ -168,7 +175,27 @@ class SessionRepositoryMappingTest(unittest.TestCase):
 
         self.assertEqual(result.data, [{"id": "session-1"}])
         self.assertIn("total_questions", client.query.upsert_payloads[0])
+        self.assertIn("status", client.query.upsert_payloads[0])
         self.assertNotIn("total_questions", client.query.upsert_payloads[1])
+        self.assertNotIn("status", client.query.upsert_payloads[1])
+
+    def test_session_status_from_parts_handles_progress_edges(self):
+        self.assertEqual(
+            session_status_from_parts(current_index=0, total_questions=5, answer_count=0),
+            "pending",
+        )
+        self.assertEqual(
+            session_status_from_parts(current_index=0, total_questions=5, answer_count=1),
+            "active",
+        )
+        self.assertEqual(
+            session_status_from_parts(current_index=2, total_questions=5, answer_count=2),
+            "active",
+        )
+        self.assertEqual(
+            session_status_from_parts(current_index=5, total_questions=5, answer_count=5),
+            "completed",
+        )
 
 
 if __name__ == "__main__":

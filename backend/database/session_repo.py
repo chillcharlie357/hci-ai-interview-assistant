@@ -21,6 +21,8 @@ from backend.interview.session import (
     KeyframeRecord,
     VideoEvent,
     VideoMetrics,
+    session_status,
+    session_status_from_parts,
 )
 from backend.speech_analysis.aggregate import SpeechAggregateState
 
@@ -68,11 +70,12 @@ class SessionRepository:
         try:
             return self.client.table('interview_sessions').upsert(data).execute()
         except Exception as e:
-            if "total_questions" not in str(e):
+            if "total_questions" not in str(e) and "status" not in str(e):
                 raise
             legacy_data = dict(data)
             legacy_data.pop("total_questions", None)
-            log.warning("save_session: total_questions column missing, retrying legacy upsert")
+            legacy_data.pop("status", None)
+            log.warning("save_session: summary columns missing, retrying legacy upsert")
             return self.client.table('interview_sessions').upsert(legacy_data).execute()
 
     def get_session(self, session_id: str, user_id: str) -> InterviewSession | None:
@@ -100,7 +103,7 @@ class SessionRepository:
         started = time.perf_counter()
         try:
             result = self.client.table('interview_sessions') \
-                .select('id, candidate_name, role, created_at, current_index, llm_status, total_questions') \
+                .select('id, candidate_name, role, created_at, current_index, llm_status, total_questions, status') \
                 .eq('user_id', user_id) \
                 .order('created_at', desc=True) \
                 .limit(limit) \
@@ -145,6 +148,11 @@ class SessionRepository:
             row["total_questions"] = len(questions_raw)
         else:
             row["total_questions"] = int(row.get("total_questions") or 0)
+        row["status"] = session_status_from_parts(
+            current_index=int(row.get("current_index") or 0),
+            total_questions=int(row.get("total_questions") or 0),
+            stored_status=row.get("status"),
+        )
         row.pop("questions", None)
         return row
 
@@ -206,6 +214,7 @@ class SessionRepository:
         data = asdict(session)
         data['user_id'] = user_id
         data['total_questions'] = len(session.questions)
+        data['status'] = session_status(session)
         data['questions'] = json.dumps(data['questions'], ensure_ascii=False)
         data['answers'] = json.dumps(data['answers'], ensure_ascii=False)
         data['events'] = json.dumps(data['events'], ensure_ascii=False)

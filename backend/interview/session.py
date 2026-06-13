@@ -4,7 +4,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 import re
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from backend.interview.answer_analysis import analyze_answer_text
 from backend.interview.answer_analysis import clean_filler_words
@@ -140,6 +140,32 @@ class InterviewSession:
         if state is None or state.finished:
             return None
         return state.pending_question
+
+
+def session_status(session: InterviewSession) -> str:
+    """Return the dashboard lifecycle status for an interview session."""
+    total_questions = len(session.questions)
+    if total_questions > 0 and session.current_index >= total_questions:
+        return "completed"
+    if session.current_index > 0 or session.answers:
+        return "active"
+    return "pending"
+
+
+def session_status_from_parts(
+    *,
+    current_index: int,
+    total_questions: int,
+    answer_count: int = 0,
+    stored_status: Any = None,
+) -> str:
+    if stored_status in {"pending", "active", "completed"}:
+        return str(stored_status)
+    if total_questions > 0 and current_index >= total_questions:
+        return "completed"
+    if current_index > 0 or answer_count > 0:
+        return "active"
+    return "pending"
 
 
 def clamp_max_followup_rounds(value: object, default: int = 2) -> int:
