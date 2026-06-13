@@ -137,6 +137,8 @@ export type InterviewSession = {
   enableVideoObservation: boolean;
   /** 当前主问题尚未结束、且 LLM 决定追问时，待朗读给候选人的追问文本；否则为 null */
   currentFollowup?: string | null;
+  /** 本场面试每题允许的最大追问轮数（0-3），由前端在创建时设定。 */
+  maxFollowupRounds: number;
 };
 
 export function createDraft(): DraftInput {
@@ -171,6 +173,7 @@ export function createSessionFromDraft(draft: DraftInput): InterviewSession {
     meetingRoom: "",
     enableVideoObservation: true,
     currentFollowup: null,
+    maxFollowupRounds: 2,
     events: [
       {
         type: "session_started",

@@ -112,6 +112,9 @@ class InterviewSession:
     meeting_room: str = ""
     enable_video_observation: bool = True
     followup_states: dict[str, FollowupState] | None = None
+    # 本场面试每题允许的最大追问轮数（0-3）。每场独立，由前端创建时设定，
+    # 不再读环境变量；``followup_engine.get_followup_max_rounds`` 仅作兜底/CLI。
+    max_followup_rounds: int = 2
 
     @property
     def current_question(self) -> InterviewQuestion | None:
@@ -131,12 +134,30 @@ class InterviewSession:
         return state.pending_question
 
 
+def clamp_max_followup_rounds(value: object, default: int = 2) -> int:
+    """把任意输入夹到 [0, 3]，非法值回落到 ``default``。
+
+    前端 RecruiterPage 已经把控件限制在 0/1/2/3，本函数仅作防御性兜底，
+    同时也是 ``/api/sessions``、``/api/mock-session`` 这类直连入口的强约束点。
+    """
+    try:
+        n = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return default
+    if n < 0:
+        return 0
+    if n > 3:
+        return 3
+    return n
+
+
 def create_interview_session(
     candidate_name: str = "候选人",
     role: str = "候选人",
     questions: list[InterviewQuestion] | None = None,
     enable_video_observation: bool = True,
     user_id: str = "",
+    max_followup_rounds: int = 2,
 ) -> InterviewSession:
     question_list = questions or []
     session_id = f"session_{int(time.time() * 1000)}"
@@ -154,6 +175,7 @@ def create_interview_session(
         meeting_room=f"interview-{session_id}",
         enable_video_observation=enable_video_observation,
         followup_states={},
+        max_followup_rounds=clamp_max_followup_rounds(max_followup_rounds),
         events=[
             InterviewEvent(
                 type="session_started",

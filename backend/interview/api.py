@@ -33,6 +33,7 @@ from backend.interview.prep_session import PrepSession, advance_followup, create
 from backend.interview.question_engine import InterviewQuestion, generate_interview_questions
 from backend.interview.session import (
     InterviewSession,
+    clamp_max_followup_rounds,
     create_interview_session,
     generate_markdown_report,
     record_video_event,
@@ -140,6 +141,9 @@ class SessionStore:
             role=question_set.role,
             questions=question_set.questions,
             user_id=user_id,
+            max_followup_rounds=clamp_max_followup_rounds(
+                payload.get("max_followup_rounds", 2)
+            ),
         )
         session = replace(session, llm_status=llm_status)
         self.sessions[session.id] = session
@@ -254,6 +258,9 @@ class SessionStore:
             questions=question_set.questions,
             enable_video_observation=bool(payload.get("enable_video_observation", True)),
             user_id=user_id,
+            max_followup_rounds=clamp_max_followup_rounds(
+                payload.get("max_followup_rounds", 2)
+            ),
         )
         session = replace(session, llm_status=llm_status)
         self.sessions[session.id] = session
@@ -331,6 +338,7 @@ class SessionStore:
                     question_dimension=question.dimension,
                     prev_state=prev_state,
                     latest_answer=text,
+                    max_rounds=session.max_followup_rounds,
                 )
             except Exception:
                 log.exception("decide_followup raised, defaulting to finished=True")
@@ -777,6 +785,7 @@ def _create_mock_session(store: SessionStore, body: dict[str, Any], user_id: str
     template = str(body.get("template", "frontend"))
     candidate_name = str(body.get("candidate_name", "测试候选人"))
     enable_video_observation = bool(body.get("enable_video_observation", True))
+    max_followup_rounds = clamp_max_followup_rounds(body.get("max_followup_rounds", 2))
 
     resume = MOCK_RESUMES.get(template, MOCK_RESUMES["frontend"])
     answer = MOCK_FOLLOWUP_ANSWERS.get(template, MOCK_FOLLOWUP_ANSWERS["frontend"])
@@ -800,6 +809,7 @@ def _create_mock_session(store: SessionStore, body: dict[str, Any], user_id: str
         prep.id,
         {
             "enable_video_observation": enable_video_observation,
+            "max_followup_rounds": max_followup_rounds,
         },
         user_id=user_id,
     )

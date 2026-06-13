@@ -130,6 +130,7 @@ type ApiSession = {
   meeting_room?: string;
   enable_video_observation?: boolean;
   current_followup?: string | null;
+  max_followup_rounds?: number;
 };
 
 type ApiSessionWithReport = ApiSession & {
@@ -266,19 +267,39 @@ export async function submitPrepFollowup(prepSessionId: string, answer: string, 
 
 export async function createInterviewSessionFromPrep(
   prepSessionId: string,
-  config: { useLlmQuestions?: boolean; enableVideoObservation?: boolean },
+  config: {
+    useLlmQuestions?: boolean;
+    enableVideoObservation?: boolean;
+    /** 本场允许的最大追问轮数，0-3。后端会再夹一次，缺省回落到 2。 */
+    maxFollowupRounds?: number;
+  },
   options: ClientOptions = {}
 ): Promise<InterviewSession> {
   const response = await request<ApiSession>(
     `/api/prep-sessions/${prepSessionId}/interview-session`,
     {
       use_llm_questions: Boolean(config.useLlmQuestions),
-      enable_video_observation: config.enableVideoObservation ?? true
+      enable_video_observation: config.enableVideoObservation ?? true,
+      max_followup_rounds: clampMaxFollowupRounds(config.maxFollowupRounds)
     },
     201,
     options
   );
   return mapSession(response);
+}
+
+/**
+ * 把任意输入夹到 [0, 3]；非法值回落到 2，与后端 ``clamp_max_followup_rounds`` 保持一致。
+ * 仅做防御性兜底，正常路径下 RecruiterPage 已经把类型限制在 `0 | 1 | 2 | 3`。
+ */
+export function clampMaxFollowupRounds(value: number | undefined | null, fallback = 2): number {
+  if (value === undefined || value === null) return fallback;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  const i = Math.trunc(n);
+  if (i < 0) return 0;
+  if (i > 3) return 3;
+  return i;
 }
 
 export async function submitAnswer(
@@ -394,6 +415,8 @@ export async function createMockSession(
     template?: "frontend" | "backend" | "ai" | "pm";
     candidateName?: string;
     enableVideoObservation?: boolean;
+    /** 本场允许的最大追问轮数，0-3。 */
+    maxFollowupRounds?: number;
   } = {},
   options: ClientOptions = {}
 ): Promise<InterviewSession> {
@@ -402,7 +425,8 @@ export async function createMockSession(
     {
       template: config.template ?? "frontend",
       candidate_name: config.candidateName ?? "测试候选人",
-      enable_video_observation: config.enableVideoObservation ?? true
+      enable_video_observation: config.enableVideoObservation ?? true,
+      max_followup_rounds: clampMaxFollowupRounds(config.maxFollowupRounds)
     },
     201,
     options
@@ -531,7 +555,8 @@ function mapSession(session: ApiSession): InterviewSession {
     speechSummary: mapSpeechSummary(session.speech_summary),
     meetingRoom: session.meeting_room ?? "",
     enableVideoObservation: session.enable_video_observation ?? true,
-    currentFollowup: session.current_followup ?? null
+    currentFollowup: session.current_followup ?? null,
+    maxFollowupRounds: clampMaxFollowupRounds(session.max_followup_rounds)
   };
 }
 

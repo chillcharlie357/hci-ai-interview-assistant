@@ -105,6 +105,9 @@ export function RecruiterPage() {
 
   const [useLlmQuestions, setUseLlmQuestions] = useState(true);
   const [enableVideoObservation, setEnableVideoObservation] = useState(true);
+  // 本场面试每题允许的最大追问轮数（0-3）。每场独立，由前端在创建时设定。
+  // 与后端 `clamp_max_followup_rounds` 的 fallback 保持一致，默认 2。
+  const [maxFollowupRounds, setMaxFollowupRounds] = useState<0 | 1 | 2 | 3>(2);
   const [report, setReport] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -175,6 +178,7 @@ export function RecruiterPage() {
       const result = await createInterviewSessionFromPrep(updatedPrep.id, {
         useLlmQuestions,
         enableVideoObservation,
+        maxFollowupRounds,
       });
       setSession(result);
       message.success("面试创建成功");
@@ -193,6 +197,7 @@ export function RecruiterPage() {
         template,
         candidateName: candidateName || "测试候选人",
         enableVideoObservation,
+        maxFollowupRounds,
       });
       setSession(result);
       message.success("面试创建成功（Mock 模式）");
@@ -393,6 +398,20 @@ export function RecruiterPage() {
               <div className="config-item">
                 <span>允许面试端摄像头观察信号</span>
                 <Switch checked={enableVideoObservation} onChange={setEnableVideoObservation} />
+              </div>
+              <div className="config-item">
+                <span>每题最多追问轮数</span>
+                <Select
+                  value={maxFollowupRounds}
+                  onChange={(value) => setMaxFollowupRounds(value)}
+                  style={{ width: 200 }}
+                  options={[
+                    { value: 0, label: "0 — 不追问，按预设题目" },
+                    { value: 1, label: "1 — 最多追问 1 轮（保守）" },
+                    { value: 2, label: "2 — 最多追问 2 轮（推荐）" },
+                    { value: 3, label: "3 — 最多追问 3 轮（深挖）" },
+                  ]}
+                />
               </div>
             </div>
 
