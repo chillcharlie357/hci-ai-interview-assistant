@@ -302,6 +302,9 @@ Render resources:
 Important Render setup:
 
 - GHCR images are published by `.github/workflows/package-images.yml` on `main`.
+- After the images are published, the same workflow triggers Render image service deploys through GitHub Secrets:
+  - `RENDER_BACKEND_DEPLOY_HOOK_URL`: Deploy Hook URL for `hci-ai-interview-backend`.
+  - `RENDER_ASR_DEPLOY_HOOK_URL`: Deploy Hook URL for `hci-ai-interview-asr`.
 - Backend/ASR need a Render registry credential named `hci` with GHCR package read access.
 - Production environment is centralized in Render environment group `hci_env`.
 - Upload `.env.prod` as a Render Secret File in `hci_env`.

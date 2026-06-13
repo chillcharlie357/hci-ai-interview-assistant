@@ -315,6 +315,9 @@ Render 资源：
 重要 Render 配置：
 
 - `.github/workflows/package-images.yml` 会在 `main` 上发布 GHCR 镜像。
+- 镜像发布成功后，同一个 workflow 会通过 GitHub Secrets 中的 Render Deploy Hook 触发 image 服务重拉镜像：
+  - `RENDER_BACKEND_DEPLOY_HOOK_URL`：`hci-ai-interview-backend` 的 Deploy Hook URL。
+  - `RENDER_ASR_DEPLOY_HOOK_URL`：`hci-ai-interview-asr` 的 Deploy Hook URL。
 - Backend/ASR 需要名为 `hci` 的 Render registry credential，并具备读取 GHCR package 的权限。
 - 生产环境变量集中在 Render environment group `hci_env`。
 - 将 `.env.prod` 作为 Render Secret File 上传到 `hci_env`。
