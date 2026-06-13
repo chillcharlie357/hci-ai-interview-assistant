@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
-    "build": "vite build",
+    "face-assets": "FRONTEND_DIR=$PWD FACE_ASSETS_REQUIRED=1 ../scripts/setup_face_assets.sh",
+    "build": "pnpm run face-assets && vite build",
     "dev": "vite --host 0.0.0.0"
   },
   "dependencies": {

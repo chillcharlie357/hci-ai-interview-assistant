@@ -9,6 +9,7 @@ fi
 MODEL_DIR="$FRONTEND_DIR/public/models"
 WASM_DIR="$FRONTEND_DIR/public/mediapipe/wasm"
 MODEL_URL="https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+FACE_ASSETS_REQUIRED="${FACE_ASSETS_REQUIRED:-0}"
 
 command -v curl >/dev/null 2>&1 || {
   echo "curl is required to download the face landmarker model." >&2
@@ -26,14 +27,24 @@ if [[ -f "$MODEL_DIR/face_landmarker.task" ]]; then
   echo "Face landmarker model already exists, skipping download."
 else
   echo "Downloading face landmarker model..."
-  curl -L --connect-timeout 10 --max-time 30 "$MODEL_URL" -o "$MODEL_DIR/face_landmarker.task" || {
-    echo "WARNING: Failed to download face landmarker model (network issue)."
-    echo "Face analysis will be degraded but interview flow is not affected."
-  }
+  if ! curl -L --connect-timeout 10 --max-time 120 "$MODEL_URL" -o "$MODEL_DIR/face_landmarker.task"; then
+    echo "WARNING: Failed to download face landmarker model (network issue)." >&2
+    if [[ "$FACE_ASSETS_REQUIRED" == "1" ]]; then
+      echo "Face analysis assets are required for this build." >&2
+      exit 1
+    fi
+    echo "Face analysis will be degraded but interview flow is not affected." >&2
+  fi
 fi
 
 echo "Copying MediaPipe wasm runtime..."
 cp "$FRONTEND_DIR/node_modules/@mediapipe/tasks-vision/wasm/"* "$WASM_DIR/"
+
+if [[ "$FACE_ASSETS_REQUIRED" == "1" ]]; then
+  test -f "$MODEL_DIR/face_landmarker.task"
+  test -f "$WASM_DIR/vision_wasm_internal.js"
+  test -f "$WASM_DIR/vision_wasm_internal.wasm"
+fi
 
 echo "Face analysis assets are ready:"
 echo "  Model: $MODEL_DIR/face_landmarker.task"
