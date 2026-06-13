@@ -18,6 +18,7 @@ export function VideoAvatar({ state, reaction }: VideoAvatarProps) {
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([null, null]);
   const activeRef = useRef(0);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [retrigger, setRetrigger] = useState(0);
   const nodTimerRef = useRef<number>(0);
   const mountedRef = useRef(true);
   const reactingRef = useRef(false);
@@ -94,7 +95,7 @@ export function VideoAvatar({ state, reaction }: VideoAvatarProps) {
         playClip("smile", false);
         break;
     }
-  }, [state, playClip, scheduleNod]);
+  }, [state, retrigger, playClip, scheduleNod]);
 
   /* one-shot reaction clips (nod / shake) — take priority over state */
   useEffect(() => {
@@ -103,6 +104,7 @@ export function VideoAvatar({ state, reaction }: VideoAvatarProps) {
     clearTimeout(nodTimerRef.current);
     playClip(reaction.type, false, () => {
       reactingRef.current = false;
+      setRetrigger((n) => n + 1);
     });
   }, [reaction?.key, playClip]);
 

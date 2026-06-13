@@ -107,3 +107,17 @@ Ctrl+Shift+R 或 Cmd+Shift+R
 **根因**：浏览器 `SpeechSynthesis.onend` 事件在某些环境下不触发（如无音频输出设备）。
 
 **临时方案**：手动刷新页面，面试进度已保存到数据库。按钮会随面试进度自动恢复。`speakQuestion` 缺少超时保护，TTS 无输出时 `onend` 永远不触发。
+
+## 前端容器跑成 nginx（生产镜像）而非 Vite dev
+
+**症状**：`docker compose exec frontend which pnpm` 返回空，`ls /app` 返回 `No such file or directory`，前端不热重载。
+
+**根因**：`docker compose up` 不带 `--build` 时复用现有镜像。如果上次 build 未指定 `--target dev`，`latest` tag 指向 prod 阶段（nginx:alpine），不包含 node/pnpm。
+
+**修复**：
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml down
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+**验证**：`docker compose exec frontend which pnpm` 应返回 `/usr/local/bin/pnpm`。

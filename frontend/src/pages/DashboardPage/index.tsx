@@ -143,7 +143,7 @@ export function DashboardPage() {
         >
           {sessions.length > 0 ? (
             <div className="interview-list">
-              {sessions.slice(0, 10).map((s) => {
+              {sessions.map((s) => {
                 const status = sessionStatus(s);
                 return (
                 <div

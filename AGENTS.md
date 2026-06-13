@@ -9,8 +9,8 @@ This project is an AI-assisted interview MVP. The first product slice is a minim
 - Let a digital interviewer ask questions one by one.
 - Record candidate answers and basic answer metrics.
 - Record browser-side realtime camera observation signals for the candidate when explicitly enabled.
-- Record video with audio (canvas capture + microphone track; WebM VP8+Opus, mono 24kHz audio) for playback review.
-- Record question start timestamps (`question_start_sec`) and answer end timestamps (`video_timestamp_sec`) for seekable video playback.
+- Record video with audio (canvas capture + cloned microphone track via `track.clone()`; WebM VP8+Opus, mono 24kHz audio) for playback review.
+- Record answer start timestamps (`video_timestamp_sec`) for seekable video playback via QATimeline buttons.
 - Generate an auditable interview summary.
 - Split user flows into recruiter configuration and candidate interview room when the feature requires different permissions or visibility.
 
@@ -137,6 +137,7 @@ The project has a structured observability layer designed for agent-parsable log
   - `createLogger("api")` — API request logging (in apiClient.ts)
   - `createLogger("app")` — App startup logging (in main.tsx)
   - `createLogger("error-boundary")` — React render error logging
+  - `createLogger("videoRecorder")` — MediaRecorder lifecycle and chunk status (in useVideoRecorder.ts)
 - **Rule**: Use the logger in all new code instead of `console.log()`, `console.info()`, etc. Exception: `console.error()` remains acceptable for critical errors.
 
 ### Docker Logging
@@ -184,7 +185,7 @@ curl http://localhost:8000/api/health | python -m json.tool
 
 - Prefer small, focused modules.
 - Keep domain objects explicit: question, answer, session, event, report.
-- `AnswerRecord` stores `video_timestamp_sec` (answer end time) and `question_start_sec` (when interviewer started asking). Both are persisted to DB and restored via `_answer_from_dict()` in `session_repo.py`.
+- `AnswerRecord` stores `video_timestamp_sec` (answer start time, recorded in `handleStartCandidateAnswer`) and `question_start_sec` (when interviewer started TTS). Both are persisted via `_answer_from_dict()` in `session_repo.py`.
 - Frontend `mapAnswer()` must include `videoTimestampSec` and `questionStartSec` fields for QATimeline playback buttons.
 - Avoid adding frameworks or external services until the MVP loop works locally.
 - Add comments only when they clarify non-obvious logic.
