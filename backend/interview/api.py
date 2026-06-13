@@ -36,6 +36,7 @@ from backend.interview.question_engine import InterviewQuestion, generate_interv
 from backend.interview.session import (
     InterviewEvent,
     InterviewSession,
+    clamp_max_followup_rounds,
     create_interview_session,
     generate_markdown_report,
     record_video_event,
@@ -145,6 +146,9 @@ class SessionStore:
             role=question_set.role,
             questions=question_set.questions,
             user_id=user_id,
+            max_followup_rounds=clamp_max_followup_rounds(
+                payload.get("max_followup_rounds", 2)
+            ),
         )
         session = replace(session, llm_status=llm_status)
         self.sessions[session.id] = session
@@ -260,6 +264,9 @@ class SessionStore:
             questions=question_set.questions,
             enable_video_observation=bool(payload.get("enable_video_observation", True)),
             user_id=user_id,
+            max_followup_rounds=clamp_max_followup_rounds(
+                payload.get("max_followup_rounds", 2)
+            ),
             asr_context_terms=extract_asr_context_terms(
                 resume_markdown=prep.resume_markdown,
                 job_description=job_description,
@@ -352,6 +359,7 @@ class SessionStore:
                         question_dimension=question.dimension,
                         prev_state=prev_state,
                         latest_answer=text,
+                        max_rounds=session.max_followup_rounds,
                     )
 
                 with ThreadPoolExecutor(max_workers=1) as executor:
@@ -841,6 +849,7 @@ def _create_mock_session(store: SessionStore, body: dict[str, Any], user_id: str
     candidate_name = str(body.get("candidate_name", "测试候选人"))
     enable_video_observation = bool(body.get("enable_video_observation", True))
     max_questions = int(body.get("max_questions", 3))
+    max_followup_rounds = clamp_max_followup_rounds(body.get("max_followup_rounds", 2))
 
     resume = MOCK_RESUMES.get(template, MOCK_RESUMES["frontend"])
     answer = MOCK_FOLLOWUP_ANSWERS.get(template, MOCK_FOLLOWUP_ANSWERS["frontend"])
@@ -865,6 +874,7 @@ def _create_mock_session(store: SessionStore, body: dict[str, Any], user_id: str
         {
             "enable_video_observation": enable_video_observation,
             "max_questions": max_questions,
+            "max_followup_rounds": max_followup_rounds,
         },
         user_id=user_id,
     )
