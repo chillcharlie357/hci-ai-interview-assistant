@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createInterviewSessionFromPrep,
   createSession,
+  fetchKeyframeDataUrl,
   fetchReport,
   getSession,
   requestAnswerHelp,
@@ -159,6 +160,20 @@ describe("apiClient", () => {
 
     expect(session.videoSummary.eventCount).toBe(1);
     expect(session.keyframes[0].reason).toBe("low_light");
+  });
+
+  it("fetches a keyframe image on demand", async () => {
+    const fetcher = async (input: RequestInfo | URL) => {
+      expect(String(input)).toContain("/api/sessions/session_1/keyframes/0");
+      return new Response(
+        JSON.stringify({ data_url: "data:image/jpeg;base64,abc" }),
+        { status: 200 }
+      );
+    };
+
+    const dataUrl = await fetchKeyframeDataUrl("session_1", 0, { fetcher });
+
+    expect(dataUrl).toBe("data:image/jpeg;base64,abc");
   });
 
   it("uploads a resume and maps prep session followups", async () => {

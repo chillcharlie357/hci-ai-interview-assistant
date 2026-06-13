@@ -36,6 +36,7 @@ from backend.interview.question_engine import InterviewQuestion, generate_interv
 from backend.interview.session import (
     InterviewEvent,
     InterviewSession,
+    KeyframeRecord,
     clamp_max_followup_rounds,
     create_interview_session,
     generate_markdown_report,
@@ -92,6 +93,9 @@ def _sanitize_for_log(value: object, _depth: int = 0) -> object:
 
 def _payload_for_log(payload: dict[str, Any]) -> dict[str, object]:
     """返回适合日志打印的 payload 副本，脱敏 base64 等敏感字段。"""
+    if _looks_like_session_payload(payload):
+        return _session_payload_for_log(payload)
+
     safe: dict[str, object] = {}
     for k, v in payload.items():
         if k in ("data_base64",):
@@ -104,6 +108,35 @@ def _payload_for_log(payload: dict[str, Any]) -> dict[str, object]:
         else:
             safe[k] = _sanitize_for_log(v)
     return safe
+
+
+def _looks_like_session_payload(payload: dict[str, Any]) -> bool:
+    return isinstance(payload.get("id"), str) and "questions" in payload and "answers" in payload
+
+
+def _session_payload_for_log(payload: dict[str, Any]) -> dict[str, object]:
+    return {
+        "id": payload.get("id"),
+        "candidate_name": payload.get("candidate_name"),
+        "role": payload.get("role"),
+        "current_index": payload.get("current_index"),
+        "llm_status": payload.get("llm_status"),
+        "questions": _count_for_log(payload.get("questions")),
+        "answers": _count_for_log(payload.get("answers")),
+        "events": _count_for_log(payload.get("events")),
+        "video_events": _count_for_log(payload.get("video_events")),
+        "keyframes": _count_for_log(payload.get("keyframes")),
+        "current_question": _sanitize_for_log(payload.get("current_question")),
+        "current_followup": _sanitize_for_log(payload.get("current_followup")),
+        "followup": _sanitize_for_log(payload.get("followup")),
+        "report": _sanitize_for_log(payload.get("report", "")),
+    }
+
+
+def _count_for_log(value: object) -> str:
+    if isinstance(value, list):
+        return f"{len(value)} items"
+    return "0 items" if value is None else type(value).__name__
 
 
 class SessionStore:
@@ -345,27 +378,21 @@ class SessionStore:
             audio_f0_std_hz = cumulative.f0_std_hz
             audio_f0_std_semitones = cumulative.f0_std_semitones
 
-        # 让 LLM 决定是否追问当前题（后台线程，最多等 8 秒，不阻塞回答提交）
+        # 让 LLM 决定是否追问当前题；追问结果要同步返回给前端，不能为了速度直接降级。
         question = session.current_question
         followup_decision = None
         if question is not None:
             prev_state = (session.followup_states or {}).get(question.id)
             try:
-                from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
-
-                def _do_decide():
-                    return decide_followup(
-                        question_prompt=question.prompt,
-                        question_dimension=question.dimension,
-                        prev_state=prev_state,
-                        latest_answer=text,
-                        max_rounds=session.max_followup_rounds,
-                    )
-
-                with ThreadPoolExecutor(max_workers=1) as executor:
-                    followup_decision = executor.submit(_do_decide).result(timeout=8)
-            except (FutureTimeoutError, Exception):
-                log.warning("decide_followup timed out or failed, defaulting to no followup")
+                followup_decision = decide_followup(
+                    question_prompt=question.prompt,
+                    question_dimension=question.dimension,
+                    prev_state=prev_state,
+                    latest_answer=text,
+                    max_rounds=session.max_followup_rounds,
+                )
+            except Exception:
+                log.warning("decide_followup failed, defaulting to no followup")
                 followup_decision = None
 
         updated = record_answer(
@@ -635,6 +662,14 @@ def handle_api_request(
         and path_parts[3] == "video"
     ):
         return _handle_video_download(store, path_parts[2], user_id)
+
+    if (
+        method == "GET"
+        and len(path_parts) == 5
+        and path_parts[:2] == ["api", "sessions"]
+        and path_parts[3] == "keyframes"
+    ):
+        return _handle_keyframe_download(store, path_parts[2], path_parts[4], user_id)
 
     if (
         method == "POST"
@@ -1076,6 +1111,7 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
 
 def serialize_session(session: InterviewSession, speech_metrics: SpeechCumulativeMetrics | None = None) -> dict[str, Any]:
     body = asdict(session)
+    body["keyframes"] = [_serialize_keyframe(k) for k in (session.keyframes or [])]
     body["current_question"] = asdict(session.current_question) if session.current_question else None
     body["current_followup"] = session.current_followup
     if not body.get("asr_context_terms"):
@@ -1087,6 +1123,14 @@ def serialize_session(session: InterviewSession, speech_metrics: SpeechCumulativ
     if speech_metrics is not None:
         body["speech_summary"] = speech_metrics.to_dict()
     return body
+
+
+def _serialize_keyframe(keyframe: KeyframeRecord) -> dict[str, Any]:
+    return {
+        "timestamp": keyframe.timestamp,
+        "reason": keyframe.reason,
+        "video_timestamp_sec": keyframe.video_timestamp_sec,
+    }
 
 
 def _build_followup_response(session: InterviewSession) -> dict[str, Any]:
@@ -1236,6 +1280,35 @@ def _handle_video_download(store: SessionStore, session_id: str, user_id: str) -
         return HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "storage_error", "message": str(error)}
 
     return HTTPStatus.OK, {"video_url": signed_url}
+
+
+def _handle_keyframe_download(store: SessionStore, session_id: str, index_raw: str, user_id: str) -> tuple[int, dict[str, Any]]:
+    """返回单张内存关键帧图片，避免普通 session 响应携带 base64 大对象。"""
+    try:
+        index = int(index_raw)
+    except (TypeError, ValueError):
+        return HTTPStatus.BAD_REQUEST, {"error": "invalid_keyframe_index"}
+    if index < 0:
+        return HTTPStatus.BAD_REQUEST, {"error": "invalid_keyframe_index"}
+
+    session = store.get(session_id, user_id)
+    if session is None:
+        return HTTPStatus.NOT_FOUND, {"error": "session_not_found"}
+
+    keyframes = session.keyframes or []
+    if index >= len(keyframes):
+        return HTTPStatus.NOT_FOUND, {"error": "keyframe_not_found"}
+
+    keyframe = keyframes[index]
+    if not keyframe.data_url:
+        return HTTPStatus.NOT_FOUND, {"error": "keyframe_image_not_available"}
+
+    return HTTPStatus.OK, {
+        "timestamp": keyframe.timestamp,
+        "reason": keyframe.reason,
+        "video_timestamp_sec": keyframe.video_timestamp_sec,
+        "data_url": keyframe.data_url,
+    }
 
 
 def main() -> None:

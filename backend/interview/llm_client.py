@@ -39,7 +39,7 @@ class LlmClient:
             )
         )
 
-    def complete_json(self, system_prompt: str, user_prompt: str) -> LlmResult:
+    def complete_json(self, system_prompt: str, user_prompt: str, *, timeout_sec: float | None = None) -> LlmResult:
         if not self.config.configured:
             return LlmResult(status="fallback", data=None)
 
@@ -63,9 +63,20 @@ class LlmClient:
         )
 
         try:
-            with urlopen(request, timeout=30) as response:
+            with urlopen(request, timeout=_effective_timeout(timeout_sec)) as response:
                 body = json.loads(response.read().decode("utf-8"))
             content = body["choices"][0]["message"]["content"]
             return LlmResult(status="ok", data=json.loads(content))
         except Exception:
             return LlmResult(status="fallback", data=None)
+
+
+def _effective_timeout(timeout_sec: float | None) -> float:
+    if timeout_sec is not None and timeout_sec > 0:
+        return timeout_sec
+    raw = get_env("INTERVIEW_LLM_TIMEOUT_SEC", "30")
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return 30.0
+    return value if value > 0 else 30.0

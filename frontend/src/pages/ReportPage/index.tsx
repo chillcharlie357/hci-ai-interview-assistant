@@ -7,8 +7,8 @@ import {
   UserOutlined,
 } from "@ant-design/icons";
 
-import { fetchReport, fetchVideoUrl, getSession } from "@/apiClient";
-import type { InterviewSession } from "@/interviewFlow";
+import { fetchKeyframeDataUrl, fetchReport, fetchVideoUrl, getSession } from "@/apiClient";
+import type { InterviewSession, KeyframeRecord } from "@/interviewFlow";
 import {
   downloadPdfReport,
 } from "@/reportDownload";
@@ -47,6 +47,7 @@ export function ReportPage() {
 
     if (globalSession && globalSession.id === sessionId) {
       setSession(globalSession);
+      void loadKeyframeImages(sessionId, globalSession, () => cancelled);
       void loadReportOnly(sessionId, cancelled);
     } else {
       void loadFullReport(cancelled);
@@ -138,6 +139,7 @@ export function ReportPage() {
       ]);
       if (cancelled) return;
       setSession(sessionData);
+      void loadKeyframeImages(sessionId, sessionData, () => cancelled);
       setReport(reportData.report);
     } catch (error) {
       if (cancelled) return;
@@ -153,6 +155,48 @@ export function ReportPage() {
     if (!session) return;
     void downloadPdfReport(session.candidateName, session.id, ".report-page");
   };
+
+  async function loadKeyframeImages(
+    id: string,
+    sourceSession: InterviewSession,
+    isCancelled: () => boolean
+  ) {
+    const keyframes = sourceSession.keyframes || [];
+    const indexes = keyframes
+      .slice(0, 4)
+      .map((kf, index) => ({ kf, index }))
+      .filter(({ kf }) => !kf.dataUrl)
+      .map(({ index }) => index);
+    if (indexes.length === 0) return;
+
+    try {
+      const images = await Promise.all(
+        indexes.map(async (index) => ({
+          index,
+          dataUrl: await fetchKeyframeDataUrl(id, index),
+        }))
+      );
+      if (isCancelled()) return;
+
+      const imageByIndex = new Map(
+        images
+          .filter((item): item is { index: number; dataUrl: string } => Boolean(item.dataUrl))
+          .map((item) => [item.index, item.dataUrl])
+      );
+      if (imageByIndex.size === 0) return;
+
+      setSession((prev) => {
+        if (!prev || prev.id !== id) return prev;
+        const nextKeyframes: KeyframeRecord[] = (prev.keyframes || []).map((kf, index) => {
+          const dataUrl = imageByIndex.get(index);
+          return dataUrl ? { ...kf, dataUrl } : kf;
+        });
+        return { ...prev, keyframes: nextKeyframes };
+      });
+    } catch {
+      // 缩略图只是报告增强能力；失败时保留可跳转的视频时间戳卡片。
+    }
+  }
 
   const dimensionScores = useMemo(
     () => (session ? computeDimensionScores(session) : {}),

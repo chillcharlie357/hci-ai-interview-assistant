@@ -30,15 +30,15 @@ class _FakeLlm:
 
     config: LlmConfig
     _result: LlmResult
-    calls: list[tuple[str, str]]
+    calls: list[tuple[str, str, dict[str, object]]]
 
     def __init__(self, configured: bool, result: LlmResult | None = None):
         self.config = LlmConfig(api_key="k" if configured else "", model="m" if configured else "")
         self._result = result or LlmResult(status="ok", data=None)
         self.calls = []
 
-    def complete_json(self, system_prompt: str, user_prompt: str) -> LlmResult:
-        self.calls.append((system_prompt, user_prompt))
+    def complete_json(self, system_prompt: str, user_prompt: str, **kwargs: object) -> LlmResult:
+        self.calls.append((system_prompt, user_prompt, kwargs))
         return self._result
 
 
@@ -190,6 +190,7 @@ class DecideFollowupTest(unittest.TestCase):
         self.assertEqual(decision.followup_question, "你在项目中具体负责哪一块的设计？")
         self.assertEqual(decision.llm_status, "ok")
         self.assertEqual(len(fake.calls), 1)
+        self.assertNotIn("timeout_sec", fake.calls[0][2])
 
     def test_finishes_when_llm_says_need_followup_false(self):
         fake = _FakeLlm(
@@ -278,7 +279,8 @@ class DecideFollowupTest(unittest.TestCase):
             llm_client=_as_client(fake),
         )
         self.assertEqual(len(fake.calls), 1)
-        _, user_prompt = fake.calls[0]
+        _, user_prompt, kwargs = fake.calls[0]
+        self.assertNotIn("timeout_sec", kwargs)
         # 历史对话 + 最新回答都进入了 prompt
         self.assertIn("做过一个面试平台", user_prompt)
         self.assertIn("我负责问题生成模块", user_prompt)

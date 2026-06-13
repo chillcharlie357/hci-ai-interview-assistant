@@ -122,10 +122,19 @@ class ApiTest(unittest.TestCase):
 
         self.assertEqual(len(updated["video_events"]), 1)
         self.assertEqual(len(updated["keyframes"]), 1)
+        self.assertNotIn("data_url", updated["keyframes"][0])
+        self.assertEqual(updated["keyframes"][0]["reason"], "low_light")
         self.assertEqual(updated["video_summary"]["event_count"], 1)
         self.assertIn("low_light", updated["video_summary"]["event_types"])
         self.assertEqual(updated["video_events"][0]["metrics"]["blink_count"], 2)
         self.assertAlmostEqual(updated["video_events"][0]["metrics"]["eye_contact_ratio"], 0.72)
+
+        keyframe = self.request(
+            "GET",
+            f"/api/sessions/{created['id']}/keyframes/0",
+        )
+        self.assertEqual(keyframe["data_url"], "data:image/jpeg;base64,abc")
+        self.assertEqual(keyframe["reason"], "low_light")
 
     def test_report_includes_video_observations_without_hiring_language(self):
         created = self.request(
@@ -195,9 +204,10 @@ class ApiTest(unittest.TestCase):
     @patch("backend.interview.api.LlmClient.from_env")
     def test_answer_report_can_be_enhanced_by_openai_compatible_llm(self, from_env_mock):
         class FakeLlmClient:
-            def complete_json(self, system_prompt, user_prompt):
+            def complete_json(self, system_prompt, user_prompt, **kwargs):
                 self.system_prompt = system_prompt
                 self.user_prompt = user_prompt
+                self.kwargs = kwargs
                 return LlmResult(status="ok", data={"report_markdown": "# LLM 增强纪要\n\n- 仅记录可复核观察。"})
 
         fake_client = FakeLlmClient()
