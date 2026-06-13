@@ -17,7 +17,7 @@ export type SpeechRecognitionHandle = {
   recentMetrics: SpeechChunkResponse["chunk"] | null;
   interimTranscript: string;
   asrProvider: "qwen" | "webspeech" | "none";
-  startMediaStreamAndAsr: () => Promise<void>;
+  startMediaStreamAndAsr: (asrContextTerms?: string[]) => Promise<void>;
   stopMediaStream: () => Promise<void>;
   appendAnswerText: (text: string) => void;
   chunkUploadFailCount: number;
@@ -84,7 +84,7 @@ export function useSpeechRecognition(
     }
   }, [onFinalTranscript, onInterimTranscript]);
 
-  const startAsrWithFallback = useCallback(async (stream: MediaStream) => {
+  const startAsrWithFallback = useCallback(async (stream: MediaStream, asrContextTerms: string[] = []) => {
     const preferQwen =
       (import.meta as ImportMeta & { env?: Record<string, string | undefined> })
         .env?.VITE_ASR_PROVIDER !== "webspeech";
@@ -108,6 +108,8 @@ export function useSpeechRecognition(
           }
         },
         onClosed: () => {},
+      }, {
+        contextTerms: asrContextTerms,
       });
       try {
         await qwen.start();
@@ -121,7 +123,7 @@ export function useSpeechRecognition(
     startWebSpeechTranscriber();
   }, [asrProvider, message, onFinalTranscript, onInterimTranscript, startWebSpeechTranscriber]);
 
-  const startMediaStreamAndAsr = useCallback(async () => {
+  const startMediaStreamAndAsr = useCallback(async (asrContextTerms: string[] = []) => {
     if (!navigator.mediaDevices?.getUserMedia) {
       setAudioChunkStatus("当前浏览器不支持麦克风采集");
       return;
@@ -159,7 +161,7 @@ export function useSpeechRecognition(
       setAudioChunkStatus(error instanceof Error ? error.message : "音频上传未启动");
     }
 
-    await startAsrWithFallback(stream);
+    await startAsrWithFallback(stream, asrContextTerms);
   }, [enqueueSpeechChunkUpload, startAsrWithFallback]);
 
   const stopMediaStream = useCallback(async () => {

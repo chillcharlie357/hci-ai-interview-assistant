@@ -135,6 +135,7 @@ type ApiSession = {
   video_path?: string | null;
   video_duration_sec?: number | null;
   video_upload_failed?: boolean;
+  asr_context_terms?: string[] | null;
   current_followup?: string | null;
 };
 
@@ -650,6 +651,7 @@ function mapSession(session: ApiSession): InterviewSession {
     videoPath: session.video_path ?? null,
     videoDurationSec: session.video_duration_sec ?? null,
     videoUploadFailed: session.video_upload_failed ?? false,
+    asrContextTerms: session.asr_context_terms ?? [],
     currentFollowup: session.current_followup ?? null
   };
 }

@@ -1,7 +1,9 @@
+import asyncio
 import json
 import os
 import socket
 import unittest
+from unittest.mock import patch
 
 from aiohttp import ClientSession, WSMsgType
 
@@ -48,3 +50,41 @@ class QwenRealtimeServerTests(unittest.IsolatedAsyncioTestCase):
         finally:
             if old_api_key is not None:
                 os.environ["DASHSCOPE_API_KEY"] = old_api_key
+
+    async def test_websocket_context_terms_are_forwarded_as_corpus_text(self) -> None:
+        captured: dict[str, str] = {}
+
+        class FakeBridge:
+            def __init__(self, *, loop, api_key, corpus_text="", **_kwargs):
+                self._events = asyncio.Queue()
+                captured["api_key"] = api_key
+                captured["corpus_text"] = corpus_text
+
+            async def events(self):
+                return self._events
+
+            async def start(self):
+                await self._events.put({"type": "ready"})
+
+            def append_audio(self, _pcm_bytes):
+                return None
+
+            async def finish(self):
+                return None
+
+            async def close(self):
+                return None
+
+        with patch.dict(os.environ, {"DASHSCOPE_API_KEY": "test-key"}, clear=False), \
+                patch("backend.asr.qwen_realtime._DashscopeBridge", FakeBridge):
+            async with ClientSession() as session:
+                async with session.ws_connect(
+                    f"ws://127.0.0.1:{self.port}/?term=RAG&term=TypeScript&term=检索增强生成"
+                ) as ws:
+                    message = await ws.receive(timeout=2)
+                    self.assertEqual(message.type, WSMsgType.TEXT)
+                    self.assertEqual(json.loads(message.data)["type"], "ready")
+                    await ws.send_json({"type": "end"})
+
+        self.assertEqual(captured["api_key"], "test-key")
+        self.assertEqual(captured["corpus_text"], "RAG\nTypeScript\n检索增强生成")

@@ -141,6 +141,7 @@ export type InterviewSession = {
   videoPath?: string | null;
   videoDurationSec?: number | null;
   videoUploadFailed?: boolean;
+  asrContextTerms?: string[];
   /** 当前主问题尚未结束、且 LLM 决定追问时，待朗读给候选人的追问文本；否则为 null */
   currentFollowup?: string | null;
 };
@@ -175,6 +176,7 @@ export function createSessionFromDraft(draft: DraftInput): InterviewSession {
       eventTypes: []
     },
     enableVideoObservation: true,
+    asrContextTerms: extractSkills(`${draft.resume}\n${draft.jobDescription}\n${draft.interviewGoal}`),
     currentFollowup: null,
     events: [
       {

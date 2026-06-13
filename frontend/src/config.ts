@@ -1,4 +1,4 @@
-export const DEFAULT_FILLER_WORDS: string[] = [];
+export const DEFAULT_FILLER_WORDS: string[] = ["嗯", "啊", "呃", "额", "那个", "就是", "然后", "um", "uh", "erm"];
 
 /**
  * 返回 API 基础 URL。
@@ -25,7 +25,8 @@ export function getFillerWords(): string[] {
     return DEFAULT_FILLER_WORDS;
   }
   const values = configured.split(",").map((value: string) => value.trim()).filter(Boolean);
-  return values.length > 0 ? values : DEFAULT_FILLER_WORDS;
+  const merged = [...DEFAULT_FILLER_WORDS, ...values];
+  return Array.from(new Set(merged.map((value) => value.trim()).filter(Boolean)));
 }
 
 /**

@@ -25,6 +25,7 @@ from backend.auth import (
 from backend.storage import upload_video as storage_upload_video, get_video_signed_url
 from backend.interview.answer_analysis import analyze_answer_text
 from backend.interview.answer_help import generate_answer_help
+from backend.interview.asr_context import extract_asr_context_terms
 from backend.interview.config import is_auth_required, get_log_level
 from backend.interview.exceptions import PersistenceError
 from backend.interview.document_extractor import DocumentExtractionError, extract_resume_markdown
@@ -259,6 +260,14 @@ class SessionStore:
             questions=question_set.questions,
             enable_video_observation=bool(payload.get("enable_video_observation", True)),
             user_id=user_id,
+            asr_context_terms=extract_asr_context_terms(
+                resume_markdown=prep.resume_markdown,
+                job_description=job_description,
+                interview_goal=interview_goal,
+                role=summary.role if summary else question_set.role,
+                questions=question_set.questions,
+                llm_client=LlmClient.from_env(),
+            ),
         )
         session = replace(session, llm_status=llm_status)
         self.sessions[session.id] = session
@@ -1059,6 +1068,11 @@ def serialize_session(session: InterviewSession, speech_metrics: SpeechCumulativ
     body = asdict(session)
     body["current_question"] = asdict(session.current_question) if session.current_question else None
     body["current_followup"] = session.current_followup
+    if not body.get("asr_context_terms"):
+        body["asr_context_terms"] = extract_asr_context_terms(
+            role=session.role,
+            questions=session.questions,
+        )
     body["video_summary"] = summarize_video(session)
     if speech_metrics is not None:
         body["speech_summary"] = speech_metrics.to_dict()

@@ -7,6 +7,7 @@ import time
 from typing import TYPE_CHECKING
 
 from backend.interview.answer_analysis import analyze_answer_text
+from backend.interview.answer_analysis import clean_filler_words
 from backend.interview.question_engine import InterviewQuestion
 from backend.speech_analysis.aggregate import SpeechCumulativeMetrics
 
@@ -118,6 +119,7 @@ class InterviewSession:
     video_duration_sec: float | None = None
     video_upload_failed: bool = False
     followup_states: dict[str, FollowupState] | None = None
+    asr_context_terms: list[str] | None = None
 
     @property
     def current_question(self) -> InterviewQuestion | None:
@@ -143,6 +145,7 @@ def create_interview_session(
     questions: list[InterviewQuestion] | None = None,
     enable_video_observation: bool = True,
     user_id: str = "",
+    asr_context_terms: list[str] | None = None,
 ) -> InterviewSession:
     question_list = questions or []
     session_id = f"session_{int(time.time() * 1000)}"
@@ -159,6 +162,7 @@ def create_interview_session(
         keyframes=[],
         enable_video_observation=enable_video_observation,
         followup_states={},
+        asr_context_terms=asr_context_terms or [],
         events=[
             InterviewEvent(
                 type="session_started",
@@ -199,7 +203,8 @@ def record_answer(
 
     recorded_at = _now()
     analysis = analyze_answer_text(text) if filler_word_count is None else None
-    word_count = _count_words(text)
+    cleaned_text = analysis.cleaned_text if analysis else clean_filler_words(text)
+    word_count = _count_words(cleaned_text)
     speech_rate_wpm = round(word_count / (duration_sec / 60), 1) if duration_sec >= 5 else None
 
     # 当前题在记录前已处于第 N 轮追问对话状态：
@@ -213,7 +218,7 @@ def record_answer(
         question_id=question.id,
         dimension=question.dimension,
         prompt=question.prompt,
-        text=text.strip(),
+        text=cleaned_text,
         duration_sec=duration_sec,
         word_count=word_count,
         filler_word_count=analysis.filler_word_count if analysis else filler_word_count,
