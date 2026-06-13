@@ -23,6 +23,18 @@ export function shouldAutoSpeakQuestion(
   return Boolean(speechSupported && currentQuestionId && currentQuestionId !== lastSpokenQuestionId);
 }
 
+export function shouldHandleSpeechEvent(speechId: number, activeSpeechId: number): boolean {
+  return speechId === activeSpeechId;
+}
+
+export function shouldStartPendingSpeech(
+  speechId: number,
+  activeSpeechId: number,
+  pendingSpeechId: number | null
+): boolean {
+  return speechId === activeSpeechId && speechId === pendingSpeechId;
+}
+
 export function describeDigitalInterviewerState(
   state: DigitalInterviewerState,
   currentStep: number,

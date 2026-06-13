@@ -5,7 +5,13 @@ import { VideoCameraOutlined } from "@ant-design/icons";
 
 import { requestAnswerHelp, type AnswerHelpResult } from "@/answerHelp";
 import { buildAvatarPrompt } from "@/interviewFlow";
-import { buildConversationCaptions, shouldAutoSpeakQuestion, type DigitalInterviewerState } from "@/digitalInterviewer";
+import {
+  buildConversationCaptions,
+  shouldAutoSpeakQuestion,
+  shouldHandleSpeechEvent,
+  shouldStartPendingSpeech,
+  type DigitalInterviewerState
+} from "@/digitalInterviewer";
 
 import { useVideoAnalysis } from "./hooks/useVideoAnalysis";
 import { useSpeechRecognition } from "./hooks/useSpeechRecognition";
@@ -19,6 +25,15 @@ import { AnswerPanel } from "./components/AnswerPanel";
 import { MetricsSidebar } from "./components/MetricsSidebar";
 
 import "./InterviewPage.css";
+
+declare global {
+  interface Window {
+    __hciInterviewSpeechId?: number;
+  }
+}
+
+const SPEECH_CANCEL_SETTLE_MS = 180;
+const SPEECH_CANCEL_RETRY_LIMIT = 5;
 
 export function InterviewPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -48,6 +63,9 @@ export function InterviewPage() {
   const questionStartSecRef = useRef<number | null>(null);
   const answerStartSecRef = useRef<number | null>(null);
   const voicesPreloadedRef = useRef(false);
+  const activeSpeechIdRef = useRef(0);
+  const pendingVoiceSpeechIdRef = useRef<number | null>(null);
+  const speechStartTimerRef = useRef<number | null>(null);
   const [helpLoading, setHelpLoading] = useState(false);
   const [helpVisible, setHelpVisible] = useState(false);
   const [helpResult, setHelpResult] = useState<AnswerHelpResult | null>(null);
@@ -63,9 +81,8 @@ export function InterviewPage() {
       if (voices.length > 0) voicesPreloadedRef.current = true;
     }
     loadVoices();
-    speechSynthesis.onvoiceschanged = () => {
-      voicesPreloadedRef.current = true;
-    };
+    speechSynthesis.addEventListener("voiceschanged", loadVoices);
+    return () => speechSynthesis.removeEventListener("voiceschanged", loadVoices);
   }, []);
 
   // 自动播放问题 / 面试完成自动跳转
@@ -113,6 +130,15 @@ export function InterviewPage() {
     const onVoicesChanged = () => speechSynthesis.getVoices();
     speechSynthesis.addEventListener("voiceschanged", onVoicesChanged);
     return () => {
+      const speechId = (window.__hciInterviewSpeechId ?? 0) + 1;
+      window.__hciInterviewSpeechId = speechId;
+      activeSpeechIdRef.current = speechId;
+      pendingVoiceSpeechIdRef.current = null;
+      if (speechStartTimerRef.current !== null) {
+        window.clearTimeout(speechStartTimerRef.current);
+        speechStartTimerRef.current = null;
+      }
+      window.speechSynthesis.cancel();
       void speech.stopMediaStream();
       speechSynthesis.removeEventListener("voiceschanged", onVoicesChanged);
     };
@@ -130,28 +156,81 @@ export function InterviewPage() {
       setInterviewerState("finished");
       return;
     }
+    const speechId = (window.__hciInterviewSpeechId ?? 0) + 1;
+    window.__hciInterviewSpeechId = speechId;
+    activeSpeechIdRef.current = speechId;
+    pendingVoiceSpeechIdRef.current = null;
+    if (speechStartTimerRef.current !== null) {
+      window.clearTimeout(speechStartTimerRef.current);
+      speechStartTimerRef.current = null;
+    }
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(buildAvatarPrompt(session));
     utterance.lang = "zh-CN";
     utterance.rate = 0.95;
-    const voices = speechSynthesis.getVoices();
-    if (voices.length === 0 && !voicesPreloadedRef.current) {
-      speechSynthesis.onvoiceschanged = () => {
-        voicesPreloadedRef.current = true;
-        window.speechSynthesis.speak(utterance);
-      };
-      return;
-    }
-    const maleVoice = voices.find(
-      (v) => v.lang.startsWith("zh-CN") && (v.name.includes("Yunyang") || v.name.toLowerCase().includes("male")),
-    ) ?? voices.find((v) => v.lang.startsWith("zh-CN"));
-    if (maleVoice) utterance.voice = maleVoice;
-    utterance.onstart = () => setInterviewerState("speaking");
+    const isActiveSpeech = () => (
+      shouldHandleSpeechEvent(speechId, activeSpeechIdRef.current)
+        && shouldHandleSpeechEvent(speechId, window.__hciInterviewSpeechId ?? 0)
+    );
+    const assignPreferredVoice = () => {
+      const voices = speechSynthesis.getVoices();
+      const maleVoice = voices.find(
+        (v) => v.lang.startsWith("zh-CN") && (v.name.includes("Yunyang") || v.name.toLowerCase().includes("male")),
+      ) ?? voices.find((v) => v.lang.startsWith("zh-CN"));
+      if (maleVoice) utterance.voice = maleVoice;
+      return voices.length;
+    };
+    const speakActiveUtterance = (attempt = 0) => {
+      if (!isActiveSpeech()) return;
+      const voiceCount = assignPreferredVoice();
+      if (voiceCount === 0 && !voicesPreloadedRef.current) {
+        pendingVoiceSpeechIdRef.current = speechId;
+        const handleVoicesChanged = () => {
+          voicesPreloadedRef.current = true;
+          if (!shouldStartPendingSpeech(speechId, activeSpeechIdRef.current, pendingVoiceSpeechIdRef.current)) return;
+          if (!isActiveSpeech()) return;
+          pendingVoiceSpeechIdRef.current = null;
+          scheduleActiveSpeech(0);
+        };
+        speechSynthesis.addEventListener("voiceschanged", handleVoicesChanged, { once: true });
+        return;
+      }
+      if ((window.speechSynthesis.speaking || window.speechSynthesis.pending) && attempt < SPEECH_CANCEL_RETRY_LIMIT) {
+        window.speechSynthesis.cancel();
+        scheduleActiveSpeech(attempt + 1);
+        return;
+      }
+      if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+        setInterviewerState(mode === "auto" ? "unsupported" : "listening");
+        return;
+      }
+      pendingVoiceSpeechIdRef.current = null;
+      window.speechSynthesis.speak(utterance);
+    };
+    const scheduleActiveSpeech = (attempt = 0) => {
+      if (speechStartTimerRef.current !== null) {
+        window.clearTimeout(speechStartTimerRef.current);
+      }
+      speechStartTimerRef.current = window.setTimeout(() => {
+        speechStartTimerRef.current = null;
+        speakActiveUtterance(attempt);
+      }, SPEECH_CANCEL_SETTLE_MS);
+    };
+    utterance.onstart = () => {
+      if (isActiveSpeech()) {
+        setInterviewerState("speaking");
+      }
+    };
     utterance.onend = () => {
+      if (!isActiveSpeech()) return;
       setInterviewerState("listening");
       handleStartCandidateAnswer();
     };
-    utterance.onerror = () => setInterviewerState(mode === "auto" ? "unsupported" : "listening");
+    utterance.onerror = () => {
+      if (isActiveSpeech()) {
+        setInterviewerState(mode === "auto" ? "unsupported" : "listening");
+      }
+    };
     setInterviewerState("speaking");
 
     // 记录提问开始时的视频时间戳
@@ -160,7 +239,7 @@ export function InterviewPage() {
         ? (performance.now() - recorder.recordingStartTimeRef.current) / 1000
         : 0);
 
-    window.speechSynthesis.speak(utterance);
+    scheduleActiveSpeech();
   }
 
   async function handleStartCandidateAnswer() {
