@@ -1,79 +1,81 @@
-# HCI AI Interview Assistant
+# HCI AI 面试助手
 
-AI-assisted interview MVP for recruiter setup, candidate interview rooms, realtime observation signals, speech analysis, answer help, video review, and auditable interview reports.
+[English](README-en.md)
 
-The project is intentionally evidence-first: it records questions, answers, timings, speech/video observation signals, keyframes, and event logs to help human reviewers. It does not produce automatic hire/no-hire decisions.
+AI 辅助面试 MVP，覆盖招聘方配置、候选人面试间、实时观察信号、语音分析、参考答案辅助、视频回看，以及可审计的面试报告。
 
-## Product Scope
+本项目坚持 evidence-first：系统记录问题、回答、时间、语音/视频观察信号、关键帧和事件日志，辅助人工复核。系统不会自动给出录用或不录用决策。
 
-Current user-facing flows:
+## 产品范围
 
-- Recruiter dashboard: `/recruiter`
-- Recruiter setup: `/recruiter/setup`
-- Candidate interview room: `/interview/{sessionId}`
-- Interview report: `/report/{sessionId}`
+当前面向用户的主要流程：
 
-Main capabilities:
+- 招聘方面板：`/recruiter`
+- 招聘方配置：`/recruiter/setup`
+- 候选人面试间：`/interview/{sessionId}`
+- 面试报告：`/report/{sessionId}`
 
-- Supabase Auth-backed recruiter registration/login.
-- Recruiter preparation flow with resume upload, MinerU extraction, LLM follow-up questions, report visibility controls, and interview link creation.
-- Mock session creation for quick local QA without resume parsing.
-- Structured interview question generation from resume, job description, and interview goals.
-- Candidate room with a digital interviewer avatar, browser TTS prompts, captions, manual answer fallback, and optional ASR.
-- Realtime browser camera observation using MediaPipe Tasks Vision assets plus canvas-based quality/activity proxies.
-- Speech analysis from browser audio chunks and server-side aggregation.
-- Video recording upload, ffmpeg WebM metadata repair, report-page video playback, timeline seeking, and keyframe review.
-- Markdown/web report generation with soft-skill radar, Q&A timeline, answer help, keyframes, video playback, and downloadable report content.
+主要能力：
 
-Out of scope for the MVP:
+- 基于 Supabase Auth 的招聘方注册和登录。
+- 招聘方准备流程：上传简历、MinerU 解析、LLM 追问、报告可见性控制、创建面试链接。
+- 快速本地 QA 用的 mock session 创建，无需简历解析。
+- 基于简历、岗位描述和面试目标生成结构化面试问题。
+- 候选人面试间：数字人面试官头像、浏览器 TTS 提问、字幕、手动回答兜底，以及可选 ASR。
+- 使用 MediaPipe Tasks Vision 静态资源和 canvas 质量/活动代理信号做浏览器端实时摄像头观察。
+- 浏览器音频切片语音分析和服务端聚合。
+- 视频录制上传、ffmpeg WebM 元数据修复、报告页视频播放、时间线跳转和关键帧复核。
+- Markdown/web 报告生成，包含软技能雷达、问答时间线、参考答案辅助、关键帧、视频回放和可下载报告内容。
 
-- Screen sharing and OCR.
-- High-precision face recognition or identity verification.
-- Sensitive-attribute, health, personality, or emotion inference.
-- Fully automated scoring or hire/no-hire decisions.
+MVP 暂不包含：
 
-## Tech Stack
+- 屏幕共享和 OCR。
+- 高精度人脸识别或身份核验。
+- 基于敏感属性、健康、人格或情绪的推断。
+- 全自动评分或录用/不录用决策。
 
-- Backend: Python 3.12, standard-library HTTP server, `uv`, `unittest`.
-- Auth/database: Supabase Auth and Supabase Postgres.
-- LLM: OpenAI-compatible Chat Completions API.
-- Resume extraction: MinerU API/client integration.
-- ASR: DashScope Qwen realtime ASR WebSocket service, with browser Web Speech fallback.
-- Frontend: TypeScript, React 19, Vite 8, Ant Design 6, Zustand, Recharts.
-- Browser media: `getUserMedia`, MediaRecorder, Web Speech API, Canvas, MediaPipe Tasks Vision.
-- Video storage/repair: Supabase storage path support plus backend `ffmpeg` WebM remuxing.
-- Containers: Docker/Podman, multi-stage frontend image, Python backend image.
-- Production hosting: Render Blueprint.
-  - Backend and ASR are Render image web services using GHCR `:main` images.
-  - Frontend is a Render Static Site built from `frontend/dist`.
+## 技术栈
 
-## Quick Start
+- 后端：Python 3.12、标准库 HTTP server、`uv`、`unittest`。
+- 认证/数据库：Supabase Auth 和 Supabase Postgres。
+- LLM：OpenAI 兼容 Chat Completions API。
+- 简历解析：MinerU API/client 集成。
+- ASR：DashScope Qwen 实时 ASR WebSocket 服务，浏览器 Web Speech 作为兜底。
+- 前端：TypeScript、React 19、Vite 8、Ant Design 6、Zustand、Recharts。
+- 浏览器媒体：`getUserMedia`、MediaRecorder、Web Speech API、Canvas、MediaPipe Tasks Vision。
+- 视频存储/修复：Supabase storage 路径支持，以及后端 `ffmpeg` WebM remux。
+- 容器：Docker/Podman，多阶段前端镜像，Python 后端镜像。
+- 生产托管：Render Blueprint。
+  - Backend 和 ASR 是 Render image web service，使用 GHCR `:main` 镜像。
+  - Frontend 是 Render Static Site，从 `frontend/dist` 构建。
 
-Copy environment configuration first:
+## 快速开始
+
+先复制环境配置：
 
 ```bash
 cp .env.example .env
 ```
 
-Then start the full local stack:
+启动完整本地栈：
 
 ```bash
 ./compose.sh up
 ```
 
-Useful URLs:
+常用地址：
 
-- Frontend: `http://127.0.0.1:5173`
-- Backend health: `http://127.0.0.1:8000/api/health`
-- ASR WebSocket: `ws://127.0.0.1:9785/`
+- 前端：`http://127.0.0.1:5173`
+- 后端健康检查：`http://127.0.0.1:8000/api/health`
+- ASR WebSocket：`ws://127.0.0.1:9785/`
 
-Stop services:
+停止服务：
 
 ```bash
 ./compose.sh down
 ```
 
-View logs:
+查看日志：
 
 ```bash
 ./compose.sh logs
@@ -82,23 +84,27 @@ View logs:
 ./compose.sh logs asr
 ```
 
-`compose.sh` auto-detects `podman` first, then `docker`. Use `COMPOSE_BIN=docker ./compose.sh up` to force Docker.
+`compose.sh` 会优先自动检测 `podman`，其次使用 `docker`。如果要强制使用 Docker：
 
-## Local Development Without Compose
+```bash
+COMPOSE_BIN=docker ./compose.sh up
+```
 
-Backend:
+## 不使用 Compose 的本地开发
+
+后端：
 
 ```bash
 uv run python -m backend.interview.api --host 127.0.0.1 --port 8000
 ```
 
-ASR:
+ASR：
 
 ```bash
 DASHSCOPE_API_KEY=... uv run python -m backend.asr.qwen_realtime --host 127.0.0.1 --port 8765
 ```
 
-Frontend:
+前端：
 
 ```bash
 cd frontend
@@ -106,32 +112,32 @@ pnpm install
 pnpm dev
 ```
 
-The Vite dev server uses `VITE_API_BASE_URL` when provided. In compose/dev defaults, it points to the backend at `http://127.0.0.1:8000`.
+Vite dev server 会在提供 `VITE_API_BASE_URL` 时使用该值。Compose/dev 默认指向 `http://127.0.0.1:8000` 后端。
 
-## Face Analysis Assets
+## 面部分析资源
 
-Face analysis needs generated static assets:
+面部分析需要生成以下静态资源：
 
 - `frontend/public/models/face_landmarker.task`
 - `frontend/public/mediapipe/wasm/*`
 
-These files are ignored by Git because they are generated third-party binaries. They are prepared automatically by:
+这些文件是生成的第三方二进制资源，因此不提交到 Git。运行以下命令会自动准备：
 
 ```bash
 pnpm --dir frontend build
 ```
 
-For dev mode, `./compose.sh up` also checks and prepares the assets before starting containers. To run the setup directly:
+开发模式下，`./compose.sh up` 也会在容器启动前检查并准备这些资源。如需直接执行：
 
 ```bash
 scripts/setup_face_assets.sh
 ```
 
-Production builds treat these assets as required. If the model or WASM runtime cannot be prepared, the frontend build should fail instead of deploying a broken page.
+生产构建把这些资源视为必需项。如果模型或 WASM runtime 无法准备，前端构建应失败，避免部署损坏页面。
 
-## Environment Variables
+## 环境变量
 
-Required for production auth/database:
+生产认证/数据库必需项：
 
 ```bash
 SUPABASE_URL=https://your-project.supabase.co
@@ -141,7 +147,7 @@ REQUIRE_AUTH=true
 VITE_REQUIRE_AUTH=true
 ```
 
-LLM:
+LLM：
 
 ```bash
 OPENAI_API_KEY=...
@@ -149,16 +155,16 @@ OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_MODEL=gpt-4.1-mini
 ```
 
-MinerU:
+MinerU：
 
 ```bash
 MINERU_API_TOKEN=...
 MINERU_TIMEOUT_SEC=300
 ```
 
-When `MINERU_API_TOKEN` is set, resume extraction uses MinerU Precision API. Without it, the backend falls back to MinerU Agent API; the deprecated `MINERU_COMMAND` CLI path is only used when explicitly configured.
+设置 `MINERU_API_TOKEN` 时，简历解析使用 MinerU Precision API。未设置时，后端回退到 MinerU Agent API；已废弃的 `MINERU_COMMAND` CLI 路径只在显式配置时使用。
 
-ASR:
+ASR：
 
 ```bash
 DASHSCOPE_API_KEY=...
@@ -170,12 +176,17 @@ INTERVIEW_FILLER_WORDS=嗯,啊,呃,额,那个,就是,然后,um,uh,erm
 VITE_INTERVIEW_FILLER_WORDS=嗯,啊,呃,额,那个,就是,然后,um,uh,erm
 ```
 
-Compose maps host port `9785` to the ASR service port `8765`. If you run the ASR service directly without Compose, set `VITE_ASR_WS_URL=ws://127.0.0.1:8765/` for the frontend.
+Compose 会把宿主机端口 `9785` 映射到 ASR 服务端口 `8765`。如果不使用 Compose、直接运行 ASR 服务，请给前端设置：
 
-Interview sessions generate ASR context terms from the resume, job description, interview goals, role, and question text. The frontend passes those terms to the ASR WebSocket, and the Qwen ASR proxy forwards them as session `corpus_text` to improve recognition of technical terms such as `RAG`, `TypeScript`, `LiveKit`, and domain-specific Chinese phrases.
-The generated terms are persisted in `interview_sessions.asr_context_terms`; apply database migrations before relying on this field in production.
+```bash
+VITE_ASR_WS_URL=ws://127.0.0.1:8765/
+```
 
-LiveKit:
+面试 session 会从简历、岗位描述、面试目标、岗位和问题文本中生成 ASR 上下文词。前端把这些词传给 ASR WebSocket，Qwen ASR 代理再作为 session `corpus_text` 转发，用于提升 `RAG`、`TypeScript`、`LiveKit` 以及中文领域词等技术名词的识别效果。
+
+生成的词会持久化到 `interview_sessions.asr_context_terms`。生产环境依赖该字段前，请先执行数据库迁移。
+
+LiveKit：
 
 ```bash
 LIVEKIT_URL=wss://...
@@ -183,11 +194,11 @@ LIVEKIT_API_KEY=...
 LIVEKIT_API_SECRET=...
 ```
 
-Frontend build-time variables must be available before `pnpm build` because Vite embeds `VITE_*` values into the static bundle.
+前端构建期变量必须在 `pnpm build` 之前可用，因为 Vite 会把 `VITE_*` 值嵌入静态 bundle。
 
-## API Surface
+## API 接口
 
-Public:
+公开接口：
 
 - `GET /api/health`
 - `POST /api/auth/register`
@@ -195,7 +206,7 @@ Public:
 - `POST /api/auth/refresh`
 - `POST /api/auth/logout`
 
-Protected when `REQUIRE_AUTH=true`:
+当 `REQUIRE_AUTH=true` 时需要认证：
 
 - `GET /api/auth/me`
 - `POST /api/prep-sessions/resume`
@@ -213,17 +224,21 @@ Protected when `REQUIRE_AUTH=true`:
 - `GET /api/sessions/{id}/report?viewer=recruiter|candidate`
 - `POST /api/mock-session`
 
-Use `Authorization: Bearer <access_token>` for protected routes.
+受保护接口使用：
 
-## Testing
+```text
+Authorization: Bearer <access_token>
+```
 
-Run the standard test script:
+## 测试
+
+运行标准测试脚本：
 
 ```bash
 scripts/test.sh
 ```
 
-Common focused checks:
+常用聚焦检查：
 
 ```bash
 uv run python -m unittest discover -s backend/tests
@@ -231,25 +246,25 @@ CI=true pnpm --dir frontend test
 CI=true pnpm --dir frontend build
 ```
 
-Functional API test, with backend already running:
+功能 API 测试，需要后端已启动：
 
 ```bash
 uv run python -m unittest backend.tests.test_functional -v
 ```
 
-For full interview-flow browser testing, use the project `/interview-e2e-testing` skill with the dev stack running and PDF resumes available in `mock-resumes/`.
+完整面试流程浏览器测试使用项目 `/interview-e2e-testing` skill，需要开发栈已启动，并且 `mock-resumes/` 中有 PDF 简历。
 
-## Mock Resumes
+## Mock 简历
 
-Generate local mock resumes:
+生成本地 mock 简历：
 
 ```bash
 uv run python scripts/generate_mock_resumes.py
 ```
 
-Generated files are written under ignored `mock-resumes/`.
+生成文件会写入被忽略的 `mock-resumes/` 目录。
 
-To test resume upload without real MinerU:
+不接真实 MinerU 测试简历上传：
 
 ```bash
 MINERU_COMMAND="$PWD/scripts/mock_mineru_open_api.py" \
@@ -258,19 +273,19 @@ MINERU_COMMAND="$PWD/scripts/mock_mineru_open_api.py" \
 
 ## Docker / Podman
 
-Development mode:
+开发模式：
 
 ```bash
 ./compose.sh up
 ```
 
-Production-like local mode:
+类生产本地模式：
 
 ```bash
 ./compose.sh prod
 ```
 
-Raw compose equivalent:
+等价原生命令：
 
 ```bash
 docker compose up -d --build
@@ -279,64 +294,64 @@ podman compose up -d --build
 podman compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 ```
 
-Service ports:
+服务端口：
 
-| Service | Default URL | Override |
+| 服务 | 默认地址 | 覆盖变量 |
 |---|---|---|
 | Backend API | `http://127.0.0.1:8000` | `BACKEND_PORT` |
 | Frontend | `http://127.0.0.1:5173` | `FRONTEND_PORT` |
 | ASR WebSocket | `ws://127.0.0.1:9785/` | `ASR_PORT` |
 
-## Production Deployment
+## 生产部署
 
-Production is described by `render.yaml`.
+生产部署由 `render.yaml` 描述。
 
-Render resources:
+Render 资源：
 
-- `hci-ai-interview-backend`: image web service, Singapore, GHCR backend image `:main`.
-- `hci-ai-interview-asr`: image web service, Singapore, same backend image with ASR command.
-- `hci-ai-interview-frontend`: static site, built from `frontend/dist`.
+- `hci-ai-interview-backend`：image web service，新加坡区域，使用 GHCR backend `:main` 镜像。
+- `hci-ai-interview-asr`：image web service，新加坡区域，使用同一个 backend 镜像并覆盖 ASR 启动命令。
+- `hci-ai-interview-frontend`：static site，从 `frontend/dist` 构建。
 
-Important Render setup:
+重要 Render 配置：
 
-- GHCR images are published by `.github/workflows/package-images.yml` on `main`.
-- Backend/ASR need a Render registry credential named `hci` with GHCR package read access.
-- Production environment is centralized in Render environment group `hci_env`.
-- Upload `.env.prod` as a Render Secret File in `hci_env`.
-- Python image services load `/etc/secrets/.env.prod`.
-- The static frontend build exports `/etc/secrets/.env.prod` before running `pnpm build`.
+- `.github/workflows/package-images.yml` 会在 `main` 上发布 GHCR 镜像。
+- Backend/ASR 需要名为 `hci` 的 Render registry credential，并具备读取 GHCR package 的权限。
+- 生产环境变量集中在 Render environment group `hci_env`。
+- 将 `.env.prod` 作为 Render Secret File 上传到 `hci_env`。
+- Python image 服务会加载 `/etc/secrets/.env.prod`。
+- 静态前端构建会在运行 `pnpm build` 前 export `/etc/secrets/.env.prod`。
 
-Validate the Blueprint:
+校验 Blueprint：
 
 ```bash
 render blueprints validate render.yaml --output json
 ```
 
-## Repository Map
+## 仓库结构
 
-- `backend/interview/`: HTTP API, session model, question generation, answer analysis, config, logging.
-- `backend/auth/`: Supabase auth service and middleware.
-- `backend/database/`: Supabase persistence repositories and SQL migrations.
-- `backend/asr/`: DashScope realtime ASR WebSocket service.
-- `backend/speech_analysis/`: speech features, aggregation, and audio analysis.
-- `backend/storage/`: video upload/storage helpers and WebM metadata repair.
-- `frontend/src/pages/`: recruiter, interview, report, and dashboard pages.
-- `frontend/src/pages/InterviewPage/hooks/`: interview state, speech, video recording, and video analysis hooks.
-- `frontend/public/`: generated face-analysis assets and static avatar/video assets.
-- `spec/`: product requirements, implementation notes, and design plans.
-- `scripts/`: local setup, testing, mock resume, and generated asset helpers.
+- `backend/interview/`：HTTP API、session 模型、问题生成、回答分析、配置和日志。
+- `backend/auth/`：Supabase auth service 和 middleware。
+- `backend/database/`：Supabase 持久化 repository 和 SQL migration。
+- `backend/asr/`：DashScope 实时 ASR WebSocket 服务。
+- `backend/speech_analysis/`：语音特征、聚合和音频分析。
+- `backend/storage/`：视频上传/存储辅助和 WebM 元数据修复。
+- `frontend/src/pages/`：招聘方、面试间、报告和 dashboard 页面。
+- `frontend/src/pages/InterviewPage/hooks/`：面试状态、语音、视频录制和视频分析 hooks。
+- `frontend/public/`：生成的面部分析资源和静态头像/视频资源。
+- `spec/`：产品需求、实现说明和设计计划。
+- `scripts/`：本地设置、测试、mock 简历和资源生成脚本。
 
-## Product Guardrails
+## 产品护栏
 
-- Keep conclusions tied to evidence: question text, candidate answer, answer metrics, video/speech observations, and event logs.
-- Treat camera and speech metrics as observation signals, not capability judgments.
-- Do not infer sensitive attributes, emotion, personality, health, or hiring outcome from non-language signals.
-- Preserve human review paths for short, missing, uncertain, or low-confidence answers.
-- Keep generated binary assets out of Git unless the project policy changes.
+- 结论必须绑定证据：问题文本、候选人回答、回答指标、视频/语音观察和事件日志。
+- 摄像头和语音指标只作为观察信号，不作为能力判断。
+- 不从非语言信号推断敏感属性、情绪、人格、健康或录用结果。
+- 对短回答、缺失回答、不确定回答或低置信度回答保留人工复核路径。
+- 除非项目策略改变，否则不要把生成的二进制资源提交到 Git。
 
-## Specs
+## 规格文档
 
-Read these before changing product scope:
+变更产品范围前先阅读：
 
 - `spec/prd.md`
 - `spec/goals.md`
