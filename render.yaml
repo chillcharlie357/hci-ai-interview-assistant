@@ -1,0 +1,53 @@
+# Render Blueprint for the HCI interview MVP.
+#
+# Setup notes:
+# - Import this file as a Render Blueprint.
+# - The image-backed services use the GHCR tag `main`, published by the
+#   Package container images workflow from the `main` branch.
+# - The backend/asr GHCR images use the Render registry credential named `hci`.
+#   Keep that credential in sync with a GitHub token that has `read:packages`.
+# - Keep all production environment configuration in the Render environment
+#   group `hci_env`. Upload `.env.prod` as a Secret File there. Python services
+#   load it from `/etc/secrets/.env.prod`; the static build exports it first.
+
+services:
+  - type: web
+    runtime: image
+    name: hci-ai-interview-backend
+    plan: free
+    region: singapore
+    image:
+      url: ghcr.io/chillcharlie357/hci-ai-interview-assistant-backend:main
+      creds:
+        fromRegistryCreds:
+          name: hci
+    dockerCommand: uv run python -m backend.interview.api --host 0.0.0.0 --port 10000
+    healthCheckPath: /api/health
+    envVars:
+      - fromGroup: hci_env
+
+  - type: web
+    runtime: image
+    name: hci-ai-interview-asr
+    plan: free
+    region: singapore
+    image:
+      url: ghcr.io/chillcharlie357/hci-ai-interview-assistant-backend:main
+      creds:
+        fromRegistryCreds:
+          name: hci
+    dockerCommand: uv run python -m backend.asr.qwen_realtime --host 0.0.0.0 --port 10000
+    envVars:
+      - fromGroup: hci_env
+
+  - type: web
+    runtime: static
+    name: hci-ai-interview-frontend
+    buildCommand: set -a; . /etc/secrets/.env.prod; set +a; cd frontend && pnpm install --frozen-lockfile --ignore-scripts && pnpm build
+    staticPublishPath: frontend/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - fromGroup: hci_env

@@ -8,8 +8,8 @@
 为什么要中转：
   1. DashScope API Key 只留在后端，不暴露到浏览器；
   2. 断线、错误可以在服务端统一处理并降级；
-  3. 与现有 HTTP API (backend.interview.api) 解耦，用独立端口 (默认 8765)，
-     不需要把 http.server 换成 FastAPI/ASGI 框架。
+  3. 与现有 HTTP API (backend.interview.api) 解耦，用独立端口 (默认 8765)。
+     该端口同时响应 HTTP 健康检查，便于 Render 等平台探测服务存活。
 
 客户端协议（最小够用，方便前端直接消费）：
   Server → Client (JSON)
@@ -39,6 +39,13 @@ import json
 import logging
 import os
 from typing import Any
+
+try:
+    from aiohttp import WSMsgType, web
+except ImportError as exc:  # pragma: no cover - 启动时明确报错
+    raise RuntimeError(
+        "缺少依赖 `aiohttp`。请先运行 `uv sync` 或 `pip install aiohttp`。"
+    ) from exc
 
 try:
     import websockets
@@ -225,6 +232,38 @@ async def _forward_events_to_client(
             break
 
 
+class _AiohttpWebSocketAdapter:
+    """Expose aiohttp WebSocketResponse with the small API _handle_client uses."""
+
+    def __init__(self, websocket: web.WebSocketResponse) -> None:
+        self._websocket = websocket
+
+    async def send(self, data: str | bytes) -> None:
+        if isinstance(data, bytes):
+            await self._websocket.send_bytes(data)
+            return
+        await self._websocket.send_str(data)
+
+    async def close(self) -> None:
+        await self._websocket.close()
+
+    def __aiter__(self) -> "_AiohttpWebSocketAdapter":
+        return self
+
+    async def __anext__(self) -> str | bytes:
+        while True:
+            message = await self._websocket.receive()
+            if message.type == WSMsgType.TEXT:
+                return str(message.data)
+            if message.type == WSMsgType.BINARY:
+                return bytes(message.data)
+            if message.type in {WSMsgType.CLOSE, WSMsgType.CLOSING, WSMsgType.CLOSED}:
+                raise StopAsyncIteration
+            if message.type == WSMsgType.ERROR:
+                error = self._websocket.exception()
+                raise ConnectionError("ASR WebSocket closed with an error") from error
+
+
 async def _handle_client(websocket: WebSocketConnection) -> None:
     api_key = os.environ.get("DASHSCOPE_API_KEY", "").strip()
     if not api_key:
@@ -279,7 +318,7 @@ async def _handle_client(websocket: WebSocketConnection) -> None:
                 continue
             if isinstance(payload, dict) and payload.get("type") == "end":
                 break
-    except websockets.ConnectionClosed:
+    except (websockets.ConnectionClosed, ConnectionError):
         log.info("asr client disconnected")
     finally:
         await bridge.finish()
@@ -294,23 +333,64 @@ async def _handle_client(websocket: WebSocketConnection) -> None:
             pass
 
 
+def _health_payload() -> dict[str, Any]:
+    return {
+        "status": "ok",
+        "service": "asr",
+        "dashscope_configured": bool(os.environ.get("DASHSCOPE_API_KEY", "").strip()),
+    }
+
+
+async def _handle_health(_request: web.Request) -> web.Response:
+    return web.json_response(_health_payload())
+
+
+async def _handle_root(request: web.Request) -> web.StreamResponse:
+    if request.headers.get("Upgrade", "").lower() != "websocket":
+        return await _handle_health(request)
+
+    # 音频帧默认 <= 16 KB，放宽一点给 1MB，够保险。
+    websocket = web.WebSocketResponse(max_msg_size=1 << 20, heartbeat=20)
+    await websocket.prepare(request)
+    await _handle_client(_AiohttpWebSocketAdapter(websocket))
+    return websocket
+
+
+class _AiohttpAsrServer:
+    """Compatibility wrapper with close()/wait_closed() like websockets server."""
+
+    def __init__(self, runner: web.AppRunner) -> None:
+        self._runner = runner
+        self._cleanup_task: asyncio.Task[None] | None = None
+
+    def close(self) -> None:
+        if self._cleanup_task is None:
+            self._cleanup_task = asyncio.create_task(self._runner.cleanup())
+
+    async def wait_closed(self) -> None:
+        if self._cleanup_task is None:
+            await self._runner.cleanup()
+            return
+        await self._cleanup_task
+
+
 async def create_server(host: str = "127.0.0.1", port: int = 8765) -> Any:
-    """创建并启动 WebSocket 服务器。返回 server 对象用于 shutdown。"""
-    server = await websockets.serve(
-        _handle_client,
-        host,
-        port,
-        # 音频帧默认 <= 16 KB，放宽一点给 1MB，够保险
-        max_size=1 << 20,
-        ping_interval=20,
-        ping_timeout=20,
-    )
-    return server
+    """创建并启动 HTTP + WebSocket 服务器。返回 server 对象用于 shutdown。"""
+    app = web.Application()
+    app.router.add_get("/", _handle_root, allow_head=True)
+    app.router.add_get("/health", _handle_health, allow_head=True)
+    app.router.add_get("/api/health", _handle_health, allow_head=True)
+
+    runner = web.AppRunner(app, access_log=None)
+    await runner.setup()
+    site = web.TCPSite(runner, host, port)
+    await site.start()
+    return _AiohttpAsrServer(runner)
 
 
 async def serve_forever(host: str = "127.0.0.1", port: int = 8765) -> None:
     server = await create_server(host=host, port=port)
-    log.info("Qwen ASR WebSocket server listening on ws://%s:%s/", host, port)
+    log.info("Qwen ASR server listening on http://%s:%s/ and ws://%s:%s/", host, port, host, port)
     try:
         await asyncio.Future()  # run forever
     finally:
@@ -320,6 +400,11 @@ async def serve_forever(host: str = "127.0.0.1", port: int = 8765) -> None:
 
 def main() -> None:  # pragma: no cover - CLI 入口
     import argparse
+
+    from backend.interview.config import load_runtime_dotenv_files
+
+    if not os.environ.get("INTERVIEW_DISABLE_DOTENV"):
+        load_runtime_dotenv_files()
 
     parser = argparse.ArgumentParser(description="Qwen3-ASR realtime WebSocket proxy.")
     parser.add_argument("--host", default=os.environ.get("ASR_WS_HOST", "127.0.0.1"))
