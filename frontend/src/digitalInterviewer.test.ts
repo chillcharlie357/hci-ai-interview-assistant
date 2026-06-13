@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   buildConversationCaptions,
   describeDigitalInterviewerState,
+  shouldHandleSpeechEvent,
   shouldAutoSpeakQuestion,
+  shouldStartPendingSpeech,
   type DigitalInterviewerState
 } from "./digitalInterviewer";
 import { createSessionFromDraft, createDraft, recordAnswer } from "./interviewFlow";
@@ -15,6 +17,17 @@ describe("digitalInterviewer", () => {
     expect(shouldAutoSpeakQuestion("q_002", "q_001", true)).toBe(true);
     expect(shouldAutoSpeakQuestion(null, "q_001", true)).toBe(false);
     expect(shouldAutoSpeakQuestion("q_003", "q_002", false)).toBe(false);
+  });
+
+  it("ignores stale speech callbacks after a newer interviewer prompt starts", () => {
+    expect(shouldHandleSpeechEvent(1, 2)).toBe(false);
+    expect(shouldHandleSpeechEvent(2, 2)).toBe(true);
+  });
+
+  it("only starts the pending speech request that is still active", () => {
+    expect(shouldStartPendingSpeech(1, 2, 1)).toBe(false);
+    expect(shouldStartPendingSpeech(2, 2, 1)).toBe(false);
+    expect(shouldStartPendingSpeech(2, 2, 2)).toBe(true);
   });
 
   it("describes interviewer states for the meeting tile", () => {
