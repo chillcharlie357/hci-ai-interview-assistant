@@ -181,9 +181,6 @@ class SessionRepository:
         # followup_states 仅活在内存里：DB schema 未必有该列，丢弃以避免 upsert 报错；
         # 历史/重启场景里恢复 session 时缺失即可，每题完成后 finished=True 不再触发追问。
         data.pop('followup_states', None)
-        # max_followup_rounds 同理：DB schema 未必有该列。重启后回落到默认 2，
-        # 但 followup_states 已丢失，重启场景不会触发追问，不影响行为。
-        data.pop('max_followup_rounds', None)
         # 空字符串的 created_at 会让 PostgreSQL 报错，删除让数据库使用默认值
         if not data.get('created_at'):
             data.pop('created_at', None)
