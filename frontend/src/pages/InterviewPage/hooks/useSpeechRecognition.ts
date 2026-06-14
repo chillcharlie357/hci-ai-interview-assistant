@@ -11,6 +11,12 @@ import {
 import { startPcmRecorder, type PcmRecorderHandle } from "@/pcmRecorder";
 import { toBase64 } from "@/utils/file";
 
+export type SpeechTranscriptEvent = {
+  text: string;
+  phase: "interim" | "final";
+  provider: "qwen" | "webspeech";
+};
+
 export type SpeechRecognitionHandle = {
   audioChunkStatus: string;
   cumulativeMetrics: SpeechChunkResponse["cumulative"] | null;
@@ -28,6 +34,7 @@ export function useSpeechRecognition(
   sessionId: string | undefined,
   onInterimTranscript: (text: string) => void,
   onFinalTranscript: (text: string) => void,
+  shouldAcceptTranscript?: (event: SpeechTranscriptEvent) => boolean,
 ): SpeechRecognitionHandle {
   const { message } = App.useApp();
 
@@ -48,6 +55,10 @@ export function useSpeechRecognition(
     onFinalTranscript(text);
   }, [onFinalTranscript]);
 
+  const acceptTranscript = useCallback((event: SpeechTranscriptEvent) => (
+    shouldAcceptTranscript ? shouldAcceptTranscript(event) : true
+  ), [shouldAcceptTranscript]);
+
   const enqueueSpeechChunkUpload = useCallback((blob: Blob) => {
     chunkUploadQueueRef.current = chunkUploadQueueRef.current.then(async () => {
       try {
@@ -66,11 +77,17 @@ export function useSpeechRecognition(
     const transcriber = createSpeechTranscriber(
       window as Parameters<typeof createSpeechTranscriber>[0],
       (text) => {
+        if (!acceptTranscript({ text, phase: "final", provider: "webspeech" })) return;
         setInterimTranscript("");
         onFinalTranscript(text);
       },
       () => {},
       (text) => {
+        if (!acceptTranscript({ text, phase: "interim", provider: "webspeech" })) {
+          setInterimTranscript("");
+          onInterimTranscript("");
+          return;
+        }
         setInterimTranscript(text);
         onInterimTranscript(text);
       }
@@ -82,7 +99,7 @@ export function useSpeechRecognition(
     } else {
       setAsrProvider("none");
     }
-  }, [onFinalTranscript, onInterimTranscript]);
+  }, [acceptTranscript, onFinalTranscript, onInterimTranscript]);
 
   const startAsrWithFallback = useCallback(async (stream: MediaStream, asrContextTerms: string[] = []) => {
     const preferQwen =
@@ -93,10 +110,20 @@ export function useSpeechRecognition(
       const qwen = createQwenAsrStream(stream, {
         onReady: () => setAsrProvider("qwen"),
         onInterim: (text) => {
+          if (!acceptTranscript({ text, phase: "interim", provider: "qwen" })) {
+            setInterimTranscript("");
+            onInterimTranscript("");
+            return;
+          }
           setInterimTranscript(text);
           onInterimTranscript(text);
         },
         onFinal: (text) => {
+          if (!acceptTranscript({ text, phase: "final", provider: "qwen" })) {
+            setInterimTranscript("");
+            onInterimTranscript("");
+            return;
+          }
           setInterimTranscript("");
           onFinalTranscript(text);
         },
@@ -121,7 +148,7 @@ export function useSpeechRecognition(
     }
 
     startWebSpeechTranscriber();
-  }, [asrProvider, message, onFinalTranscript, onInterimTranscript, startWebSpeechTranscriber]);
+  }, [acceptTranscript, asrProvider, message, onFinalTranscript, onInterimTranscript, startWebSpeechTranscriber]);
 
   const startMediaStreamAndAsr = useCallback(async (asrContextTerms: string[] = []) => {
     if (!navigator.mediaDevices?.getUserMedia) {

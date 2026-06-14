@@ -34,6 +34,27 @@ class AsrContextTest(unittest.TestCase):
 
         self.assertEqual(corpus_text, "RAG\nTypeScript\n检索增强生成")
 
+    def test_filters_question_clauses_from_hotwords(self):
+        questions = [
+            InterviewQuestion(
+                id="q_001",
+                dimension="系统设计",
+                prompt="请描述任务编排平台和日志系统的设计。",
+                follow_ups=["如果依赖的外部服务使用数据库，你是如何设计日志系统在你的平台?"],
+                evidence_hints=[],
+            )
+        ]
+
+        terms = extract_asr_context_terms(
+            job_description="需要日志系统、任务编排平台和数据库经验。",
+            questions=questions,
+        )
+
+        self.assertIn("日志系统", terms)
+        self.assertIn("任务编排平台", terms)
+        self.assertNotIn("如果依赖的外部服务使用数据库", terms)
+        self.assertNotIn("你是如何设计日志系统", terms)
+
 
 if __name__ == "__main__":
     unittest.main()

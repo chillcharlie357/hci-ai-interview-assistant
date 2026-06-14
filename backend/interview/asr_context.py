@@ -45,7 +45,31 @@ _KNOWN_TECH_TERMS = [
     "知识库",
     "重排序",
     "嵌入模型",
+    "日志系统",
+    "任务编排平台",
 ]
+
+_PROMPT_LIKE_CJK_MARKERS = (
+    "请",
+    "请问",
+    "如果",
+    "如何",
+    "怎么",
+    "怎样",
+    "为什么",
+    "是否",
+    "能否",
+    "你",
+    "你的",
+    "您",
+    "描述",
+    "说明",
+    "介绍",
+    "需要",
+    "包括",
+    "以及",
+    "和",
+)
 
 _ASR_CONTEXT_SYSTEM_PROMPT = """你是语音识别热词提取器。请从候选人简历、岗位描述、面试目标和问题中提取最多 40 个有助于 ASR 识别的技术名词、产品名、英文缩写、框架名、领域词。
 
@@ -178,5 +202,7 @@ def _is_valid_hotword(term: str) -> bool:
     if len(term) > 48:
         return False
     if term.lower() in {"the", "and", "with", "for", "岗位", "候选人"}:
+        return False
+    if not term.isascii() and any(marker in term for marker in _PROMPT_LIKE_CJK_MARKERS):
         return False
     return bool(re.search(r"[A-Za-z0-9\u4e00-\u9fff]", term))
