@@ -3,8 +3,10 @@ import { useNavigate, useParams } from "react-router-dom";
 import { App, Spin, Drawer, Divider, Tag, Typography } from "antd";
 import { VideoCameraOutlined } from "@ant-design/icons";
 
+import { shouldIgnoreAsrTranscript } from "@/asrTranscriptGuard";
 import { requestAnswerHelp, type AnswerHelpResult } from "@/answerHelp";
 import { buildAvatarPrompt } from "@/interviewFlow";
+import { createLogger } from "@/logger";
 import {
   buildConversationCaptions,
   shouldAutoSpeakQuestion,
@@ -26,6 +28,8 @@ import { MetricsSidebar } from "./components/MetricsSidebar";
 
 import "./InterviewPage.css";
 
+const log = createLogger("interview-asr");
+
 declare global {
   interface Window {
     __hciInterviewSpeechId?: number;
@@ -40,12 +44,15 @@ export function InterviewPage() {
   const navigate = useNavigate();
   const { message } = App.useApp();
 
-  const [interimTranscriptDisplay, setInterimTranscriptDisplay] = useState("");
+  const sessionRef = useRef<ReturnType<typeof useInterviewSession>["session"]>(null);
+  const answerTextRef = useRef("");
+  const asrStartedAtMsRef = useRef<number | null>(null);
 
   const speech = useSpeechRecognition(
     sessionId,
-    (interim) => setInterimTranscriptDisplay(interim),
+    () => {},
     (finalText) => setAnswerTextFromAsr(finalText),
+    (event) => shouldAcceptAsrTranscript(event.text, event.phase),
   );
 
   const sessionHandle = useInterviewSession(sessionId, speech.chunkUploadFailCount);
@@ -74,6 +81,33 @@ export function InterviewPage() {
   function setAnswerTextFromAsr(text: string) {
     appendAnswerText(text);
   }
+
+  function shouldAcceptAsrTranscript(text: string, phase: "interim" | "final") {
+    const currentSession = sessionRef.current;
+    const prompts = currentSession ? collectInterviewerPrompts(currentSession) : [];
+    const ignore = shouldIgnoreAsrTranscript({
+      transcript: text,
+      prompts,
+      answerText: answerTextRef.current,
+      asrStartedAtMs: asrStartedAtMsRef.current,
+      nowMs: performance.now(),
+    });
+    if (ignore) {
+      log.info("ignored likely interviewer ASR %s", phase, {
+        text,
+        answerEmpty: answerTextRef.current.trim().length === 0,
+      });
+    }
+    return !ignore;
+  }
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  useEffect(() => {
+    answerTextRef.current = answerText;
+  }, [answerText]);
 
   useEffect(() => {
     function loadVoices() {
@@ -245,6 +279,7 @@ export function InterviewPage() {
   async function handleStartCandidateAnswer() {
     if (!session?.currentQuestion || answerStartedAt !== null) return;
     startAnswer();
+    asrStartedAtMsRef.current = performance.now();
     await speech.startMediaStreamAndAsr(session.asrContextTerms ?? []);
     // 第一次回答时启动录制
     if (!recorder.isRecording && session?.id) {
@@ -261,6 +296,7 @@ export function InterviewPage() {
   async function handleFinishCandidateAnswer() {
     video.captureKeyframe("answer_end");
     await speech.stopMediaStream();
+    asrStartedAtMsRef.current = null;
 
     // 计算当前答案的视频时间戳偏移（必须在 stopAndUpload 之前计算）
     const videoTimestampSec = recorder.accumulatedDurationRef.current
@@ -457,6 +493,24 @@ export function InterviewPage() {
       </Drawer>
     </div>
   );
+}
+
+function collectInterviewerPrompts(session: NonNullable<ReturnType<typeof useInterviewSession>["session"]>): string[] {
+  const prompts = [
+    buildAvatarPrompt(session),
+    session.currentFollowup,
+    session.currentQuestion?.prompt,
+    ...session.questions.flatMap((question) => [
+      question.prompt,
+      ...question.followUps,
+      ...question.evidenceHints,
+    ]),
+    ...session.answers.flatMap((answer) => [
+      answer.prompt,
+      answer.followupPrompt,
+    ]),
+  ];
+  return prompts.filter((prompt): prompt is string => Boolean(prompt?.trim()));
 }
 
 export default InterviewPage;
